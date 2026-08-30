@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/supabase';
 
 type Goal = 'downloads' | 'feature_discovery' | 'trust' | 'engagement';
-type Audience = 'new_lifters' | 'consistent_lifters' | 'serious_gym' | 'general_fitness';
+type Audience = 'new_lifters' | 'consistent_lifters' | 'serious_gym' | 'general_fitness' | 'new_anglers' | 'weekend_anglers' | 'serious_anglers' | 'local_crews';
 type Angle = 'relatable' | 'problem_solution' | 'proof' | 'routine';
 type ContentFormat = 'photo_carousel' | 'video_brief';
 
@@ -13,10 +13,12 @@ interface PromotionApp {
   id: string; slug: string; name: string; tagline: string | null; accent: string;
   draft_agent_id: string | null; producer_agent_id: string | null; publish_agent_id: string | null;
   drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean;
-  pending_drafts: number; blockers: string[];
+  pending_drafts: number; blockers: string[]; playbook_version: string; content_domain: 'fitness' | 'fishing';
+  uploaded_feature_keys: string[]; uploaded_feature_count: number; feature_count: number;
+  photo_source_ready: boolean; producer_available: boolean;
 }
 interface Readiness {
-  free_ai: boolean; review_required: true; required_features: FeatureReadiness[];
+  free_ai: boolean; review_required: true; feature_libraries: Record<string, FeatureReadiness[]>;
   accounts: PromotionAccount[]; apps: PromotionApp[];
 }
 interface Mission {
@@ -31,11 +33,17 @@ const GOALS: Array<{ value: Goal; title: string; copy: string }> = [
   { value: 'trust', title: 'Build trust', copy: 'Use specific, supportable product proof.' },
   { value: 'engagement', title: 'Start conversation', copy: 'Lead with a relatable gym thought people can answer.' },
 ];
-const AUDIENCES: Array<{ value: Audience; title: string }> = [
+const FITNESS_AUDIENCES: Array<{ value: Audience; title: string }> = [
   { value: 'new_lifters', title: 'New lifters' },
   { value: 'consistent_lifters', title: 'Consistent lifters' },
   { value: 'serious_gym', title: 'Serious gym users' },
   { value: 'general_fitness', title: 'General fitness' },
+];
+const FISHING_AUDIENCES: Array<{ value: Audience; title: string }> = [
+  { value: 'new_anglers', title: 'New anglers' },
+  { value: 'weekend_anglers', title: 'Weekend anglers' },
+  { value: 'serious_anglers', title: 'Serious anglers' },
+  { value: 'local_crews', title: 'Local crews' },
 ];
 const ANGLES: Array<{ value: Angle; title: string; copy: string }> = [
   { value: 'relatable', title: 'Relatable', copy: 'A gym thought, confession or question.' },
@@ -49,9 +57,11 @@ function stateLabel(state: Mission['status']) {
 }
 
 export default function PromotionMission() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedApp = searchParams.get('app');
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [appSlug, setAppSlug] = useState('deadset');
+  const [appSlug, setAppSlug] = useState(requestedApp === 'cast' ? 'cast' : 'deadset');
   const [accountId, setAccountId] = useState('');
   const [goal, setGoal] = useState<Goal>('downloads');
   const [audience, setAudience] = useState<Audience>('consistent_lifters');
@@ -70,7 +80,7 @@ export default function PromotionMission() {
     ]);
     setReadiness(nextReadiness);
     setMissions(missionData.missions);
-    setFeatures((current) => current.length ? current : nextReadiness.required_features.slice(0, 3).map((item) => item.key));
+    setFeatures((current) => current.length ? current : (nextReadiness.feature_libraries.deadset ?? []).slice(0, 3).map((item) => item.key));
   }, []);
 
   useEffect(() => {
@@ -82,13 +92,21 @@ export default function PromotionMission() {
   const selectedApp = useMemo(() => readiness?.apps.find((app) => app.slug === appSlug) ?? null, [appSlug, readiness]);
   const eligibleAccounts = useMemo(() => readiness?.accounts.filter((account) =>
     account.status === 'connected' && (!account.app_id || account.app_id === selectedApp?.id)) ?? [], [readiness, selectedApp?.id]);
+  const featureLibrary = readiness?.feature_libraries[appSlug] ?? [];
+  const audienceOptions = selectedApp?.content_domain === 'fishing' ? FISHING_AUDIENCES : FITNESS_AUDIENCES;
+  const selectedAssetsReady = features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
+  const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady);
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
 
   function chooseApp(slug: string) {
     setAppSlug(slug);
+    setSearchParams({ app: slug }, { replace: true });
     setAccountId('');
-    if (slug !== 'deadset') { setFormat('video_brief'); setAutoProduce(false); }
+    setFeatures((readiness?.feature_libraries[slug] ?? []).slice(0, count).map((item) => item.key));
+    setAudience(slug === 'cast' ? 'weekend_anglers' : 'consistent_lifters');
+    setFormat('photo_carousel');
+    setAutoProduce(true);
   }
 
   function toggleFeature(key: string) {
@@ -108,7 +126,7 @@ export default function PromotionMission() {
           app_slug: appSlug, account_id: accountId || null, goal, audience, angle,
           content_format: format, draft_count: count,
           feature_rotation: format === 'photo_carousel' ? features : [],
-          auto_produce: format === 'photo_carousel' && autoProduce && Boolean(selectedApp?.production_ready),
+          auto_produce: format === 'photo_carousel' && autoProduce && selectedProductionReady,
         }),
       });
       setMessage({ tone: 'ok', text: `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will return here and to your review queue—nothing will publish without you.` });
@@ -155,7 +173,7 @@ export default function PromotionMission() {
           <section className="mission-panel twin">
             <div>
               <div className="mission-heading"><b>03</b><div><span>AUDIENCE</span><h3>Who is it for?</h3></div></div>
-              <div className="mission-chip-row">{AUDIENCES.map((item) => <button type="button" aria-pressed={audience === item.value} className={audience === item.value ? 'selected' : ''} onClick={() => setAudience(item.value)} key={item.value}>{item.title}</button>)}</div>
+              <div className="mission-chip-row">{audienceOptions.map((item) => <button type="button" aria-pressed={audience === item.value} className={audience === item.value ? 'selected' : ''} onClick={() => setAudience(item.value)} key={item.value}>{item.title}</button>)}</div>
             </div>
             <div>
               <div className="mission-heading"><b>04</b><div><span>ANGLE</span><h3>How should it feel?</h3></div></div>
@@ -166,16 +184,16 @@ export default function PromotionMission() {
           <section className="mission-panel">
             <div className="mission-heading"><b>05</b><div><span>CREATIVE ROUTE</span><h3>What should the agents make?</h3></div></div>
             <div className="format-grid">
-              <button type="button" aria-pressed={format === 'photo_carousel'} disabled={appSlug !== 'deadset'} className={format === 'photo_carousel' ? 'selected' : ''} onClick={() => { setFormat('photo_carousel'); setAutoProduce(true); }}><strong>Native photo carousel</strong><small>Real licensed lifestyle image → exact Deadset feature proof. Can be produced automatically when the studio is ready.</small></button>
+              <button type="button" aria-pressed={format === 'photo_carousel'} className={format === 'photo_carousel' ? 'selected' : ''} onClick={() => { setFormat('photo_carousel'); setAutoProduce(true); }}><strong>Native photo carousel</strong><small>Real licensed lifestyle image → exact {selectedApp?.name ?? 'app'} feature proof. Can be produced automatically when the selected screens are ready.</small></button>
               <button type="button" aria-pressed={format === 'video_brief'} className={format === 'video_brief' ? 'selected' : ''} onClick={() => { setFormat('video_brief'); setAutoProduce(false); }}><strong>Shoot-ready video brief</strong><small>12–20 second timestamped beat sheet: footage, speech, screen action, caption, sound and purpose.</small></button>
             </div>
 
-            {format === 'photo_carousel' && <div className="feature-selector"><span>ROTATE EXACT DEADSET PROOF · CHOOSE UP TO {count}</span><div>{readiness?.required_features.map((feature) => <button type="button" aria-pressed={features.includes(feature.key)} className={features.includes(feature.key) ? 'selected' : ''} onClick={() => toggleFeature(feature.key)} key={feature.key}><i className={feature.uploaded ? 'ready' : ''} /> {feature.label}</button>)}</div></div>}
+            {format === 'photo_carousel' && <div className="feature-selector"><span>ROTATE EXACT {selectedApp?.name.toUpperCase()} PROOF · CHOOSE UP TO {count}</span><div>{featureLibrary.map((feature) => <button type="button" aria-pressed={features.includes(feature.key)} className={features.includes(feature.key) ? 'selected' : ''} onClick={() => toggleFeature(feature.key)} key={feature.key}><i className={feature.uploaded ? 'ready' : ''} /> {feature.label}</button>)}</div></div>}
 
             <div className="mission-controls">
               <label>CONCEPTS<select value={count} onChange={(event) => { const next = Number(event.target.value); setCount(next); setFeatures((current) => current.slice(0, next)); }}>{[1, 2, 3, 4, 5, 6].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
               <label>TIKTOK DESTINATION<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Draft without an account</option>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>@{account.handle}{account.display_name ? ` · ${account.display_name}` : ''}</option>)}</select></label>
-              {format === 'photo_carousel' && <label className="switch-row"><input type="checkbox" disabled={!selectedApp?.production_ready} checked={autoProduce && Boolean(selectedApp?.production_ready)} onChange={(event) => setAutoProduce(event.target.checked)} /><span>{selectedApp?.production_ready ? 'Produce slides after drafting' : 'Finish Studio setup to auto-produce'}</span></label>}
+              {format === 'photo_carousel' && <label className="switch-row"><input type="checkbox" disabled={!selectedProductionReady} checked={autoProduce && selectedProductionReady} onChange={(event) => setAutoProduce(event.target.checked)} /><span>{selectedProductionReady ? 'Produce slides after drafting' : 'Upload selected screens in Studio'}</span></label>}
             </div>
           </section>
         </div>
@@ -183,8 +201,8 @@ export default function PromotionMission() {
         <aside className="mission-sidebar">
           <section className="mission-status-card">
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
-            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? 'Free Workers AI and drafting agent ready' : 'Drafting needs attention'}</small></div></div>
-            <div className="readiness-line"><i className={selectedApp?.production_ready ? 'ready' : ''} /><div><b>Automatic production</b><small>{selectedApp?.production_ready ? 'Licensed source + exact app screens ready' : format === 'video_brief' ? 'Not required for a shoot brief' : 'Finish Creative Studio setup'}</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `Truth-locked playbook ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
+            <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{selectedProductionReady ? 'Licensed source + selected exact screens ready' : format === 'video_brief' ? 'Not required for a shoot brief' : 'Finish the selected screens in Creative Studio'}</small></div></div>
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Publishing agent and account ready' : 'Drafting still works; connect an account later'}</small></div></div>
             <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
@@ -193,7 +211,7 @@ export default function PromotionMission() {
 
           <section className="launch-card">
             <span>MISSION SUMMARY</span><h3>{count} × {format === 'photo_carousel' ? 'native carousels' : 'shoot-ready briefs'}</h3>
-            <p>{GOALS.find((item) => item.value === goal)?.title} · {AUDIENCES.find((item) => item.value === audience)?.title} · {ANGLES.find((item) => item.value === angle)?.title}</p>
+            <p>{GOALS.find((item) => item.value === goal)?.title} · {audienceOptions.find((item) => item.value === audience)?.title} · {ANGLES.find((item) => item.value === angle)?.title}</p>
             <ul><li>Original hooks, not copied creator wording</li><li>Real or properly licensed visuals only</li><li>Exact app proof; no fake results or UI</li><li>Stops in review before TikTok</li></ul>
             <button className="mission-launch" disabled={!canLaunch}>{busy ? 'LAUNCHING…' : canLaunch ? 'LAUNCH PROMOTION MISSION' : 'DRAFTING NOT READY'}</button>
           </section>

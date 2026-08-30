@@ -10,13 +10,15 @@ export default function Accounts() {
   const [error, setError] = useState<string | null>(null);
 
   const { data, refresh } = useData(async () => {
-    const [accounts, apps] = await Promise.all([
+    const [accounts, apps, status] = await Promise.all([
       supabase.from('tiktok_accounts_public').select('*').order('handle'),
-      supabase.from('apps').select('*').order('name'),
+      supabase.from('apps').select('*').eq('promotion_enabled', true).order('name'),
+      api<{ developer_app_configured: boolean; redirect_uri: string | null; scopes: string[]; owner_review_required: boolean }>('/tiktok/status'),
     ]);
     return {
       accounts: (accounts.data ?? []) as Account[],
       apps: (apps.data ?? []) as App[],
+      status,
     };
   }, [], 10000);
 
@@ -53,6 +55,15 @@ export default function Accounts() {
         </div>
       </div>
 
+      <section className="account-link-core">
+        <div className={data.status.developer_app_configured ? 'online' : ''}><span>DEVELOPER BRIDGE</span><b>{data.status.developer_app_configured ? 'ONLINE' : 'SETUP REQUIRED'}</b><small>{data.status.scopes.join(' · ')}</small></div>
+        {data.apps.map((app) => {
+          const account = data.accounts.find((item) => item.app_id === app.id);
+          return <article key={app.id}><i className={account?.status === 'connected' ? 'ready' : ''} /><div><span>{app.name.toUpperCase()} CHANNEL</span><b>{account ? `@${account.handle}` : 'NO ACCOUNT ADDED'}</b><small>{account?.status === 'connected' ? 'OAuth publishing link verified' : 'Add the account below, then complete TikTok consent'}</small></div></article>;
+        })}
+        <p>Every account authorizes separately. Drafts cannot publish until you approve the exact media, caption, privacy and disclosure.</p>
+      </section>
+
       {error && <div className="card" style={{ color: 'var(--bad)', marginBottom: 14 }}>{error}</div>}
 
       <div className="card" style={{ padding: 0, marginBottom: 22 }}>
@@ -73,7 +84,7 @@ export default function Accounts() {
                   </td>
                   <td>{a.daily_post_limit}/day</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button onClick={() => connect(a.id)}>
+                    <button disabled={!data.status.developer_app_configured} onClick={() => connect(a.id)}>
                       {a.status === 'connected' ? 'Reconnect' : 'Connect'}
                     </button>
                   </td>
@@ -95,8 +106,8 @@ export default function Accounts() {
           </div>
           <div className="field" style={{ width: 200, margin: 0 }}>
             <label>App</label>
-            <select value={appId} onChange={(e) => setAppId(e.target.value)}>
-              <option value="">—</option>
+            <select required value={appId} onChange={(e) => setAppId(e.target.value)}>
+              <option value="">Choose Deadset or Cast</option>
               {data.apps.map((app) => <option key={app.id} value={app.id}>{app.name}</option>)}
             </select>
           </div>

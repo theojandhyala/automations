@@ -30,7 +30,7 @@ const CAPABILITIES: ReadonlyArray<{
 }> = [
   { icon: '✦', title: 'Promotion mission', copy: 'Choose an app and outcome, then draft or produce native TikTok creative through one guided flow.', state: 'LIVE', tone: 'live', href: '/promote' },
   { icon: '◈', title: 'Apple offer codes', copy: 'Create confirmed, auditable subscription discount codes from anywhere.', state: 'LIVE', tone: 'live', href: '#apple-codes' },
-  { icon: '▤', title: 'Content production', copy: 'Build licensed-photo Deadset carousels with the exact app feature screens.', state: 'LIVE', tone: 'live', href: '/studio' },
+  { icon: '▤', title: 'Content production', copy: 'Build licensed-photo Deadset and Cast carousels with each app’s exact verified feature screens.', state: 'LIVE', tone: 'live', href: '/studio' },
   { icon: '⌁', title: 'Review & publish', copy: 'Inspect drafts, set TikTok disclosure controls, approve and schedule posts.', state: 'LIVE', tone: 'live', href: '/queue' },
   { icon: '◎', title: 'Agent control', copy: 'Run, pause, schedule and inspect every linked automation protocol.', state: 'LIVE', tone: 'live', href: '/overview' },
   { icon: '⌁', title: 'Account links', copy: 'Connect TikTok accounts and check the actual publishing permissions.', state: 'LIVE', tone: 'live', href: '/accounts' },

@@ -276,8 +276,8 @@ describe('promotion missions', () => {
   const appId = '33333333-3333-4333-8333-333333333333';
   const promotionRoutes = [
     {
-      match: /\/rest\/v1\/apps\?select=id,slug,name,tagline,accent/,
-      respond: () => jsonResponse([{ id: appId, slug: 'cast', name: 'Cast', tagline: 'Track it', accent: '#66ddff' }]),
+      match: /\/rest\/v1\/apps\?promotion_enabled=eq\.true&select=id,slug,name,tagline,accent,promotion_enabled/,
+      respond: () => jsonResponse([{ id: appId, slug: 'cast', name: 'Cast', tagline: 'Track it', accent: '#66ddff', promotion_enabled: true }]),
     },
     {
       match: /\/rest\/v1\/tiktok_accounts\?select=id,handle,display_name,app_id,status/,
@@ -301,7 +301,7 @@ describe('promotion missions', () => {
       match: /integration_secrets\?provider=eq\.pexels/,
       respond: () => jsonResponse([{ provider: 'pexels', secret_enc: 'PEXELS-MUST-NOT-LEAK' }]),
     },
-    { match: /creative_assets\?app_slug=eq\.deadset/, respond: () => jsonResponse([]) },
+    { match: /creative_assets\?app_slug=in\.\(deadset,cast\)/, respond: () => jsonResponse([]) },
     { match: /artifacts\?status=eq\.draft/, respond: () => jsonResponse([]) },
   ];
 
@@ -317,7 +317,7 @@ describe('promotion missions', () => {
     expect(text).not.toContain('access_token_enc');
   });
 
-  it('does not launch an unsupported automatic carousel or claim an agent', async () => {
+  it('does not launch a carousel with another app’s feature key or claim an agent', async () => {
     let claims = 0;
     let missions = 0;
     stubFetch([
@@ -336,12 +336,12 @@ describe('promotion missions', () => {
         angle: 'relatable',
         content_format: 'photo_carousel',
         draft_count: 3,
-        feature_rotation: [],
+        feature_rotation: ['muscle_diagram'],
         auto_produce: true,
       }),
     }));
     expect(res.status).toBe(400);
-    expect((await res.json() as { error: string }).error).toMatch(/Deadset only/);
+    expect((await res.json() as { error: string }).error).toMatch(/not a verified Cast feature/);
     expect(claims).toBe(0);
     expect(missions).toBe(0);
   });
@@ -382,10 +382,15 @@ describe('token safety', () => {
     stubFetch([
       authRoute,
       {
+        match: /\/rest\/v1\/apps\?slug=eq\.deadset/,
+        respond: () => jsonResponse([{ id: ARTIFACT_ID, slug: 'deadset', name: 'Deadset', tagline: 'Train', accent: '#ff6644', promotion_enabled: true }]),
+      },
+      {
         match: /integration_secrets\?provider=eq\.pexels/,
         respond: () => jsonResponse([{ provider: 'pexels', secret_enc: 'MUST-NOT-LEAK' }]),
       },
       { match: /creative_assets\?app_slug=eq\.deadset/, respond: () => jsonResponse([]) },
+      { match: /automations\?app_id=eq\./, respond: () => jsonResponse([]) },
     ]);
     const res = await call(apiRequest('/creative-studio'));
     const text = await res.text();

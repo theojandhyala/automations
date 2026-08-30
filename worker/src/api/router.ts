@@ -18,6 +18,7 @@ import {
 } from '../lib/app-store';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { produceOne } from '../automations/tiktok-produce';
+import { featureSpecs, getCreativePlaybook } from '../lib/creative-playbooks';
 import {
   ValidationError,
   appStoreCredentialsSchema,
@@ -48,15 +49,6 @@ const ARTIFACT_TRANSITIONS: Record<string, string[]> = {
   approved: ['draft', 'rejected'],
   rejected: ['draft'],
   failed: ['draft', 'rejected'],
-};
-
-const DEADSET_FEATURES: Record<string, string> = {
-  muscle_diagram: 'Muscle diagram',
-  training_heatmap: 'Training heatmap',
-  pr_wall: 'PR wall',
-  progression_board: 'Progression board',
-  workout_plan: 'Workout plan',
-  live_logger: 'Live workout logger',
 };
 
 interface AppleOfferCodeRequest {
@@ -105,11 +97,12 @@ interface PromotionApp {
   name: string;
   tagline: string | null;
   accent: string;
+  promotion_enabled: boolean;
 }
 
 async function promotionReadiness(db: Db, env: Env) {
   const [apps, accounts, automations, pexels, featureAssets, drafts] = await Promise.all([
-    db.select<PromotionApp>('apps', 'select=id,slug,name,tagline,accent&order=sort_order.asc'),
+    db.select<PromotionApp>('apps', 'promotion_enabled=eq.true&select=id,slug,name,tagline,accent,promotion_enabled&order=sort_order.asc'),
     db.select<Pick<TikTokAccount, 'id' | 'handle' | 'display_name' | 'app_id' | 'status'>>(
       'tiktok_accounts',
       'select=id,handle,display_name,app_id,status&order=created_at.asc',
@@ -119,18 +112,18 @@ async function promotionReadiness(db: Db, env: Env) {
       'handler_key=in.(tiktok.generate,tiktok.produce,tiktok.publish)&select=*',
     ),
     db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
-    db.select<{ asset_key: string }>('creative_assets', 'app_slug=eq.deadset&select=asset_key'),
+    db.select<{ app_slug: string; asset_key: string }>('creative_assets', 'app_slug=in.(deadset,cast)&select=app_slug,asset_key'),
     db.select<{ app_id: string | null }>('artifacts', 'status=eq.draft&select=app_id&limit=500'),
   ]);
   const publishAgent = automations.find((automation) => automation.handler_key === 'tiktok.publish');
-  const uploadedKeys = new Set(featureAssets.map((asset) => asset.asset_key));
   return {
     free_ai: Boolean(env.AI),
     review_required: true,
-    required_features: Object.entries(DEADSET_FEATURES).map(([key, label]) => ({
-      key,
-      label,
-      uploaded: uploadedKeys.has(key),
+    feature_libraries: Object.fromEntries(apps.flatMap((app) => {
+      const playbook = getCreativePlaybook(app.slug);
+      if (!playbook) return [];
+      const uploaded = new Set(featureAssets.filter((asset) => asset.app_slug === app.slug).map((asset) => asset.asset_key));
+      return [[app.slug, featureSpecs(playbook).map((feature) => ({ ...feature, uploaded: uploaded.has(feature.key) }))]];
     })),
     accounts: accounts.map((account) => ({
       id: account.id,
@@ -139,7 +132,9 @@ async function promotionReadiness(db: Db, env: Env) {
       app_id: account.app_id,
       status: account.status,
     })),
-    apps: apps.map((app) => {
+    apps: apps.flatMap((app) => {
+      const playbook = getCreativePlaybook(app.slug);
+      if (!playbook) return [];
       const draftAgent = automations.find(
         (automation) => automation.handler_key === 'tiktok.generate' && automation.app_id === app.id,
       );
@@ -148,19 +143,21 @@ async function promotionReadiness(db: Db, env: Env) {
       );
       const appAccounts = accounts.filter((account) => account.app_id === app.id);
       const connectedAccount = appAccounts.some((account) => account.status === 'connected');
+      const uploadedKeys = new Set(featureAssets.filter((asset) => asset.app_slug === app.slug).map((asset) => asset.asset_key));
+      const requiredCount = Object.keys(playbook.features).length;
       const draftAvailable = Boolean(draftAgent && draftAgent.status !== 'disabled');
       const producerAvailable = Boolean(producerAgent && producerAgent.status !== 'disabled');
-      const productionReady = app.slug === 'deadset'
-        && producerAvailable
+      const productionReady = producerAvailable
         && Boolean(pexels)
-        && uploadedKeys.size === Object.keys(DEADSET_FEATURES).length;
+        && uploadedKeys.size === requiredCount;
       const blockers: string[] = [];
       if (!draftAgent) blockers.push('No drafting agent exists for this app.');
       else if (!draftAvailable) blockers.push('The drafting agent is disabled.');
       if (!env.AI) blockers.push('Free Workers AI is not connected.');
-      if (app.slug === 'deadset' && !pexels) blockers.push('Connect the free Pexels photo source.');
-      if (app.slug === 'deadset' && uploadedKeys.size < Object.keys(DEADSET_FEATURES).length) {
-        blockers.push(`Upload ${Object.keys(DEADSET_FEATURES).length - uploadedKeys.size} remaining exact Deadset screen(s).`);
+      if (!producerAgent) blockers.push(`No carousel production agent exists for ${app.name}.`);
+      if (!pexels) blockers.push('Connect the free Pexels photo source.');
+      if (uploadedKeys.size < requiredCount) {
+        blockers.push(`Upload ${requiredCount - uploadedKeys.size} remaining exact ${app.name} screen(s).`);
       }
       if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
       return {
@@ -168,6 +165,13 @@ async function promotionReadiness(db: Db, env: Env) {
         draft_agent_id: draftAgent?.id ?? null,
         producer_agent_id: producerAgent?.id ?? null,
         publish_agent_id: publishAgent?.id ?? null,
+        playbook_version: playbook.version,
+        content_domain: playbook.category,
+        uploaded_feature_keys: [...uploadedKeys],
+        uploaded_feature_count: uploadedKeys.size,
+        feature_count: requiredCount,
+        photo_source_ready: Boolean(pexels),
+        producer_available: producerAvailable,
         drafting_ready: Boolean(draftAvailable && env.AI),
         production_ready: productionReady,
         publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount),
@@ -234,6 +238,17 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     return json({ handlers: listHandlers() });
   }
 
+  if (path === '/tiktok/status' && req.method === 'GET') {
+    return json({
+      developer_app_configured: Boolean(
+        env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.TIKTOK_REDIRECT_URI,
+      ),
+      redirect_uri: env.TIKTOK_REDIRECT_URI ?? null,
+      scopes: ['user.info.basic', 'video.publish', 'video.upload'],
+      owner_review_required: true,
+    });
+  }
+
   // The honest pipeline view: which stages actually work in this deployment.
   if (path === '/pipeline' && req.method === 'GET') {
     return json({ stages: stageStatuses(env) });
@@ -242,17 +257,37 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // --- creative production studio ---
 
   if (path === '/creative-studio' && req.method === 'GET') {
-    const [secret, assets] = await Promise.all([
+    const appSlug = url.searchParams.get('app_slug') ?? 'deadset';
+    const playbook = getCreativePlaybook(appSlug);
+    if (!playbook) return json({ error: 'That app does not have an active creative playbook.' }, 404);
+    const app = await db.selectOne<PromotionApp>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id,slug,name,tagline,accent,promotion_enabled`);
+    if (!app?.promotion_enabled) return json({ error: 'Promotion is paused for that app.' }, 409);
+    const [secret, assets, producer] = await Promise.all([
       db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
-      db.select<Record<string, unknown>>('creative_assets', 'app_slug=eq.deadset&select=*&order=asset_key.asc'),
+      db.select<Record<string, unknown>>('creative_assets', `app_slug=eq.${encodeURIComponent(appSlug)}&select=*&order=asset_key.asc`),
+      db.selectOne<Automation>('automations', `app_id=eq.${app.id}&handler_key=eq.tiktok.produce&select=*`),
     ]);
     return json({
+      app: { id: app.id, slug: app.slug, name: app.name, accent: app.accent },
+      playbook: {
+        version: playbook.version,
+        positioning: playbook.positioning,
+        claims_to_avoid: playbook.claimsToAvoid,
+        caption_suffix: playbook.captionSuffix,
+      },
       pexels: { configured: Boolean(secret) },
+      producer: producer ? {
+        id: producer.id,
+        status: producer.status,
+        enabled: producer.enabled,
+        last_run_at: producer.last_run_at,
+        current_task: producer.current_task,
+      } : null,
       features: assets.map((asset) => ({
         ...asset,
         public_url: publicMediaUrl(env, String(asset.storage_path)),
       })),
-      required_features: Object.entries(DEADSET_FEATURES).map(([key, label]) => ({ key, label })),
+      required_features: featureSpecs(playbook),
     });
   }
 
@@ -418,26 +453,29 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
   if (path === '/creative-assets' && req.method === 'POST') {
     const form = await req.formData();
+    const appSlug = String(form.get('app_slug') ?? 'deadset');
     const assetKey = String(form.get('asset_key') ?? '');
     const file = form.get('file');
-    if (!(assetKey in DEADSET_FEATURES)) return json({ error: 'unknown Deadset feature key' }, 400);
+    const playbook = getCreativePlaybook(appSlug);
+    if (!playbook) return json({ error: 'unknown or inactive app promotion workspace' }, 400);
+    if (!(assetKey in playbook.features)) return json({ error: `unknown ${playbook.appName} feature key` }, 400);
     if (!(file instanceof File)) return json({ error: 'image file is required' }, 400);
     const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
     if (!allowed.has(file.type)) return json({ error: 'upload PNG, JPEG or WebP only' }, 400);
     if (file.size <= 0 || file.size > 10 * 1024 * 1024) return json({ error: 'image must be 10 MB or smaller' }, 400);
 
     const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-    const storagePath = `features/deadset/${assetKey}/${crypto.randomUUID()}.${extension}`;
+    const storagePath = `features/${appSlug}/${assetKey}/${crypto.randomUUID()}.${extension}`;
     await uploadMedia(env, storagePath, await file.arrayBuffer(), file.type);
     const asset = await db.upsert<Record<string, unknown>>('creative_assets', {
-      app_slug: 'deadset',
+      app_slug: appSlug,
       asset_key: assetKey,
-      label: DEADSET_FEATURES[assetKey],
+      label: playbook.features[assetKey]!.label,
       storage_path: storagePath,
       mime_type: file.type,
       source_kind: 'owner_upload',
       source_url: null,
-      licence_note: 'Exact current Deadset app capture uploaded by the owner.',
+      licence_note: `Exact current ${playbook.appName} app capture uploaded by the owner.`,
       updated_at: new Date().toISOString(),
     }, 'app_slug,asset_key');
     return json({ ...asset, public_url: publicMediaUrl(env, storagePath) }, 201);
@@ -461,12 +499,11 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const body = await parseBody(req, promotionMissionSchema);
     const readiness = await promotionReadiness(db, env);
     const app = readiness.apps.find((candidate) => candidate.slug === body.app_slug);
-    if (!app) return json({ error: 'App workspace not found.' }, 404);
+    if (!app) return json({ error: 'App workspace not found or promotion is paused.' }, 404);
+    const playbook = getCreativePlaybook(app.slug);
+    if (!playbook) return json({ error: 'No verified creative playbook exists for this app.' }, 409);
     if (!app.drafting_ready || !app.draft_agent_id) {
       return json({ error: app.blockers[0] ?? 'Drafting is not ready for this app.' }, 409);
-    }
-    if (body.content_format === 'photo_carousel' && app.slug !== 'deadset') {
-      return json({ error: 'Automatic photo-carousel production is currently available for Deadset only.' }, 400);
     }
     if (body.account_id) {
       const account = readiness.accounts.find((candidate) => candidate.id === body.account_id);
@@ -477,10 +514,14 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       }
     }
 
-    const defaultFeatures = Object.keys(DEADSET_FEATURES);
-    const featureRotation = app.slug === 'deadset'
+    const defaultFeatures = Object.keys(playbook.features);
+    const featureRotation = body.content_format === 'photo_carousel'
       ? body.feature_rotation.length ? body.feature_rotation : defaultFeatures
       : [];
+    const invalidFeature = featureRotation.find((feature) => !(feature in playbook.features));
+    if (invalidFeature) return json({ error: `“${invalidFeature}” is not a verified ${playbook.appName} feature.` }, 400);
+    const selectedFeaturesReady = featureRotation.every((feature) => app.uploaded_feature_keys.includes(feature));
+    const selectedProductionReady = Boolean(app.producer_available && app.photo_source_ready && selectedFeaturesReady);
     const mission = await db.insert<PromotionMission>('promotion_missions', {
       app_id: app.id,
       account_id: body.account_id,
@@ -494,7 +535,9 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       auto_produce: body.auto_produce,
       readiness: {
         drafting_ready: app.drafting_ready,
-        production_ready: app.production_ready,
+        production_ready: selectedProductionReady,
+        playbook_version: playbook.version,
+        selected_features_ready: selectedFeaturesReady,
         publishing_ready: app.publishing_ready,
         blockers: app.blockers,
       },
@@ -517,12 +560,16 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         trust: 'build credibility through specific, supportable product proof',
         engagement: 'start a relatable conversation that naturally reveals the app',
     } as const;
-    const audienceLabels = {
+    const audienceLabels: Record<string, string> = {
         new_lifters: 'new lifters who want less confusion',
         consistent_lifters: 'people already training consistently who want a clearer record',
         serious_gym: 'serious gym users who care about progression and detail',
         general_fitness: 'general fitness users who want a simpler routine',
-    } as const;
+        new_anglers: 'new anglers who want simpler field decisions',
+        weekend_anglers: 'weekend anglers deciding when and where to fish',
+        serious_anglers: 'serious anglers who care about conditions, evidence and records',
+        local_crews: 'local fishing friends who plan and log sessions together',
+    };
     const angleLabels = {
         relatable: 'relatable gym thought or confession',
         problem_solution: 'one concrete frustration followed by exact app proof',
@@ -531,7 +578,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     } as const;
     const extraContext = [
       `Mission goal: ${goalLabels[body.goal]}.`,
-      `Audience: ${audienceLabels[body.audience]}.`,
+      `Audience: ${audienceLabels[body.audience] ?? body.audience}.`,
       `Creative angle: ${angleLabels[body.angle]}.`,
       'One draft must make one promise to one audience and prove it with one relevant product feature.',
       'The hook must be clear in one second and feel like native TikTok content before it feels commercial.',
@@ -549,7 +596,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         goal: body.goal,
         audience: body.audience,
         angle: body.angle,
-        hypothesis: `${angleLabels[body.angle]} for ${audienceLabels[body.audience]} will ${goalLabels[body.goal]}`,
+        hypothesis: `${angleLabels[body.angle]} for ${audienceLabels[body.audience] ?? body.audience} will ${goalLabels[body.goal]}`,
       },
       ...(body.content_format === 'photo_carousel'
         ? { source_policy: 'licensed_real_only', feature_rotation: featureRotation }
@@ -576,7 +623,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
         const shouldProduce = body.auto_produce
           && body.content_format === 'photo_carousel'
-          && app.production_ready
+          && selectedProductionReady
           && app.producer_agent_id;
         if (shouldProduce) {
           const producer = await claimOne(env, app.producer_agent_id!);

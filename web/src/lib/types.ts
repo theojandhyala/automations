@@ -6,6 +6,7 @@ export interface App {
   accent: string;
   icon: string;
   sort_order: number;
+  promotion_enabled?: boolean;
 }
 
 export interface Automation {

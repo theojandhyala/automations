@@ -238,7 +238,8 @@ export default function CommandBar({
     }
 
     if (/promote|promotion mission|campaign/.test(t) && !/status|explain/.test(t)) {
-      navigate('/promote');
+      const app = findApp(t);
+      navigate(app ? `/promote?app=${encodeURIComponent(app.slug)}` : '/promote');
       return { text: 'Opened Promotion Mission. Choose the outcome and I will route the work through the right agents.', tone: 'ok' };
     }
 
@@ -257,7 +258,8 @@ export default function CommandBar({
     // Direct creation requests enter the guided mission instead of silently
     // launching an underspecified scheduled agent configuration.
     if (/make|create|film|shoot/.test(t) && /video|clip|post|short/.test(t)) {
-      navigate('/promote');
+      const app = findApp(t);
+      navigate(app ? `/promote?app=${encodeURIComponent(app.slug)}` : '/promote');
       return {
         text: 'Opened Promotion Mission so you can choose the app, audience, outcome and exact creative route before any agents run.',
         tone: 'ok',

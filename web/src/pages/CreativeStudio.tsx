@@ -1,72 +1,53 @@
 import { useMemo, useState } from 'react';
-import { api, supabase } from '../lib/supabase';
+import { api } from '../lib/supabase';
 import { useData } from '../lib/useData';
 import { Empty } from '../components/bits';
 
-interface FeatureSpec {
-  key: string;
-  label: string;
-}
-
-interface CreativeAsset {
-  id: string;
-  asset_key: string;
-  label: string;
-  public_url: string;
-  updated_at: string;
-}
-
+interface FeatureSpec { key: string; label: string; truth: string; stockDirection: string }
+interface CreativeAsset { id: string; asset_key: string; label: string; public_url: string; updated_at: string }
+interface ProducerAutomation { id: string; status: string; enabled: boolean; last_run_at: string | null; current_task: string | null }
 interface StudioState {
+  app: { id: string; slug: string; name: string; accent: string };
+  playbook: { version: string; positioning: string; claims_to_avoid: string[]; caption_suffix: string };
   pexels: { configured: boolean };
   required_features: FeatureSpec[];
   features: CreativeAsset[];
-}
-
-interface ProducerAutomation {
-  id: string;
-  status: string;
-  enabled: boolean;
-  last_run_at: string | null;
-  current_task: string | null;
+  producer: ProducerAutomation | null;
 }
 
 export default function CreativeStudio() {
+  const [appSlug, setAppSlug] = useState<'deadset' | 'cast'>('deadset');
   const [pexelsKey, setPexelsKey] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data, refresh } = useData(async () => {
-    const [studio, producer] = await Promise.all([
-      api<StudioState>('/creative-studio'),
-      supabase.from('automations').select('id,status,enabled,last_run_at,current_task')
-        .eq('handler_key', 'tiktok.produce').maybeSingle(),
-    ]);
-    if (producer.error) throw producer.error;
-    return { studio, producer: producer.data as ProducerAutomation | null };
-  }, []);
+  const { data, refresh } = useData(
+    () => api<StudioState>(`/creative-studio?app_slug=${appSlug}`),
+    [appSlug],
+  );
 
   const features = useMemo(
-    () => new Map(data?.studio.features.map((asset) => [asset.asset_key, asset]) ?? []),
+    () => new Map(data?.features.map((asset) => [asset.asset_key, asset]) ?? []),
     [data],
   );
+
+  function selectWorkspace(slug: 'deadset' | 'cast') {
+    setAppSlug(slug);
+    setNotice(null);
+    setError(null);
+  }
 
   async function connectPexels(event: React.FormEvent) {
     event.preventDefault();
     setBusy('pexels'); setError(null); setNotice(null);
     try {
-      await api('/integrations/pexels', {
-        method: 'PUT',
-        body: JSON.stringify({ api_key: pexelsKey }),
-      });
+      await api('/integrations/pexels', { method: 'PUT', body: JSON.stringify({ api_key: pexelsKey }) });
       setPexelsKey('');
-      setNotice('Pexels connected. The key is encrypted and is never returned to this browser.');
+      setNotice('Pexels connected for both workspaces. The key is encrypted and never returned to this browser.');
       refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(null); }
   }
 
   async function uploadFeature(assetKey: string, file: File | null) {
@@ -74,16 +55,14 @@ export default function CreativeStudio() {
     setBusy(assetKey); setError(null); setNotice(null);
     try {
       const form = new FormData();
+      form.set('app_slug', appSlug);
       form.set('asset_key', assetKey);
       form.set('file', file);
       await api('/creative-assets', { method: 'POST', body: form });
-      setNotice(`${data?.studio.required_features.find((item) => item.key === assetKey)?.label ?? assetKey} updated.`);
+      setNotice(`${data?.required_features.find((item) => item.key === assetKey)?.label ?? assetKey} updated for ${data?.app.name}.`);
       refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(null); }
   }
 
   async function runProducer() {
@@ -91,115 +70,61 @@ export default function CreativeStudio() {
     setBusy('producer'); setError(null); setNotice(null);
     try {
       await api(`/automations/${data.producer.id}/run`, { method: 'POST' });
-      setNotice('Production started. Finished slides will appear in the review queue.');
+      setNotice(`${data.app.name} production started. Finished slides will stop in your review queue.`);
       window.setTimeout(refresh, 2500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(null); }
   }
 
-  if (!data) return <Empty>Loading creative studio…</Empty>;
+  if (!data || data.app.slug !== appSlug) return <Empty>Loading {appSlug === 'cast' ? 'Cast' : 'Deadset'} creative studio…</Empty>;
   const uploaded = features.size;
-  const total = data.studio.required_features.length;
-  const ready = data.studio.pexels.configured && uploaded === total;
+  const total = data.required_features.length;
+  const ready = data.pexels.configured && uploaded === total && Boolean(data.producer);
 
   return (
-    <>
+    <div className="studio-workspace" style={{ '--studio-accent': data.app.accent } as React.CSSProperties}>
       <div className="page-head">
-        <div>
-          <h2>Creative studio</h2>
-          <p>Connect free stock, keep exact Deadset screens current, and build TikTok-ready slides from anywhere.</p>
-        </div>
-        <div className={`studio-readiness ${ready ? 'ready' : ''}`}>
-          <span>{ready ? 'Production ready' : 'Setup needed'}</span>
-          <strong>{uploaded}/{total} screens</strong>
-        </div>
+        <div><h2>Creative studio</h2><p>Exact product truth, licensed source imagery and deterministic checks for each active app.</p></div>
+        <div className={`studio-readiness ${ready ? 'ready' : ''}`}><span>{ready ? 'Production ready' : 'Setup needed'}</span><strong>{uploaded}/{total} exact screens</strong></div>
+      </div>
+
+      <div className="studio-app-switch" role="tablist" aria-label="Creative workspace">
+        {(['deadset', 'cast'] as const).map((slug) => <button type="button" role="tab" aria-selected={appSlug === slug} className={appSlug === slug ? 'active' : ''} onClick={() => selectWorkspace(slug)} key={slug}><i />{slug.toUpperCase()}<small>{slug === 'deadset' ? 'FITNESS ENGINE' : 'ANGLING ENGINE'}</small></button>)}
+        <div><span>PLAYBOOK LOCK</span><b>{data.playbook.version}</b></div>
       </div>
 
       {error && <div className="card studio-alert error">{error}</div>}
       {notice && <div className="card studio-alert success">{notice}</div>}
 
-      <section className="card studio-provider">
-        <div>
-          <span className="section-label">Licensed photo source</span>
-          <h3>Pexels</h3>
-          <p>
-            Real stock photos, free to use and edit for social promotion. Pinterest stays mood-reference only.{' '}
-            <a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer">Get a free key</a>.
-          </p>
-        </div>
-        {data.studio.pexels.configured ? (
-          <span className="provider-status connected">Connected</span>
-        ) : (
-          <form onSubmit={connectPexels} className="provider-form">
-            <input
-              type="password"
-              value={pexelsKey}
-              onChange={(event) => setPexelsKey(event.target.value)}
-              placeholder="Paste your free Pexels API key"
-              autoComplete="off"
-              required
-              minLength={16}
-            />
-            <button className="primary" disabled={busy === 'pexels'}>
-              {busy === 'pexels' ? 'Checking…' : 'Connect'}
-            </button>
-          </form>
-        )}
+      <section className="studio-doctrine">
+        <div><span>PRODUCT POSITION</span><p>{data.playbook.positioning}</p></div>
+        <div><span>CAPTION HANDOFF</span><p>{data.playbook.caption_suffix}</p></div>
+        <div><span>CLAIM FIREWALL</span><p>{data.playbook.claims_to_avoid.slice(0, 4).join(' · ')}</p></div>
       </section>
 
-      <div className="studio-section-head">
-        <div>
-          <h3>Exact Deadset feature screens</h3>
-          <p>Upload each current app screen once. Replacing one updates every future carousel.</p>
-        </div>
-      </div>
+      <section className="card studio-provider">
+        <div><span className="section-label">Licensed real-photo source · shared by Deadset and Cast</span><h3>Pexels</h3><p>Stock images are licensed and recorded. Pinterest remains reference-only. <a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer">Get a free key</a>.</p></div>
+        {data.pexels.configured ? <span className="provider-status connected">Connected</span> : <form onSubmit={connectPexels} className="provider-form"><input type="password" value={pexelsKey} onChange={(event) => setPexelsKey(event.target.value)} placeholder="Paste your free Pexels API key" autoComplete="off" required minLength={16} /><button className="primary" disabled={busy === 'pexels'}>{busy === 'pexels' ? 'Checking…' : 'Connect'}</button></form>}
+      </section>
+
+      <div className="studio-section-head"><div><h3>Exact {data.app.name} feature screens</h3><p>The agent may only choose from this verified library. Each upload replaces the matching proof screen for future drafts.</p></div></div>
 
       <div className="feature-library">
-        {data.studio.required_features.map((spec) => {
+        {data.required_features.map((spec) => {
           const asset = features.get(spec.key);
-          return (
-            <article className="card feature-asset" key={spec.key}>
-              <div className="feature-preview">
-                {asset ? <img src={asset.public_url} alt={`${spec.label} current Deadset screen`} /> : <span>Screen needed</span>}
-              </div>
-              <div className="row between">
-                <div>
-                  <strong>{spec.label}</strong>
-                  <div className="mono muted">{spec.key}</div>
-                </div>
-                <span className={`provider-status ${asset ? 'connected' : ''}`}>{asset ? 'Ready' : 'Missing'}</span>
-              </div>
-              <label className="upload-button">
-                {busy === spec.key ? 'Uploading…' : asset ? 'Replace exact screen' : 'Upload exact screen'}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  disabled={busy === spec.key}
-                  onChange={(event) => uploadFeature(spec.key, event.target.files?.[0] ?? null)}
-                />
-              </label>
-            </article>
-          );
+          return <article className="card feature-asset" key={spec.key}>
+            <div className="feature-preview">{asset ? <img src={asset.public_url} alt={`${spec.label} current ${data.app.name} screen`} /> : <span>Exact screen needed</span>}</div>
+            <div className="row between"><div><strong>{spec.label}</strong><div className="mono muted">{spec.key}</div></div><span className={`provider-status ${asset ? 'connected' : ''}`}>{asset ? 'Verified' : 'Missing'}</span></div>
+            <p className="feature-truth">{spec.truth}</p>
+            <label className="upload-button">{busy === spec.key ? 'Uploading…' : asset ? 'Replace exact screen' : 'Upload exact screen'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy === spec.key} onChange={(event) => uploadFeature(spec.key, event.target.files?.[0] ?? null)} /></label>
+          </article>;
         })}
       </div>
 
       <section className="card production-console">
-        <div>
-          <span className="section-label">Automatic production agent</span>
-          <h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3>
-          <p>Runs every 15 minutes, creates two hosted 1080×1920 JPEG slides per draft, then stops at review.</p>
-        </div>
-        <button
-          className="primary"
-          onClick={runProducer}
-          disabled={!data.producer || data.producer.status === 'running' || busy === 'producer'}
-        >
-          {data.producer?.status === 'running' || busy === 'producer' ? 'Building…' : 'Build waiting drafts now'}
-        </button>
+        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders two hosted 1080×1920 slides, records source provenance and stops at owner review.</p></div>
+        <button className="primary" onClick={runProducer} disabled={!data.producer || data.producer.status === 'running' || busy === 'producer'}>{data.producer?.status === 'running' || busy === 'producer' ? 'Building…' : `Build waiting ${data.app.name} drafts`}</button>
       </section>
-    </>
+    </div>
   );
 }

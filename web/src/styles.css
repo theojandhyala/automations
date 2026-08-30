@@ -219,6 +219,26 @@ tbody tr:hover { background: var(--panel-2); }
 
 /* ------------------------------------------------------------- creative studio */
 
+.studio-workspace { --studio-accent:#55e8ff; }
+.studio-app-switch {
+  display: grid;
+  grid-template-columns: 180px 180px 1fr;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 14px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--studio-accent) 22%, var(--line));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--studio-accent) 6%, #080b10), #080b10);
+}
+.studio-app-switch button { display:grid;grid-template-columns:8px 1fr;align-items:center;gap:8px;border-radius:0;border-color:var(--line);background:#070a0e;color:var(--muted);text-align:left;font:700 12px 'Chakra Petch',sans-serif;letter-spacing:.08em; }
+.studio-app-switch button i { width:7px;height:7px;border-radius:50%;border:1px solid currentColor; }
+.studio-app-switch button small { grid-column:2;font:8px 'Share Tech Mono',monospace;color:#55606f;letter-spacing:.12em; }
+.studio-app-switch button.active { border-color:color-mix(in srgb,var(--studio-accent) 65%,#fff);color:#e8fdff;box-shadow:inset 2px 0 var(--studio-accent),0 0 20px color-mix(in srgb,var(--studio-accent) 10%,transparent); }
+.studio-app-switch button.active i { background:var(--studio-accent);box-shadow:0 0 10px var(--studio-accent); }
+.studio-app-switch>div { display:grid;align-content:center;justify-content:end;text-align:right;padding:0 12px; }.studio-app-switch>div span { color:#586675;font:8px 'Share Tech Mono',monospace;letter-spacing:.16em; }.studio-app-switch>div b { margin-top:4px;color:var(--studio-accent);font:10px 'Share Tech Mono',monospace; }
+.studio-doctrine { display:grid;grid-template-columns:1.4fr .65fr 1fr;gap:1px;margin-bottom:14px;border:1px solid color-mix(in srgb,var(--studio-accent) 18%,var(--line));background:var(--line); }
+.studio-doctrine>div { padding:14px;background:#0a0d12; }.studio-doctrine span { color:color-mix(in srgb,var(--studio-accent) 65%,#708090);font:8px 'Share Tech Mono',monospace;letter-spacing:.14em; }.studio-doctrine p { margin:6px 0 0;color:#7d8796;font-size:10px;line-height:1.5; }
+
 .studio-readiness {
   display: grid;
   justify-items: end;
@@ -258,6 +278,7 @@ tbody tr:hover { background: var(--panel-2); }
 .studio-section-head { margin: 26px 0 12px; }
 .feature-library { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .feature-asset { display: grid; gap: 12px; }
+.feature-truth { min-height:44px;margin:0;color:var(--muted);font-size:10px;line-height:1.5; }
 .feature-preview {
   display: grid;
   place-items: center;
@@ -282,6 +303,13 @@ tbody tr:hover { background: var(--panel-2); }
 .upload-button:hover { border-color: #3a424e; }
 .upload-button input { display: none; }
 .production-console { margin-top: 24px; border-color: #354b70; }
+
+/* ------------------------------------------------------------- account bridge */
+.account-link-core { display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;margin-bottom:18px;padding:10px;border:1px solid #243242;background:linear-gradient(110deg,rgba(46,158,182,.08),#080b10 55%); }
+.account-link-core>div,.account-link-core article { min-height:106px;padding:16px;border:1px solid #1d2835;background:rgba(4,8,12,.76); }
+.account-link-core>div { display:grid;align-content:center; }.account-link-core span { color:#607180;font:8px 'Share Tech Mono',monospace;letter-spacing:.15em; }.account-link-core b { display:block;margin-top:7px;color:#ffbf63;font:13px 'Chakra Petch',sans-serif;letter-spacing:.08em; }.account-link-core>div.online b { color:#65f6ca; }.account-link-core small { display:block;margin-top:6px;color:#53616e;font-size:8px;line-height:1.45; }
+.account-link-core article { display:grid;grid-template-columns:10px 1fr;align-items:center;gap:11px; }.account-link-core article>i { width:8px;height:8px;border:1px solid #68737d;border-radius:50%; }.account-link-core article>i.ready { border-color:#65f6ca;background:#65f6ca;box-shadow:0 0 10px #65f6ca; }.account-link-core article b { color:#b8e9ef;font-size:11px; }
+.account-link-core>p { grid-column:1/-1;margin:0;padding:8px 10px;color:#63727e;font-size:9px;border-top:1px solid #1d2835; }
 
 
 /* Link out of the full-bleed command center into the table views. */
@@ -333,4 +361,7 @@ tbody tr:hover { background: var(--panel-2); }
   .studio-provider, .production-console { align-items: stretch; flex-direction: column; }
   .provider-form { min-width: 0; width: 100%; flex-direction: column; }
   .feature-library { grid-template-columns: 1fr; }
+  .studio-app-switch { grid-template-columns:1fr 1fr; }.studio-app-switch>div { grid-column:1/-1;justify-content:start;text-align:left; }
+  .studio-doctrine { grid-template-columns:1fr; }
+  .account-link-core { grid-template-columns:1fr; }.account-link-core>p { grid-column:auto; }
 }

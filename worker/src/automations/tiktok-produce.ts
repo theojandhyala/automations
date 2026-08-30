@@ -1,6 +1,7 @@
 import { decrypt } from '../lib/crypto';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
+import { getCreativePlaybook } from '../lib/creative-playbooks';
 import type { Db } from '../lib/db';
 import type { Artifact, Env } from '../types';
 import type { Handler } from './registry';
@@ -28,6 +29,7 @@ interface ManifestSlide {
 interface CarouselManifest extends Record<string, unknown> {
   slides?: ManifestSlide[];
   feature?: string;
+  app_slug?: string;
 }
 
 export interface ProductionResult {
@@ -102,20 +104,22 @@ async function providerKey(env: Env, db: Db): Promise<string | null> {
   return secret ? decrypt(secret.secret_enc, env.TOKEN_ENCRYPTION_KEY) : null;
 }
 
-async function preflightArtifact(env: Env, db: Db, artifact: Artifact): Promise<string | null> {
+async function preflightArtifact(env: Env, db: Db, artifact: Artifact, appSlug: string): Promise<string | null> {
   const manifest = artifact.asset_manifest as CarouselManifest;
+  const playbook = getCreativePlaybook(appSlug);
+  if (!playbook) return 'This app has no verified carousel production playbook.';
   const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
   const featureSlide = slides.find((slide) => slide.role === 'feature_proof') ?? slides[1];
   const featureKey = featureSlide?.app_asset_key ?? (typeof manifest.feature === 'string' ? manifest.feature : null);
-  if (!featureKey) return 'Draft does not name an exact Deadset feature screen.';
+  if (!featureKey || !(featureKey in playbook.features)) return `Draft does not name a verified ${playbook.appName} feature screen.`;
   const [feature, key] = await Promise.all([
     db.selectOne<{ id: string }>(
       'creative_assets',
-      `app_slug=eq.deadset&asset_key=eq.${encodeURIComponent(featureKey)}&select=id`,
+      `app_slug=eq.${encodeURIComponent(appSlug)}&asset_key=eq.${encodeURIComponent(featureKey)}&select=id`,
     ),
     providerKey(env, db),
   ]);
-  if (!feature) return `Upload the exact Deadset “${featureKey}” screen in Creative studio.`;
+  if (!feature) return `Upload the exact ${playbook.appName} “${featureKey}” screen in Creative studio.`;
   if (!key) return 'Connect a free Pexels API key in Creative studio.';
   return null;
 }
@@ -124,28 +128,33 @@ export async function produceArtifact(
   env: Env,
   db: Db,
   artifact: Artifact,
+  appSlug: string,
 ): Promise<ProductionResult> {
   const manifest = artifact.asset_manifest as CarouselManifest;
+  const playbook = getCreativePlaybook(appSlug);
+  if (!playbook) return { state: 'blocked', reason: 'This app has no verified production playbook.' };
   const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
   const hookSlide = slides.find((slide) => slide.role === 'hook') ?? slides[0];
   const featureSlide = slides.find((slide) => slide.role === 'feature_proof') ?? slides[1];
   if (!hookSlide || !featureSlide) return { state: 'blocked', reason: 'Draft has no two-slide asset manifest.' };
 
   const featureKey = featureSlide.app_asset_key ?? (typeof manifest.feature === 'string' ? manifest.feature : null);
-  if (!featureKey) return { state: 'blocked', reason: 'Draft does not name an exact Deadset feature screen.' };
+  if (!featureKey || !(featureKey in playbook.features)) {
+    return { state: 'blocked', reason: `Draft does not name a verified ${playbook.appName} feature screen.` };
+  }
 
   const feature = await db.selectOne<CreativeAsset>(
     'creative_assets',
-    `app_slug=eq.deadset&asset_key=eq.${encodeURIComponent(featureKey)}&select=*`,
+    `app_slug=eq.${encodeURIComponent(appSlug)}&asset_key=eq.${encodeURIComponent(featureKey)}&select=*`,
   );
   if (!feature) {
-    return { state: 'blocked', reason: `Upload the exact Deadset “${featureKey}” screen in Creative studio.` };
+    return { state: 'blocked', reason: `Upload the exact ${playbook.appName} “${featureKey}” screen in Creative studio.` };
   }
 
   const key = await providerKey(env, db);
   if (!key) return { state: 'blocked', reason: 'Connect a free Pexels API key in Creative studio.' };
 
-  const query = hookSlide.asset_query?.trim() || 'candid gym mirror workout phone photo';
+  const query = hookSlide.asset_query?.trim() || playbook.features[featureKey]!.stockDirection;
   const stock = choosePhoto(await searchPexels(key, query), artifact.id);
   if (!stock) return { state: 'blocked', reason: `No licensed portrait photo found for “${query}”.` };
 
@@ -189,6 +198,7 @@ export async function produceArtifact(
         feature_asset: {
           id: feature.id,
           key: feature.asset_key,
+          app_slug: appSlug,
           source_kind: 'owner_upload',
         },
       },
@@ -202,9 +212,12 @@ export async function produceOne(
   db: Db,
   artifact: Artifact,
 ): Promise<ProductionResult> {
-  const blocker = await preflightArtifact(env, db, artifact);
+  const manifest = artifact.asset_manifest as CarouselManifest;
+  // Older produced drafts pre-date the manifest app key and are all Deadset.
+  const appSlug = typeof manifest.app_slug === 'string' ? manifest.app_slug : 'deadset';
+  const blocker = await preflightArtifact(env, db, artifact, appSlug);
   if (blocker) return { state: 'blocked', reason: blocker };
-  return produceArtifact(env, db, artifact);
+  return produceArtifact(env, db, artifact, appSlug);
 }
 
 export const produceCarousels: Handler = {
@@ -214,6 +227,8 @@ export const produceCarousels: Handler = {
   async run(ctx) {
     const config = ctx.automation.config as { app_slug?: string; max_per_run?: number };
     const appSlug = config.app_slug ?? 'deadset';
+    const playbook = getCreativePlaybook(appSlug);
+    if (!playbook) throw new Error(`no verified production playbook for "${appSlug}"`);
     const maxPerRun = Math.min(Math.max(config.max_per_run ?? 2, 1), 5);
     const app = await ctx.db.selectOne<{ id: string }>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
@@ -225,12 +240,12 @@ export const produceCarousels: Handler = {
     const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0).slice(0, maxPerRun);
     if (pending.length === 0) return { produced: 0, blocked: 0, message: 'No unrendered photo drafts.' };
 
-    await ctx.setTask(`building ${pending.length} Deadset carousel${pending.length === 1 ? '' : 's'}`);
+    await ctx.setTask(`building ${pending.length} ${playbook.appName} carousel${pending.length === 1 ? '' : 's'}`);
     let produced = 0;
     const blocked: Array<{ id: string; reason: string }> = [];
     const ready: Artifact[] = [];
     for (const artifact of pending) {
-      const reason = await preflightArtifact(ctx.env, ctx.db, artifact);
+      const reason = await preflightArtifact(ctx.env, ctx.db, artifact, appSlug);
       if (reason) {
         blocked.push({ id: artifact.id, reason });
         ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason });
@@ -247,7 +262,7 @@ export const produceCarousels: Handler = {
 
     for (const artifact of ready) {
       try {
-        const result = await produceArtifact(ctx.env, ctx.db, artifact);
+        const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
         if (result.state === 'produced') {
           produced += 1;
           ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
