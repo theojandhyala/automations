@@ -4,5 +4,6 @@ dist/
 .env.local
 .dev.vars
 .wrangler/
+supabase/.temp/
 .DS_Store
 *.tsbuildinfo

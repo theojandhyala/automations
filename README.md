@@ -101,9 +101,9 @@ and the kill switch for free.
 
 ### 1. Supabase
 
-Create a project, then run both files in `supabase/migrations/` in the SQL
-editor, in order. Then pin the owner — until you do, the dashboard reads
-nothing:
+Create a project, then run every numbered file in `supabase/migrations/` in
+order (`0001` through `0005` at the time of writing). Then pin the owner —
+until you do, the dashboard reads nothing:
 
 ```sql
 alter database postgres set app.owner_email = 'you@example.com';
@@ -119,7 +119,7 @@ cd worker
 npm install
 ```
 
-Set the non-secret vars in `wrangler.toml` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+Set the non-secret vars in `wrangler.jsonc` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
 `OWNER_EMAIL`), then the secrets:
 
 ```bash
@@ -174,6 +174,7 @@ cd worker && npm test                # Workers-runtime specs + node cron tests
 cd worker && npm run test:workers    # vitest inside workerd only
 cd worker && npm run typecheck
 cd worker && npm run types           # regenerate worker-configuration.d.ts
+cd worker && npm run types:check     # verify generated bindings are current
 cd web    && npm run build           # typechecks too
 ```
 
