@@ -5,8 +5,9 @@ dashboard and its API, runs the scheduler, and executes the automation handlers;
 Supabase holds the data and handles sign-in.
 
 The first automations it runs promote **Deadset**, **Cast** and **LifeScore** on
-TikTok: a drafting step writes video concepts into a review queue, and a publish
-step sends the ones I approve through TikTok's Content Posting API.
+TikTok: a drafting step writes native video or two-slide photo-carousel concepts
+into a review queue, and a publish step sends the exact media I approve through
+TikTok's Content Posting API.
 
 ```
 web/       React dashboard (Vite), built into web/dist
@@ -40,8 +41,18 @@ breaker and disable the automation rather than letting it fail on a schedule
 forever.
 
 **Nothing posts without a human.** `tiktok.generate` only ever writes `draft`
-artifacts. The publisher picks up `approved` ones, and approval requires a video
-URL and an account, set by hand in the review queue.
+artifacts. The publisher picks up `approved` ones. Approval requires the final
+video or ordered photo URLs, a connected account, a live creator-info refresh,
+a manually selected privacy level, commercial-content disclosure and explicit
+posting consent in the review queue.
+
+Deadset's scheduled generator uses a native two-slide grammar three times a
+week: a relatable real-photo gym/lifestyle hook followed by an exact current
+Deadset feature screen. Pinterest can guide the visual mood but is never treated
+as a licence. Drafts require creator-owned or explicitly licensed stock imagery,
+store a source/licence note, prohibit generated people and prohibit rebuilt app
+UI. The current feature rotation is muscle targeting, training heatmap, PR wall,
+progression board, workout plan and live logger.
 
 Claiming is atomic. The dispatcher calls `claim_due_automations()`, which flips
 rows to `running` in the same statement that selects them, under
@@ -61,16 +72,17 @@ labels them **Not built**, and `GET /api/pipeline` is the source of that truth.
 | Research | Not built |
 | Concept | Automated (`tiktok.generate`) |
 | Script | Not built |
-| Assets / footage | Not built — you supply the footage |
+| Assets / footage | Not built — you supply the licensed real photo/footage and exact app capture |
 | Edit / render | Not built |
 | Review | You do this, in the queue |
 | Schedule | You do this |
 | Publish | Automated (`tiktok.publish`) |
 | Analytics | Automated (`analytics.sync`) |
 
-So: **the pipeline drafts concepts, it does not make videos.** A draft carries a
-hook, caption, hashtags and shot notes; turning that into a file is still manual,
-and the approve step will not let anything through without a video URL.
+So: **the pipeline drafts concepts and carousel manifests; it does not yet render
+or host the media.** A draft carries a hook, caption, hashtags, source rules and
+slide notes. Turning that into final files is still manual, and approval rejects
+anything without the final video URL or ordered photo URLs.
 
 Two more things are deliberately unconfigured:
 
@@ -86,8 +98,8 @@ Two more things are deliberately unconfigured:
 | Handler key | What it does |
 | --- | --- |
 | `system.heartbeat` | Records a run so you can confirm the dispatcher is healthy. |
-| `tiktok.generate` | Drafts hooks/captions/shot notes for one app. Config: `{app_slug, count, account_id?, extra_context?}` |
-| `tiktok.publish` | Publishes approved artifacts within each account's daily limit. Config: `{max_per_run}` |
+| `tiktok.generate` | Drafts hooks/captions/shot notes and, for Deadset, a licensed-real-photo carousel manifest. Config: `{app_slug, count, account_id?, extra_context?, content_format?, source_policy?, feature_rotation?}` |
+| `tiktok.publish` | Publishes approved videos or native photo carousels within each account's daily limit. Config: `{max_per_run}` |
 | `tiktok.reconcile` | Polls TikTok and settles in-flight posts. |
 | `analytics.sync` | Pulls follower/view/per-post metrics. Config: `{lookback_posts}` |
 | `report.daily` | Builds the 08:00 morning report. |
@@ -155,11 +167,15 @@ The Worker serves `web/dist` directly, so that is one deploy, no CORS.
 In the TikTok developer console: create an app, request `video.publish`,
 `video.upload` and `user.info.basic`, set the redirect URI to
 `https://<worker>/api/tiktok/callback`, and verify the domain your videos will
-be served from — `PULL_FROM_URL` refuses unverified domains. Then add each
-account on the Accounts page and hit Connect.
+and carousel slides will be served from — `PULL_FROM_URL` refuses unverified
+domains and requires HTTPS URLs that do not redirect. Then add each account on
+the Accounts page and hit Connect.
 
-Until the app passes TikTok's audit it stays in sandbox mode: posts land as
-private drafts only, visible to the account owner.
+Until the app passes TikTok's audit it stays restricted: Direct Post content is
+private-only. TikTok's current product-use guidance also says Direct Post clients
+must be creator-facing products rather than private internal uploaders, so public
+automation should not be presented as audit-ready until TikTok approves the
+actual use case.
 
 ### 5. First run
 

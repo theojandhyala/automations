@@ -1,9 +1,6 @@
-import { accessTokenFor, creatorInfo, initVideoPublish } from '../lib/tiktok';
+import { accessTokenFor, creatorInfo, initPhotoPublish, initVideoPublish } from '../lib/tiktok';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
-
-/** Preferred privacy level, falling back to whatever the creator offers. */
-const PRIVACY_PREFERENCE = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY'];
 
 function captionFor(artifact: Artifact): string {
   const tags = artifact.hashtags.map((t) => (t.startsWith('#') ? t : `#${t}`)).join(' ');
@@ -19,8 +16,8 @@ function captionFor(artifact: Artifact): string {
  */
 export const publishApproved: Handler = {
   key: 'tiktok.publish',
-  name: 'Publish approved videos',
-  description: 'Sends approved artifacts to TikTok, respecting each account\'s daily limit.',
+  name: 'Publish approved TikToks',
+  description: 'Sends owner-approved videos or photo carousels to TikTok within each account\'s limit.',
   async run(ctx) {
     const config = ctx.automation.config as { max_per_run?: number };
     const maxPerRun = Math.min(Math.max(config.max_per_run ?? 3, 1), 10);
@@ -28,7 +25,7 @@ export const publishApproved: Handler = {
 
     const ready = await ctx.db.select<Artifact>(
       'artifacts',
-      `status=eq.approved&video_url=not.is.null&account_id=not.is.null` +
+      `status=eq.approved&account_id=not.is.null` +
         `&or=(scheduled_for.is.null,scheduled_for.lte.${now})` +
         `&order=scheduled_for.asc.nullsfirst&limit=${maxPerRun}`,
     );
@@ -74,6 +71,13 @@ export const publishApproved: Handler = {
       }
 
       try {
+        const mediaReady = artifact.media_type === 'photo'
+          ? artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35
+          : Boolean(artifact.video_url);
+        if (!mediaReady) throw new Error(`${artifact.media_type} media is missing`);
+        if (!artifact.posting_consent_at) throw new Error('posting consent is missing');
+        if (!artifact.tiktok_privacy_level) throw new Error('privacy level was not selected');
+
         await ctx.setTask(`publishing to @${account.handle}`);
         await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
           status: 'publishing',
@@ -83,23 +87,53 @@ export const publishApproved: Handler = {
 
         const token = await accessTokenFor(ctx.env, ctx.db, account);
         const info = await creatorInfo(token);
-        const privacy =
-          PRIVACY_PREFERENCE.find((p) => info.privacy_level_options.includes(p)) ??
-          info.privacy_level_options[0];
-        if (!privacy) throw new Error(`@${account.handle} offers no privacy levels`);
+        const privacy = artifact.tiktok_privacy_level;
+        if (!info.privacy_level_options.includes(privacy)) {
+          throw new Error(`selected privacy is no longer available for @${account.handle}; review again`);
+        }
+        if (
+          artifact.media_type === 'video'
+          && artifact.duration_s != null
+          && artifact.duration_s > info.max_video_post_duration_sec
+        ) {
+          throw new Error(
+            `video is ${artifact.duration_s}s; @${account.handle} currently allows ${info.max_video_post_duration_sec}s`,
+          );
+        }
 
-        const { publish_id } = await initVideoPublish(token, {
-          title: captionFor(artifact),
-          videoUrl: artifact.video_url!,
-          privacyLevel: privacy,
-        });
+        const description = captionFor(artifact);
+        const publish = artifact.media_type === 'photo'
+          ? await initPhotoPublish(token, {
+              title: (artifact.hook ?? artifact.caption ?? 'Deadset').slice(0, 90),
+              description,
+              photoUrls: artifact.photo_urls,
+              privacyLevel: privacy,
+              disableComment: artifact.disable_comment || info.comment_disabled,
+              autoAddMusic: artifact.auto_add_music,
+              brandOrganic: artifact.brand_organic_toggle,
+              brandContent: artifact.brand_content_toggle,
+            })
+          : await initVideoPublish(token, {
+              title: description,
+              videoUrl: artifact.video_url!,
+              privacyLevel: privacy,
+              disableComment: artifact.disable_comment || info.comment_disabled,
+              brandOrganic: artifact.brand_organic_toggle,
+              brandContent: artifact.brand_content_toggle,
+              isAigc: artifact.is_aigc,
+            });
+        const { publish_id } = publish;
 
         // TikTok pulls and encodes asynchronously; tiktok.reconcile closes the
         // loop and moves the artifact to 'published'.
         await ctx.db.update('artifacts', `id=eq.${artifact.id}`, { publish_id });
         postedThisRun.add(accountId);
         published++;
-        ctx.log('info', `submitted to @${account.handle}`, { publish_id, privacy });
+        ctx.log('info', `submitted ${artifact.media_type} to @${account.handle}`, {
+          publish_id,
+          privacy,
+          media_type: artifact.media_type,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await ctx.db.update('artifacts', `id=eq.${artifact.id}`, { status: 'failed', error: message });

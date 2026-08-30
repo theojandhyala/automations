@@ -59,7 +59,23 @@ export interface Artifact {
   hook: string | null;
   caption: string | null;
   hashtags: string[];
+  media_type: 'video' | 'photo';
   video_url: string | null;
+  duration_s: number | null;
+  photo_urls: string[];
+  asset_manifest: {
+    format?: string;
+    feature?: string;
+    slides?: Array<{
+      role?: string;
+      overlay?: string;
+      asset_query?: string;
+      app_asset_key?: string;
+      source_requirement?: string;
+    }>;
+    source_policy?: string;
+    licence_note?: string;
+  };
   error: string | null;
   scheduled_for: string | null;
   published_at: string | null;
@@ -69,7 +85,20 @@ export interface Artifact {
   shot_notes: string | null;
   script: string | null;
   tiktok_post_id: string | null;
+  tiktok_privacy_level: TikTokPrivacyLevel | null;
+  disable_comment: boolean;
+  auto_add_music: boolean;
+  brand_organic_toggle: boolean;
+  brand_content_toggle: boolean;
+  is_aigc: boolean;
+  posting_consent_at: string | null;
 }
+
+export type TikTokPrivacyLevel =
+  | 'PUBLIC_TO_EVERYONE'
+  | 'FOLLOWER_OF_CREATOR'
+  | 'MUTUAL_FOLLOW_FRIENDS'
+  | 'SELF_ONLY';
 
 export interface Account {
   id: string;

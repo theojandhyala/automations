@@ -15,6 +15,13 @@ const cron = z
 
 const uuid = z.string().uuid();
 const jsonObject = z.record(z.unknown());
+const httpsUrl = z.string().url().refine((value) => value.startsWith('https://'), 'must use https');
+const tiktokPrivacy = z.enum([
+  'PUBLIC_TO_EVERYONE',
+  'FOLLOWER_OF_CREATOR',
+  'MUTUAL_FOLLOW_FRIENDS',
+  'SELF_ONLY',
+]);
 
 export const createAutomationSchema = z.object({
   handler_key: z.string().min(1),
@@ -52,8 +59,18 @@ export const updateArtifactSchema = z
     shot_notes: z.string().max(5000).nullable(),
     hashtags: z.array(z.string().max(60)).max(10),
     video_url: z.string().url().nullable(),
+    photo_urls: z.array(httpsUrl).max(35),
+    media_type: z.enum(['video', 'photo']),
+    asset_manifest: jsonObject,
     account_id: uuid.nullable(),
     scheduled_for: z.string().datetime({ offset: true }).nullable(),
+    tiktok_privacy_level: tiktokPrivacy.nullable(),
+    disable_comment: z.boolean(),
+    auto_add_music: z.boolean(),
+    brand_organic_toggle: z.boolean(),
+    brand_content_toggle: z.boolean(),
+    is_aigc: z.boolean(),
+    posting_consent: z.boolean(),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'no fields to update');
@@ -87,6 +104,9 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
     count: z.number().int().min(1).max(10).default(3),
     account_id: uuid.nullish(),
     extra_context: z.string().max(2000).nullish(),
+    content_format: z.enum(['video', 'photo_carousel']).optional(),
+    source_policy: z.literal('licensed_real_only').optional(),
+    feature_rotation: z.array(z.string().min(1).max(80)).max(20).optional(),
   }),
   'tiktok.publish': z.object({
     max_per_run: z.number().int().min(1).max(10).default(3),

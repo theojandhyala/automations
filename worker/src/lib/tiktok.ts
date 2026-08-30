@@ -123,8 +123,13 @@ async function apiPost<T>(token: string, path: string, body: unknown): Promise<T
 }
 
 export interface CreatorInfo {
+  creator_avatar_url?: string;
   creator_username: string;
+  creator_nickname: string;
   privacy_level_options: string[];
+  comment_disabled: boolean;
+  duet_disabled: boolean;
+  stitch_disabled: boolean;
   max_video_post_duration_sec: number;
 }
 
@@ -147,20 +152,67 @@ export interface PublishInit {
  */
 export function initVideoPublish(
   token: string,
-  opts: { title: string; videoUrl: string; privacyLevel: string },
+  opts: {
+    title: string;
+    videoUrl: string;
+    privacyLevel: string;
+    disableComment: boolean;
+    brandOrganic: boolean;
+    brandContent: boolean;
+    isAigc: boolean;
+  },
 ): Promise<PublishInit> {
   return apiPost<PublishInit>(token, '/post/publish/video/init/', {
     post_info: {
       title: opts.title,
       privacy_level: opts.privacyLevel,
-      disable_duet: false,
-      disable_comment: false,
-      disable_stitch: false,
+      // Interaction permissions are off unless the owner explicitly enables
+      // them in the review UI. Photo posts only expose comments.
+      disable_duet: true,
+      disable_comment: opts.disableComment,
+      disable_stitch: true,
+      brand_organic_toggle: opts.brandOrganic,
+      brand_content_toggle: opts.brandContent,
+      is_aigc: opts.isAigc,
     },
     source_info: {
       source: 'PULL_FROM_URL',
       video_url: opts.videoUrl,
     },
+  });
+}
+
+/** Starts a native TikTok photo carousel publish from verified HTTPS URLs. */
+export function initPhotoPublish(
+  token: string,
+  opts: {
+    title: string;
+    description: string;
+    photoUrls: string[];
+    privacyLevel: string;
+    disableComment: boolean;
+    autoAddMusic: boolean;
+    brandOrganic: boolean;
+    brandContent: boolean;
+  },
+): Promise<PublishInit> {
+  return apiPost<PublishInit>(token, '/post/publish/content/init/', {
+    post_info: {
+      title: opts.title.slice(0, 90),
+      description: opts.description.slice(0, 4000),
+      privacy_level: opts.privacyLevel,
+      disable_comment: opts.disableComment,
+      auto_add_music: opts.autoAddMusic,
+      brand_organic_toggle: opts.brandOrganic,
+      brand_content_toggle: opts.brandContent,
+    },
+    source_info: {
+      source: 'PULL_FROM_URL',
+      photo_images: opts.photoUrls,
+      photo_cover_index: 0,
+    },
+    post_mode: 'DIRECT_POST',
+    media_type: 'PHOTO',
   });
 }
 

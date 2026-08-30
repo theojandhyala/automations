@@ -4,7 +4,7 @@ import { claimOne, executeRun } from '../lib/runner';
 import { listHandlers } from '../automations/registry';
 import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
-import { authorizeUrl, exchangeCode, storeTokens } from '../lib/tiktok';
+import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, storeTokens } from '../lib/tiktok';
 import { log, errorFields } from '../lib/log';
 import {
   ValidationError,
@@ -16,7 +16,7 @@ import {
   updateAutomationSchema,
   validateConfig,
 } from '../lib/schemas';
-import type { Automation, Env } from '../types';
+import type { Artifact, Automation, Env, TikTokAccount } from '../types';
 
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -187,16 +187,24 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const id = artifactMatch[1]!;
     const body = await parseBody(req, updateArtifactSchema);
 
-    const current = await db.selectOne<{ status: string; stages: Record<string, unknown> }>(
+    const current = await db.selectOne<Artifact>(
       'artifacts',
-      `id=eq.${id}&select=status,stages`,
+      `id=eq.${id}&select=*`,
     );
     if (!current) return json({ error: 'not found' }, 404);
 
     const patch: Record<string, unknown> = {};
     for (const field of
-      ['caption', 'hook', 'script', 'shot_notes', 'hashtags', 'video_url', 'account_id', 'scheduled_for'] as const) {
+      [
+        'caption', 'hook', 'script', 'shot_notes', 'hashtags', 'video_url', 'photo_urls',
+        'media_type', 'asset_manifest', 'account_id', 'scheduled_for', 'tiktok_privacy_level',
+        'disable_comment', 'auto_add_music', 'brand_organic_toggle', 'brand_content_toggle', 'is_aigc',
+      ] as const) {
       if (field in body) patch[field] = body[field];
+    }
+
+    if ('posting_consent' in body) {
+      patch.posting_consent_at = body.posting_consent ? new Date().toISOString() : null;
     }
 
     if (body.status) {
@@ -209,6 +217,28 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
       // Keep the pipeline record in step with the review decision.
       if (body.status === 'approved') {
+        const mediaType = body.media_type ?? current.media_type;
+        const videoUrl = body.video_url === undefined ? current.video_url : body.video_url;
+        const photoUrls = body.photo_urls ?? current.photo_urls;
+        const accountId = body.account_id === undefined ? current.account_id : body.account_id;
+        const privacy = body.tiktok_privacy_level === undefined
+          ? current.tiktok_privacy_level
+          : body.tiktok_privacy_level;
+        const consented = body.posting_consent === true;
+        const ownBrand = body.brand_organic_toggle === undefined
+          ? current.brand_organic_toggle
+          : body.brand_organic_toggle;
+        const mediaReady = mediaType === 'photo'
+          ? Array.isArray(photoUrls) && photoUrls.length >= 1 && photoUrls.length <= 35
+          : Boolean(videoUrl);
+
+        if (!mediaReady) return json({ error: `${mediaType} media is required before approval` }, 400);
+        if (!accountId) return json({ error: 'choose a TikTok account before approval' }, 400);
+        if (!privacy) return json({ error: 'choose a privacy level before approval' }, 400);
+        if (!ownBrand) return json({ error: 'confirm that this promotes your own brand before approval' }, 400);
+        if (!consented) return json({ error: 'explicit TikTok posting consent is required' }, 400);
+
+        patch.posting_consent_at = new Date().toISOString();
         patch.stage = 'schedule';
         patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString() } };
       } else if (body.status === 'draft') {
@@ -216,6 +246,18 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         patch.stages = { ...current.stages, review: { state: 'pending' } };
       } else if (body.status === 'rejected') {
         patch.stages = { ...current.stages, review: { state: 'skipped', at: new Date().toISOString() } };
+      }
+    } else if (current.status === 'approved') {
+      const consentSensitive = [
+        'caption', 'hook', 'hashtags', 'video_url', 'photo_urls', 'media_type', 'account_id',
+        'tiktok_privacy_level', 'disable_comment', 'auto_add_music', 'brand_organic_toggle',
+        'brand_content_toggle', 'is_aigc',
+      ].some((field) => field in body);
+      if (consentSensitive) {
+        patch.status = 'draft';
+        patch.posting_consent_at = null;
+        patch.stage = 'concept';
+        patch.stages = { ...current.stages, review: { state: 'pending' } };
       }
     }
 
@@ -243,6 +285,27 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     // Never echo the token columns back to the browser.
     const { access_token_enc: _a, refresh_token_enc: _r, ...safe } = updated as Record<string, unknown>;
     return json(safe);
+  }
+
+  const creatorInfoMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})\/creator-info$/);
+  if (creatorInfoMatch && req.method === 'GET') {
+    const account = await db.selectOne<TikTokAccount>(
+      'tiktok_accounts',
+      `id=eq.${creatorInfoMatch[1]!}&select=*`,
+    );
+    if (!account) return json({ error: 'account not found' }, 404);
+    const token = await accessTokenFor(env, db, account);
+    const info = await creatorInfo(token);
+    return json({
+      creator_username: info.creator_username,
+      creator_nickname: info.creator_nickname,
+      creator_avatar_url: info.creator_avatar_url ?? null,
+      privacy_level_options: info.privacy_level_options,
+      comment_disabled: info.comment_disabled,
+      duet_disabled: info.duet_disabled,
+      stitch_disabled: info.stitch_disabled,
+      max_video_post_duration_sec: info.max_video_post_duration_sec,
+    });
   }
 
   const connectMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})\/connect$/);

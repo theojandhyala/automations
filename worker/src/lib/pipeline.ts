@@ -4,7 +4,8 @@ import type { Env } from '../types';
  * The real production pipeline. Most of it is not wired yet, and the dashboard
  * says so: a stage whose requirements are not met reports 'not_configured'
  * rather than rendering as though it works. Keeping this list honest is the
- * point -- tiktok.generate writes concepts, it does not make videos.
+ * point -- tiktok.generate writes concepts and asset manifests, but it does
+ * not download, license, render or host the final media.
  */
 export type StageKey =
   | 'research' | 'concept' | 'script' | 'assets'
@@ -33,7 +34,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'concept',
     name: 'Concept',
-    description: 'Draft hooks, captions and shot notes.',
+    description: 'Draft hooks, captions, shot notes and carousel manifests.',
     handler: 'tiktok.generate',
     requires: ['AI'],
   },
@@ -47,7 +48,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'assets',
     name: 'Assets / footage',
-    description: 'Gather or generate the screen recordings, b-roll and voiceover.',
+    description: 'Gather licensed real photos and exact current app captures.',
     handler: null,
     requires: [],
   },
@@ -61,7 +62,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'review',
     name: 'Review',
-    description: 'You approve the video and caption in the queue.',
+    description: 'Preview exact media, choose TikTok settings and explicitly approve.',
     handler: null,
     requires: [],
     manual: true,
@@ -77,7 +78,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'publish',
     name: 'Publish',
-    description: 'Send to TikTok and confirm the post landed.',
+    description: 'Send an approved video or photo carousel to TikTok and confirm it landed.',
     handler: 'tiktok.publish',
     requires: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
   },

@@ -186,8 +186,53 @@ describe('artifact transitions', () => {
             patch = call.body as Record<string, unknown>;
             return jsonResponse([{ id: ARTIFACT_ID }]);
           }
-          return jsonResponse([{ status: 'draft', stages: { concept: { state: 'done' } } }]);
+          return jsonResponse([{
+            status: 'draft',
+            stages: { concept: { state: 'done' } },
+            media_type: 'photo',
+            photo_urls: [
+              'https://media.example.test/slide-1.jpg',
+              'https://media.example.test/slide-2.jpg',
+            ],
+            video_url: null,
+            account_id: ARTIFACT_ID,
+            tiktok_privacy_level: 'SELF_ONLY',
+            brand_organic_toggle: true,
+          }]);
         },
+      },
+    ]);
+
+    const res = await call(
+      apiRequest(`/artifacts/${ARTIFACT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved', posting_consent: true }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(patch).toMatchObject({ status: 'approved', stage: 'schedule' });
+    const stages = (patch as unknown as { stages: Record<string, { state: string }> }).stages;
+    // The concept stage survives the approval rather than being overwritten.
+    expect(stages['concept']?.state).toBe('done');
+    expect(stages['review']?.state).toBe('done');
+  });
+
+  it('refuses approval without explicit TikTok posting consent', async () => {
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/artifacts\?id=eq/,
+        respond: () => jsonResponse([{
+          status: 'draft',
+          stages: {},
+          media_type: 'photo',
+          photo_urls: ['https://media.example.test/slide.jpg'],
+          video_url: null,
+          account_id: ARTIFACT_ID,
+          tiktok_privacy_level: 'SELF_ONLY',
+          brand_organic_toggle: true,
+        }]),
       },
     ]);
 
@@ -198,12 +243,8 @@ describe('artifact transitions', () => {
       }),
     );
 
-    expect(res.status).toBe(200);
-    expect(patch).toMatchObject({ status: 'approved', stage: 'schedule' });
-    const stages = (patch as unknown as { stages: Record<string, { state: string }> }).stages;
-    // The concept stage survives the approval rather than being overwritten.
-    expect(stages['concept']?.state).toBe('done');
-    expect(stages['review']?.state).toBe('done');
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: string }).error).toMatch(/consent/);
   });
 });
 
