@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/supabase';
-import type { App, Automation } from '../lib/types';
+import type { Account, App, Automation } from '../lib/types';
 
 /**
  * Natural-language command bar.
@@ -19,19 +19,79 @@ interface Reply {
   tone: 'ok' | 'warn';
 }
 
+interface RecognitionResultLike {
+  readonly 0: { transcript: string };
+}
+
+interface RecognitionEventLike {
+  results: { readonly 0: RecognitionResultLike };
+}
+
+interface RecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: RecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type RecognitionConstructor = new () => RecognitionLike;
+
 export default function CommandBar({
   automations,
   apps,
+  accounts,
+  drafts,
   onChanged,
 }: {
   automations: Automation[];
   apps: App[];
+  accounts: Account[];
+  drafts: number;
   onChanged: () => void;
 }) {
   const [value, setValue] = useState('');
   const [reply, setReply] = useState<Reply | null>(null);
   const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [shutdownArmed, setShutdownArmed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<RecognitionLike | null>(null);
   const navigate = useNavigate();
+
+  const recognitionConstructor = typeof window === 'undefined'
+    ? undefined
+    : ((window as typeof window & {
+        SpeechRecognition?: RecognitionConstructor;
+        webkitSpeechRecognition?: RecognitionConstructor;
+      }).SpeechRecognition
+      ?? (window as typeof window & { webkitSpeechRecognition?: RecognitionConstructor })
+        .webkitSpeechRecognition);
+
+  useEffect(() => {
+    function onShortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      if ((event.key === '/' && !isTyping) || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (event.key === 'Escape') setReply(null);
+    }
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, []);
+
+  useEffect(() => {
+    if (!shutdownArmed) return undefined;
+    const timeout = window.setTimeout(() => setShutdownArmed(false), 12_000);
+    return () => window.clearTimeout(timeout);
+  }, [shutdownArmed]);
+
+  useEffect(() => () => recognitionRef.current?.stop(), []);
 
   function findApp(text: string): App | undefined {
     return apps.find((a) => text.includes(a.slug) || text.includes(a.name.toLowerCase()));
@@ -47,6 +107,47 @@ export default function CommandBar({
   async function run(text: string): Promise<Reply> {
     const t = text.toLowerCase().trim();
 
+    if (/^(status|system status|give me (a )?status|how are things)$/.test(t)) {
+      const running = automations.filter((automation) => automation.status === 'running').length;
+      const attention = automations.filter(
+        (automation) => automation.status === 'failed' || automation.status === 'disabled',
+      ).length;
+      const connected = accounts.filter((account) => account.status === 'connected').length;
+      return {
+        text: attention
+          ? `${attention} agent${attention === 1 ? '' : 's'} need attention. ${running} active, ${drafts} creations waiting, ${connected} publishing accounts linked.`
+          : `All systems nominal. ${running} active, ${drafts} creations waiting, ${connected} publishing accounts linked.`,
+        tone: attention ? 'warn' : 'ok',
+      };
+    }
+
+    if (/what('s| is) (next|scheduled)|next mission/.test(t)) {
+      const next = automations
+        .filter((automation) => automation.enabled && automation.next_run_at)
+        .sort((a, b) => (a.next_run_at ?? '').localeCompare(b.next_run_at ?? ''))[0];
+      if (!next?.next_run_at) return { text: 'No scheduled mission is queued.', tone: 'warn' };
+      return {
+        text: `${next.name} is next at ${new Date(next.next_run_at).toLocaleString()}.`,
+        tone: 'ok',
+      };
+    }
+
+    if (/what needs attention|diagnose|check system/.test(t)) {
+      const attention = automations.filter(
+        (automation) => automation.status === 'failed' || automation.status === 'disabled',
+      );
+      const accountProblem = accounts.find((account) => account.status !== 'connected');
+      if (attention.length) return { text: `${attention[0].name} needs attention. Open its stone for details.`, tone: 'warn' };
+      if (accountProblem) return { text: `Publishing for @${accountProblem.handle} still needs connection attention.`, tone: 'warn' };
+      if (drafts) return { text: `${drafts} creation${drafts === 1 ? '' : 's'} are ready for review.`, tone: 'ok' };
+      return { text: 'Nothing needs attention. All configured systems are nominal.', tone: 'ok' };
+    }
+
+    if (/^(home|overview|open overview|show overview)$/.test(t)) {
+      navigate('/');
+      return { text: 'Opened the system overview.', tone: 'ok' };
+    }
+
     if (/(^|\s)(queue|review|drafts?)(\s|$)/.test(t) && !/run|start/.test(t)) {
       navigate('/queue');
       return { text: 'Opened the review queue.', tone: 'ok' };
@@ -60,10 +161,16 @@ export default function CommandBar({
       return { text: 'Opened accounts.', tone: 'ok' };
     }
 
-    if (/stop (everything|all)|kill|panic/.test(t)) {
+    if (/confirm (stop|pause|shutdown) (everything|all)|confirm shutdown/.test(t) && shutdownArmed) {
       await api('/kill', { method: 'POST' });
+      setShutdownArmed(false);
       onChanged();
       return { text: 'Every automation is paused.', tone: 'warn' };
+    }
+
+    if (/stop (everything|all)|kill|panic|shutdown/.test(t)) {
+      setShutdownArmed(true);
+      return { text: 'System-wide pause armed for 12 seconds. Confirm to pause every automation.', tone: 'warn' };
     }
 
     // "make a video about ..." -- the honest answer.
@@ -132,6 +239,35 @@ export default function CommandBar({
     }
   }
 
+  function toggleVoice() {
+    if (!recognitionConstructor) {
+      setReply({ text: 'Voice control is not supported by this browser. Typed commands still work locally.', tone: 'warn' });
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new recognitionConstructor();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = navigator.language || 'en-GB';
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setValue(transcript);
+      inputRef.current?.focus();
+    };
+    recognition.onerror = () => {
+      setReply({ text: 'I could not hear that command. Try again or type it.', tone: 'warn' });
+      setListening(false);
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  }
+
   async function quick(text: string) {
     setBusy(true);
     try {
@@ -143,17 +279,31 @@ export default function CommandBar({
 
   return (
     <div className="command-bar">
+      <div className="command-label">
+        <span><i /> JARVIS command</span>
+        <kbd>⌘ K</kbd>
+      </div>
       {reply && (
         <div className={`command-reply ${reply.tone === 'warn' ? 'warn' : ''}`} role="status">
           {reply.text}
         </div>
       )}
       <form onSubmit={submit}>
+        <button
+          className={`voice-command ${listening ? 'listening' : ''}`}
+          type="button"
+          onClick={toggleVoice}
+          aria-label={listening ? 'Stop listening' : 'Speak a command'}
+          title={recognitionConstructor ? 'Speak a command' : 'Voice input is not supported in this browser'}
+        >
+          <span aria-hidden="true">{listening ? '◉' : '◌'}</span>
+        </button>
         <input
+          ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Ask the core anything, or say “make a video about Deadset”…"
-          aria-label="Command the control plane"
+          placeholder={listening ? 'Listening…' : 'Ask JARVIS for status, run an agent, or open a mission…'}
+          aria-label="Command JARVIS"
           disabled={busy}
         />
         <button className="primary" type="submit" disabled={busy || !value.trim()}>
@@ -161,11 +311,17 @@ export default function CommandBar({
         </button>
       </form>
       <div className="quick-actions">
+        <button onClick={() => quick('system status')}>System status</button>
+        <button onClick={() => quick('what needs attention')}>Diagnose</button>
         <button onClick={() => quick('show the queue')}>Review queue</button>
         <button onClick={() => quick('run analytics sync')}>Sync analytics</button>
         <button onClick={() => quick('run morning report')}>Build report</button>
-        <button onClick={() => navigate('/reports')}>Reports</button>
-        <button onClick={() => quick('stop everything')}>Stop everything</button>
+        <button
+          className={shutdownArmed ? 'danger armed' : 'danger'}
+          onClick={() => quick(shutdownArmed ? 'confirm stop everything' : 'stop everything')}
+        >
+          {shutdownArmed ? 'Confirm pause all' : 'Pause all'}
+        </button>
       </div>
     </div>
   );

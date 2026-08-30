@@ -9,6 +9,7 @@ import CommandBar from '../components/CommandBar';
 import ScheduleStrip from '../components/ScheduleStrip';
 import PipelineRail from '../components/PipelineRail';
 import AnalyticsCards from '../components/AnalyticsCards';
+import JarvisBriefing from '../components/JarvisBriefing';
 import type { Account, AnalyticsSnapshot, App, Automation } from '../lib/types';
 
 /**
@@ -108,6 +109,7 @@ export default function CommandCenter() {
       </header>
 
       <div className="cc-stage">
+        <JarvisBriefing automations={automations} accounts={accounts} drafts={drafts} />
         <OrbitField
           automations={automations}
           apps={apps}
@@ -123,7 +125,13 @@ export default function CommandCenter() {
           apps={apps}
           onOpenAgent={(a) => setOpenAgent(a.id)}
         />
-        <CommandBar automations={automations} apps={apps} onChanged={refresh} />
+        <CommandBar
+          automations={automations}
+          apps={apps}
+          accounts={accounts}
+          drafts={drafts}
+          onChanged={refresh}
+        />
       </footer>
 
       {agent && (
