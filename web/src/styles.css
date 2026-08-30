@@ -146,6 +146,15 @@ tbody tr:hover { background: var(--panel-2); }
 .login h1 { font-size: 18px; margin: 0 0 6px; }
 .login p { color: var(--muted); margin: 0 0 18px; }
 .login form { display: grid; gap: 10px; }
+.login-switch {
+  width: 100%;
+  margin-top: 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.login-switch:hover { color: var(--text); background: var(--panel-2); }
 
 .field { display: grid; gap: 5px; margin-bottom: 12px; }
 .field label { font-size: 12px; color: var(--muted); }
