@@ -232,9 +232,14 @@ export default function CommandBar({
       navigate('/reports');
       return { text: 'Opened reports.', tone: 'ok' };
     }
-    if (/account|connect/.test(t) && !/run|start|trigger|go/.test(t)) {
+    if (/account|connect/.test(t) && !/run|start|trigger|go|promote|campaign/.test(t)) {
       navigate('/accounts');
       return { text: 'Opened accounts.', tone: 'ok' };
+    }
+
+    if (/promote|promotion mission|campaign/.test(t) && !/status|explain/.test(t)) {
+      navigate('/promote');
+      return { text: 'Opened Promotion Mission. Choose the outcome and I will route the work through the right agents.', tone: 'ok' };
     }
 
     if (/confirm (stop|pause|shutdown) (everything|all)|confirm shutdown/.test(t) && shutdownArmed) {
@@ -249,22 +254,13 @@ export default function CommandBar({
       return { text: 'System-wide pause armed for 12 seconds. Confirm to pause every automation.', tone: 'warn' };
     }
 
-    // "make a video about ..." -- the honest answer.
+    // Direct creation requests enter the guided mission instead of silently
+    // launching an underspecified scheduled agent configuration.
     if (/make|create|film|shoot/.test(t) && /video|clip|post|short/.test(t)) {
-      const app = findApp(t);
-      const agent = automations.find(
-        (a) => a.handler_key === 'tiktok.generate' && (!app || a.app_id === app.id),
-      );
-      if (!agent) {
-        return { text: 'No drafting agent is set up for that app yet.', tone: 'warn' };
-      }
-      await api(`/automations/${agent.id}/run`, { method: 'POST' });
-      onChanged();
+      navigate('/promote');
       return {
-        text:
-          `Queued concepts on ${agent.name}. It writes hooks, captions and shot notes — ` +
-          'it cannot film or edit yet, so the video itself is still yours to make.',
-        tone: 'warn',
+        text: 'Opened Promotion Mission so you can choose the app, audience, outcome and exact creative route before any agents run.',
+        tone: 'ok',
       };
     }
 

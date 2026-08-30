@@ -272,6 +272,81 @@ describe('pipeline honesty', () => {
   });
 });
 
+describe('promotion missions', () => {
+  const appId = '33333333-3333-4333-8333-333333333333';
+  const promotionRoutes = [
+    {
+      match: /\/rest\/v1\/apps\?select=id,slug,name,tagline,accent/,
+      respond: () => jsonResponse([{ id: appId, slug: 'cast', name: 'Cast', tagline: 'Track it', accent: '#66ddff' }]),
+    },
+    {
+      match: /\/rest\/v1\/tiktok_accounts\?select=id,handle,display_name,app_id,status/,
+      respond: () => jsonResponse([{
+        id: ARTIFACT_ID,
+        handle: 'castapp',
+        display_name: 'Cast',
+        app_id: appId,
+        status: 'connected',
+        access_token_enc: 'MUST-NOT-LEAK',
+      }]),
+    },
+    {
+      match: /\/rest\/v1\/automations\?handler_key=in/,
+      respond: () => jsonResponse([
+        automationRow({ id: AUTOMATION_ID, app_id: appId, handler_key: 'tiktok.generate', status: 'idle' }),
+        automationRow({ id: '44444444-4444-4444-8444-444444444444', handler_key: 'tiktok.publish', status: 'idle' }),
+      ]),
+    },
+    {
+      match: /integration_secrets\?provider=eq\.pexels/,
+      respond: () => jsonResponse([{ provider: 'pexels', secret_enc: 'PEXELS-MUST-NOT-LEAK' }]),
+    },
+    { match: /creative_assets\?app_slug=eq\.deadset/, respond: () => jsonResponse([]) },
+    { match: /artifacts\?status=eq\.draft/, respond: () => jsonResponse([]) },
+  ];
+
+  it('reports capabilities and the permanent review gate without leaking credentials', async () => {
+    stubFetch([authRoute, ...promotionRoutes]);
+    const res = await call(apiRequest('/promotion/readiness'));
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text).toContain('"review_required":true');
+    expect(text).toContain('"publishing_ready":true');
+    expect(text).not.toContain('MUST-NOT-LEAK');
+    expect(text).not.toContain('secret_enc');
+    expect(text).not.toContain('access_token_enc');
+  });
+
+  it('does not launch an unsupported automatic carousel or claim an agent', async () => {
+    let claims = 0;
+    let missions = 0;
+    stubFetch([
+      authRoute,
+      ...promotionRoutes,
+      { match: /\/rpc\/claim_automation/, respond: () => { claims++; return jsonResponse([]); } },
+      { match: /\/rest\/v1\/promotion_missions$/, respond: () => { missions++; return jsonResponse([]); } },
+    ]);
+    const res = await call(apiRequest('/promotion/missions', {
+      method: 'POST',
+      body: JSON.stringify({
+        app_slug: 'cast',
+        account_id: ARTIFACT_ID,
+        goal: 'downloads',
+        audience: 'new_lifters',
+        angle: 'relatable',
+        content_format: 'photo_carousel',
+        draft_count: 3,
+        feature_rotation: [],
+        auto_produce: true,
+      }),
+    }));
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: string }).error).toMatch(/Deadset only/);
+    expect(claims).toBe(0);
+    expect(missions).toBe(0);
+  });
+});
+
 describe('token safety', () => {
   it('never echoes encrypted tokens back to the browser', async () => {
     stubFetch([

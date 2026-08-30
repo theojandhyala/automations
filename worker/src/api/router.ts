@@ -27,6 +27,7 @@ import {
   createAutomationSchema,
   parseBody,
   pexelsKeySchema,
+  promotionMissionSchema,
   updateAccountSchema,
   updateArtifactSchema,
   updateAutomationSchema,
@@ -76,6 +77,105 @@ interface AppleOfferCodeRequest {
   created_at: string;
   confirmed_at: string | null;
   completed_at: string | null;
+}
+
+interface PromotionMission {
+  id: string;
+  app_id: string;
+  account_id: string | null;
+  draft_run_id: string | null;
+  producer_run_id: string | null;
+  status: 'queued' | 'drafting' | 'producing' | 'awaiting_review' | 'failed';
+  goal: string;
+  audience: string;
+  angle: string;
+  content_format: 'photo_carousel' | 'video_brief';
+  draft_count: number;
+  feature_rotation: string[];
+  auto_produce: boolean;
+  readiness: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+interface PromotionApp {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string | null;
+  accent: string;
+}
+
+async function promotionReadiness(db: Db, env: Env) {
+  const [apps, accounts, automations, pexels, featureAssets, drafts] = await Promise.all([
+    db.select<PromotionApp>('apps', 'select=id,slug,name,tagline,accent&order=sort_order.asc'),
+    db.select<Pick<TikTokAccount, 'id' | 'handle' | 'display_name' | 'app_id' | 'status'>>(
+      'tiktok_accounts',
+      'select=id,handle,display_name,app_id,status&order=created_at.asc',
+    ),
+    db.select<Automation>(
+      'automations',
+      'handler_key=in.(tiktok.generate,tiktok.produce,tiktok.publish)&select=*',
+    ),
+    db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
+    db.select<{ asset_key: string }>('creative_assets', 'app_slug=eq.deadset&select=asset_key'),
+    db.select<{ app_id: string | null }>('artifacts', 'status=eq.draft&select=app_id&limit=500'),
+  ]);
+  const publishAgent = automations.find((automation) => automation.handler_key === 'tiktok.publish');
+  const uploadedKeys = new Set(featureAssets.map((asset) => asset.asset_key));
+  return {
+    free_ai: Boolean(env.AI),
+    review_required: true,
+    required_features: Object.entries(DEADSET_FEATURES).map(([key, label]) => ({
+      key,
+      label,
+      uploaded: uploadedKeys.has(key),
+    })),
+    accounts: accounts.map((account) => ({
+      id: account.id,
+      handle: account.handle,
+      display_name: account.display_name,
+      app_id: account.app_id,
+      status: account.status,
+    })),
+    apps: apps.map((app) => {
+      const draftAgent = automations.find(
+        (automation) => automation.handler_key === 'tiktok.generate' && automation.app_id === app.id,
+      );
+      const producerAgent = automations.find(
+        (automation) => automation.handler_key === 'tiktok.produce' && automation.app_id === app.id,
+      );
+      const appAccounts = accounts.filter((account) => account.app_id === app.id);
+      const connectedAccount = appAccounts.some((account) => account.status === 'connected');
+      const draftAvailable = Boolean(draftAgent && draftAgent.status !== 'disabled');
+      const producerAvailable = Boolean(producerAgent && producerAgent.status !== 'disabled');
+      const productionReady = app.slug === 'deadset'
+        && producerAvailable
+        && Boolean(pexels)
+        && uploadedKeys.size === Object.keys(DEADSET_FEATURES).length;
+      const blockers: string[] = [];
+      if (!draftAgent) blockers.push('No drafting agent exists for this app.');
+      else if (!draftAvailable) blockers.push('The drafting agent is disabled.');
+      if (!env.AI) blockers.push('Free Workers AI is not connected.');
+      if (app.slug === 'deadset' && !pexels) blockers.push('Connect the free Pexels photo source.');
+      if (app.slug === 'deadset' && uploadedKeys.size < Object.keys(DEADSET_FEATURES).length) {
+        blockers.push(`Upload ${Object.keys(DEADSET_FEATURES).length - uploadedKeys.size} remaining exact Deadset screen(s).`);
+      }
+      if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
+      return {
+        ...app,
+        draft_agent_id: draftAgent?.id ?? null,
+        producer_agent_id: producerAgent?.id ?? null,
+        publish_agent_id: publishAgent?.id ?? null,
+        drafting_ready: Boolean(draftAvailable && env.AI),
+        production_ready: productionReady,
+        publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount),
+        pending_drafts: drafts.filter((draft) => draft.app_id === app.id).length,
+        blockers,
+      };
+    }),
+  };
 }
 
 async function loadAppStoreCredentials(db: Db, env: Env): Promise<AppStoreCredentials | null> {
@@ -341,6 +441,178 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       updated_at: new Date().toISOString(),
     }, 'app_slug,asset_key');
     return json({ ...asset, public_url: publicMediaUrl(env, storagePath) }, 201);
+  }
+
+  // --- guided app-promotion missions ---
+
+  if (path === '/promotion/readiness' && req.method === 'GET') {
+    return json(await promotionReadiness(db, env));
+  }
+
+  if (path === '/promotion/missions' && req.method === 'GET') {
+    const missions = await db.select<PromotionMission>(
+      'promotion_missions',
+      'select=*&order=created_at.desc&limit=20',
+    );
+    return json({ missions });
+  }
+
+  if (path === '/promotion/missions' && req.method === 'POST') {
+    const body = await parseBody(req, promotionMissionSchema);
+    const readiness = await promotionReadiness(db, env);
+    const app = readiness.apps.find((candidate) => candidate.slug === body.app_slug);
+    if (!app) return json({ error: 'App workspace not found.' }, 404);
+    if (!app.drafting_ready || !app.draft_agent_id) {
+      return json({ error: app.blockers[0] ?? 'Drafting is not ready for this app.' }, 409);
+    }
+    if (body.content_format === 'photo_carousel' && app.slug !== 'deadset') {
+      return json({ error: 'Automatic photo-carousel production is currently available for Deadset only.' }, 400);
+    }
+    if (body.account_id) {
+      const account = readiness.accounts.find((candidate) => candidate.id === body.account_id);
+      if (!account) return json({ error: 'TikTok account not found.' }, 404);
+      if (account.status !== 'connected') return json({ error: 'Choose a connected TikTok account.' }, 409);
+      if (account.app_id && account.app_id !== app.id) {
+        return json({ error: 'That TikTok account belongs to a different app workspace.' }, 400);
+      }
+    }
+
+    const defaultFeatures = Object.keys(DEADSET_FEATURES);
+    const featureRotation = app.slug === 'deadset'
+      ? body.feature_rotation.length ? body.feature_rotation : defaultFeatures
+      : [];
+    const mission = await db.insert<PromotionMission>('promotion_missions', {
+      app_id: app.id,
+      account_id: body.account_id,
+      status: 'queued',
+      goal: body.goal,
+      audience: body.audience,
+      angle: body.angle,
+      content_format: body.content_format,
+      draft_count: body.draft_count,
+      feature_rotation: featureRotation,
+      auto_produce: body.auto_produce,
+      readiness: {
+        drafting_ready: app.drafting_ready,
+        production_ready: app.production_ready,
+        publishing_ready: app.publishing_ready,
+        blockers: app.blockers,
+      },
+      created_by: owner,
+    });
+
+    const claimed = await claimOne(env, app.draft_agent_id);
+    if (!claimed) {
+      await db.update('promotion_missions', `id=eq.${mission.id}`, {
+        status: 'failed',
+        error: 'The drafting agent is already working. Try again after its current mission finishes.',
+        completed_at: new Date().toISOString(),
+      });
+      return json({ error: 'The drafting agent is already working. Try again shortly.' }, 409);
+    }
+
+    const goalLabels = {
+        downloads: 'earn qualified App Store visits without sounding promotional',
+        feature_discovery: 'make one exact app feature feel useful and memorable',
+        trust: 'build credibility through specific, supportable product proof',
+        engagement: 'start a relatable conversation that naturally reveals the app',
+    } as const;
+    const audienceLabels = {
+        new_lifters: 'new lifters who want less confusion',
+        consistent_lifters: 'people already training consistently who want a clearer record',
+        serious_gym: 'serious gym users who care about progression and detail',
+        general_fitness: 'general fitness users who want a simpler routine',
+    } as const;
+    const angleLabels = {
+        relatable: 'relatable gym thought or confession',
+        problem_solution: 'one concrete frustration followed by exact app proof',
+        proof: 'show the product resolving the hook with no unsupported claims',
+        routine: 'ordinary workout routine where the app is the natural next action',
+    } as const;
+    const extraContext = [
+      `Mission goal: ${goalLabels[body.goal]}.`,
+      `Audience: ${audienceLabels[body.audience]}.`,
+      `Creative angle: ${angleLabels[body.angle]}.`,
+      'One draft must make one promise to one audience and prove it with one relevant product feature.',
+      'The hook must be clear in one second and feel like native TikTok content before it feels commercial.',
+      'Use only genuine app capabilities, real or licensed source media, and no fabricated transformations, results, users, or statistics.',
+      'The final media must remain in owner review; do not imply it has been approved or published.',
+    ].join(' ');
+    const overrideConfig = validateConfig('tiktok.generate', {
+      ...claimed.config,
+      app_slug: app.slug,
+      count: body.draft_count,
+      account_id: body.account_id,
+      extra_context: extraContext,
+      content_format: body.content_format === 'photo_carousel' ? 'photo_carousel' : 'video',
+      creative_brief: {
+        goal: body.goal,
+        audience: body.audience,
+        angle: body.angle,
+        hypothesis: `${angleLabels[body.angle]} for ${audienceLabels[body.audience]} will ${goalLabels[body.goal]}`,
+      },
+      ...(body.content_format === 'photo_carousel'
+        ? { source_policy: 'licensed_real_only', feature_rotation: featureRotation }
+        : {}),
+    });
+
+    ctx.waitUntil((async () => {
+      try {
+        await db.update('promotion_missions', `id=eq.${mission.id}`, {
+          status: 'drafting',
+          started_at: new Date().toISOString(),
+        });
+        const draftRun = await executeRun(env, { ...claimed, config: overrideConfig }, 'manual');
+        if (draftRun.status === 'failed') {
+          await db.update('promotion_missions', `id=eq.${mission.id}`, {
+            status: 'failed',
+            draft_run_id: draftRun.runId,
+            error: 'Drafting failed. Open the run log for the exact reason.',
+            completed_at: new Date().toISOString(),
+          });
+          return;
+        }
+        await db.update('promotion_missions', `id=eq.${mission.id}`, { draft_run_id: draftRun.runId });
+
+        const shouldProduce = body.auto_produce
+          && body.content_format === 'photo_carousel'
+          && app.production_ready
+          && app.producer_agent_id;
+        if (shouldProduce) {
+          const producer = await claimOne(env, app.producer_agent_id!);
+          if (producer) {
+            await db.update('promotion_missions', `id=eq.${mission.id}`, { status: 'producing' });
+            const producerRun = await executeRun(env, {
+              ...producer,
+              config: validateConfig('tiktok.produce', {
+                ...producer.config,
+                app_slug: app.slug,
+                max_per_run: Math.min(body.draft_count, 5),
+              }),
+            }, 'chain');
+            await db.update('promotion_missions', `id=eq.${mission.id}`, {
+              producer_run_id: producerRun.runId,
+              status: producerRun.status === 'failed' ? 'failed' : 'awaiting_review',
+              error: producerRun.status === 'failed' ? 'Production failed. The draft concepts are still available in review.' : null,
+              completed_at: new Date().toISOString(),
+            });
+            return;
+          }
+        }
+        await db.update('promotion_missions', `id=eq.${mission.id}`, {
+          status: 'awaiting_review',
+          completed_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        log.error('promotion mission failed', { mission_id: mission.id, ...errorFields(error) });
+        await db.update('promotion_missions', `id=eq.${mission.id}`, {
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+          completed_at: new Date().toISOString(),
+        }).catch(() => undefined);
+      }
+    })());
+    return json(mission, 202);
   }
 
   // --- automations ---

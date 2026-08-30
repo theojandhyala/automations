@@ -131,6 +131,25 @@ export const appStoreCustomCodeConfirmSchema = z.object({
   confirmed: z.literal(true),
 });
 
+export const promotionMissionSchema = z.object({
+  app_slug: z.string().trim().min(1).max(80),
+  account_id: uuid.nullable().default(null),
+  goal: z.enum(['downloads', 'feature_discovery', 'trust', 'engagement']),
+  audience: z.enum(['new_lifters', 'consistent_lifters', 'serious_gym', 'general_fitness']),
+  angle: z.enum(['relatable', 'problem_solution', 'proof', 'routine']),
+  content_format: z.enum(['photo_carousel', 'video_brief']),
+  draft_count: z.number().int().min(1).max(6),
+  feature_rotation: z.array(z.enum([
+    'muscle_diagram',
+    'training_heatmap',
+    'pr_wall',
+    'progression_board',
+    'workout_plan',
+    'live_logger',
+  ])).max(6).default([]),
+  auto_produce: z.boolean().default(true),
+});
+
 /** Per-handler config schemas, checked when an automation's config is saved. */
 export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
   'system.heartbeat': z.object({}).passthrough(),
@@ -142,6 +161,12 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
     content_format: z.enum(['video', 'photo_carousel']).optional(),
     source_policy: z.literal('licensed_real_only').optional(),
     feature_rotation: z.array(z.string().min(1).max(80)).max(20).optional(),
+    creative_brief: z.object({
+      goal: z.string().max(120),
+      audience: z.string().max(120),
+      angle: z.string().max(120),
+      hypothesis: z.string().max(500),
+    }).optional(),
   }),
   'tiktok.publish': z.object({
     max_per_run: z.number().int().min(1).max(10).default(3),

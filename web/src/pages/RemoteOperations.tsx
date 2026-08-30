@@ -28,6 +28,7 @@ const CAPABILITIES: ReadonlyArray<{
   tone: string;
   href?: string;
 }> = [
+  { icon: '✦', title: 'Promotion mission', copy: 'Choose an app and outcome, then draft or produce native TikTok creative through one guided flow.', state: 'LIVE', tone: 'live', href: '/promote' },
   { icon: '◈', title: 'Apple offer codes', copy: 'Create confirmed, auditable subscription discount codes from anywhere.', state: 'LIVE', tone: 'live', href: '#apple-codes' },
   { icon: '▤', title: 'Content production', copy: 'Build licensed-photo Deadset carousels with the exact app feature screens.', state: 'LIVE', tone: 'live', href: '/studio' },
   { icon: '⌁', title: 'Review & publish', copy: 'Inspect drafts, set TikTok disclosure controls, approve and schedule posts.', state: 'LIVE', tone: 'live', href: '/queue' },
@@ -206,7 +207,7 @@ export default function RemoteOperations() {
         </div>
         <div className="ops-reactor" aria-hidden="true"><i /><b /><span /></div>
         <div className="ops-hero-stats">
-          <span><b>06</b> LIVE MODULES</span>
+          <span><b>{String(CAPABILITIES.filter((item) => item.state === 'LIVE').length).padStart(2, '0')}</b> LIVE MODULES</span>
           <span><b>{status?.configured ? '01' : '00'}</b> APPLE LINK</span>
           <span><b>{status?.requests.filter((item) => item.status === 'succeeded').length ?? 0}</b> CODES MADE</span>
         </div>

@@ -25,6 +25,11 @@ const JSON_SCHEMA = {
             items: { type: 'string' },
           },
           shot_notes: { type: 'string' },
+          audience: { type: 'string' },
+          single_promise: { type: 'string' },
+          hook_hypothesis: { type: 'string' },
+          proof_shown: { type: 'string' },
+          script: { type: 'string' },
           feature: { type: 'string' },
           slides: {
             type: 'array',
