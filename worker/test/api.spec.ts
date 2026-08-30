@@ -319,6 +319,33 @@ describe('token safety', () => {
     expect(text).not.toContain('MUST-NOT-LEAK');
     expect(text).not.toContain('secret_enc');
   });
+
+  it('reports App Store readiness without returning its encrypted private key', async () => {
+    stubFetch([
+      authRoute,
+      {
+        match: /integration_secrets\?provider=eq\.app_store_connect/,
+        respond: () => jsonResponse([{ provider: 'app_store_connect', secret_enc: 'PRIVATE-P8-MUST-NOT-LEAK' }]),
+      },
+      { match: /apple_offer_code_requests\?select=/, respond: () => jsonResponse([]) },
+    ]);
+    const res = await call(apiRequest('/app-store/status'));
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text).toContain('"configured":true');
+    expect(text).not.toContain('PRIVATE-P8-MUST-NOT-LEAK');
+    expect(text).not.toContain('secret_enc');
+  });
+
+  it('requires an explicit true confirmation before an Apple production write', async () => {
+    stubFetch([authRoute]);
+    const res = await call(apiRequest(`/app-store/custom-codes/${ARTIFACT_ID}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: false }),
+    }));
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: string }).error).toMatch(/confirmed/);
+  });
 });
 
 describe('creative media', () => {

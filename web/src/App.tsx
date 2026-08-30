@@ -11,6 +11,7 @@ import Accounts from './pages/Accounts';
 import Reports from './pages/Reports';
 import HudPreview from './pages/HudPreview';
 import CreativeStudio from './pages/CreativeStudio';
+import RemoteOperations from './pages/RemoteOperations';
 
 /**
  * The command center is the landing page and gets the full viewport with no
@@ -24,6 +25,7 @@ function Shell({ session }: { session: Session }) {
         <nav>
           <NavLink to="/" end>Command center</NavLink>
           <NavLink to="/overview">Overview</NavLink>
+          <NavLink to="/operations">Remote operations</NavLink>
           <NavLink to="/queue">Review queue</NavLink>
           <NavLink to="/studio">Creative studio</NavLink>
           <NavLink to="/reports">Reports</NavLink>
@@ -37,6 +39,7 @@ function Shell({ session }: { session: Session }) {
       <main>
         <Routes>
           <Route path="/overview" element={<Overview />} />
+          <Route path="/operations" element={<RemoteOperations />} />
           <Route path="/automations/:id" element={<AutomationDetail />} />
           <Route path="/queue" element={<Queue />} />
           <Route path="/studio" element={<CreativeStudio />} />
@@ -74,6 +77,7 @@ export default function App() {
     return (
       <>
         <CommandCenter />
+        <NavLink to="/operations" className="remote-ops-hatch">Remote ops ◈</NavLink>
         <NavLink to="/overview" className="escape-hatch">Tables →</NavLink>
       </>
     );

@@ -79,7 +79,7 @@ export const createAccountSchema = z.object({
   handle: z
     .string()
     .trim()
-    .min(1)
+    .min(2)
     .max(30)
     .transform((v) => v.replace(/^@/, ''))
     .refine((v) => /^[A-Za-z0-9._]+$/.test(v), 'handle may only contain letters, numbers, dots and underscores'),
@@ -98,6 +98,37 @@ export const updateAccountSchema = z
 
 export const pexelsKeySchema = z.object({
   api_key: z.string().trim().min(16).max(500),
+});
+
+export const appStoreCredentialsSchema = z.object({
+  issuer_id: z.string().trim().uuid(),
+  key_id: z.string().trim().regex(/^[A-Z0-9]{10}$/, 'must be the 10-character Apple Key ID'),
+  private_key: z.string().trim()
+    .min(100)
+    .max(10000)
+    .refine(
+      (value) => value.includes('-----BEGIN PRIVATE KEY-----') && value.includes('-----END PRIVATE KEY-----'),
+      'must be the contents of the App Store Connect .p8 private key',
+    ),
+});
+
+export const appStoreCustomCodePreviewSchema = z.object({
+  apple_app_id: z.string().trim().min(1).max(80),
+  app_name: z.string().trim().min(1).max(160),
+  subscription_id: z.string().trim().min(1).max(120),
+  subscription_name: z.string().trim().min(1).max(160),
+  offer_code_id: z.string().trim().min(1).max(120),
+  offer_name: z.string().trim().min(1).max(160),
+  custom_code: z.string().trim().toUpperCase()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Z0-9]+$/, 'may only contain letters and numbers'),
+  redemption_limit: z.number().int().min(1).max(25000),
+  expiration_date: z.string().date().nullable(),
+});
+
+export const appStoreCustomCodeConfirmSchema = z.object({
+  confirmed: z.literal(true),
 });
 
 /** Per-handler config schemas, checked when an automation's config is saved. */

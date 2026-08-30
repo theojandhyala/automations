@@ -6,11 +6,23 @@ import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
 import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, storeTokens } from '../lib/tiktok';
 import { log, errorFields } from '../lib/log';
-import { encrypt } from '../lib/crypto';
+import { decrypt, encrypt } from '../lib/crypto';
+import {
+  AppStoreApiError,
+  appStoreRequest,
+  createCustomSubscriptionCode,
+  listAppStoreApps,
+  listAppSubscriptions,
+  listSubscriptionOffers,
+  type AppStoreCredentials,
+} from '../lib/app-store';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { produceOne } from '../automations/tiktok-produce';
 import {
   ValidationError,
+  appStoreCredentialsSchema,
+  appStoreCustomCodeConfirmSchema,
+  appStoreCustomCodePreviewSchema,
   createAccountSchema,
   createAutomationSchema,
   parseBody,
@@ -45,6 +57,43 @@ const DEADSET_FEATURES: Record<string, string> = {
   workout_plan: 'Workout plan',
   live_logger: 'Live workout logger',
 };
+
+interface AppleOfferCodeRequest {
+  id: string;
+  status: 'pending_confirmation' | 'creating' | 'succeeded' | 'failed';
+  apple_app_id: string;
+  app_name: string;
+  subscription_id: string;
+  subscription_name: string;
+  offer_code_id: string;
+  offer_name: string;
+  custom_code: string;
+  redemption_limit: number;
+  expiration_date: string | null;
+  apple_resource_id: string | null;
+  redemption_url: string | null;
+  error: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+  completed_at: string | null;
+}
+
+async function loadAppStoreCredentials(db: Db, env: Env): Promise<AppStoreCredentials | null> {
+  const row = await db.selectOne<{ secret_enc: string }>(
+    'integration_secrets',
+    'provider=eq.app_store_connect&select=secret_enc',
+  );
+  if (!row) return null;
+  return JSON.parse(await decrypt(row.secret_enc, env.TOKEN_ENCRYPTION_KEY)) as AppStoreCredentials;
+}
+
+function appStoreFailure(error: unknown): Response {
+  if (error instanceof AppStoreApiError) {
+    const status = error.status === 401 || error.status === 403 ? 400 : error.status >= 500 ? 502 : 400;
+    return json({ error: `Apple rejected the request: ${error.message}` }, status);
+  }
+  return json({ error: error instanceof Error ? error.message : 'App Store Connect request failed.' }, 400);
+}
 
 export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
@@ -119,6 +168,152 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       updated_at: new Date().toISOString(),
     }, 'provider');
     return json({ configured: true });
+  }
+
+  // --- remote App Store operations ---
+
+  if (path === '/app-store/status' && req.method === 'GET') {
+    const [secret, requests] = await Promise.all([
+      db.selectOne<{ provider: string }>(
+        'integration_secrets',
+        'provider=eq.app_store_connect&select=provider',
+      ),
+      db.select<AppleOfferCodeRequest>(
+        'apple_offer_code_requests',
+        'select=id,status,apple_app_id,app_name,subscription_id,subscription_name,offer_code_id,offer_name,custom_code,redemption_limit,expiration_date,apple_resource_id,redemption_url,error,created_at,confirmed_at,completed_at&order=created_at.desc&limit=20',
+      ),
+    ]);
+    return json({ configured: Boolean(secret), requests });
+  }
+
+  if (path === '/integrations/app-store' && req.method === 'PUT') {
+    const body = await parseBody(req, appStoreCredentialsSchema);
+    try {
+      // A read-only request verifies all three credential parts before storage.
+      const apps = await listAppStoreApps(body);
+      await db.upsert('integration_secrets', {
+        provider: 'app_store_connect',
+        secret_enc: await encrypt(JSON.stringify(body), env.TOKEN_ENCRYPTION_KEY),
+        updated_at: new Date().toISOString(),
+      }, 'provider');
+      return json({ configured: true, app_count: apps.length, key_id: body.key_id });
+    } catch (error) {
+      return appStoreFailure(error);
+    }
+  }
+
+  if (path === '/app-store/catalog' && req.method === 'GET') {
+    const credentials = await loadAppStoreCredentials(db, env);
+    if (!credentials) return json({ error: 'Connect App Store Connect first.' }, 409);
+    try {
+      const appId = url.searchParams.get('app_id');
+      const subscriptionId = url.searchParams.get('subscription_id');
+      if (subscriptionId) {
+        return json({ offers: await listSubscriptionOffers(credentials, subscriptionId) });
+      }
+      if (appId) {
+        return json(await listAppSubscriptions(credentials, appId));
+      }
+      return json({ apps: await listAppStoreApps(credentials) });
+    } catch (error) {
+      return appStoreFailure(error);
+    }
+  }
+
+  if (path === '/app-store/custom-codes/preview' && req.method === 'POST') {
+    const body = await parseBody(req, appStoreCustomCodePreviewSchema);
+    const credentials = await loadAppStoreCredentials(db, env);
+    if (!credentials) return json({ error: 'Connect App Store Connect first.' }, 409);
+    if (body.expiration_date) {
+      const expiration = new Date(`${body.expiration_date}T00:00:00Z`);
+      const sixMonths = new Date();
+      sixMonths.setUTCMonth(sixMonths.getUTCMonth() + 6);
+      if (expiration <= new Date() || expiration > sixMonths) {
+        return json({ error: 'Expiration must be in the future and no more than six months away.' }, 400);
+      }
+    }
+    try {
+      // Confirm that this offer still exists and is readable before creating an
+      // auditable pending request. This endpoint never creates an Apple code.
+      await appStoreRequest(credentials, `/v1/subscriptionOfferCodes/${encodeURIComponent(body.offer_code_id)}`);
+      const created = await db.insert<AppleOfferCodeRequest>('apple_offer_code_requests', {
+        status: 'pending_confirmation',
+        apple_app_id: body.apple_app_id,
+        app_name: body.app_name,
+        subscription_id: body.subscription_id,
+        subscription_name: body.subscription_name,
+        offer_code_id: body.offer_code_id,
+        offer_name: body.offer_name,
+        custom_code: body.custom_code,
+        redemption_limit: body.redemption_limit,
+        expiration_date: body.expiration_date,
+        created_by: owner,
+      });
+      return json(created, 201);
+    } catch (error) {
+      return appStoreFailure(error);
+    }
+  }
+
+  const appleConfirmMatch = path.match(/^\/app-store\/custom-codes\/([0-9a-f-]{36})\/confirm$/);
+  if (appleConfirmMatch && req.method === 'POST') {
+    await parseBody(req, appStoreCustomCodeConfirmSchema);
+    const credentials = await loadAppStoreCredentials(db, env);
+    if (!credentials) return json({ error: 'Connect App Store Connect first.' }, 409);
+    const requestId = appleConfirmMatch[1]!;
+    const current = await db.selectOne<AppleOfferCodeRequest>(
+      'apple_offer_code_requests',
+      `id=eq.${requestId}&select=*`,
+    );
+    if (!current) return json({ error: 'Offer-code request not found.' }, 404);
+    if (current.status !== 'pending_confirmation') {
+      return json({ error: `This request is already ${current.status}.` }, 409);
+    }
+    const now = new Date().toISOString();
+    const claimed = await db.update<AppleOfferCodeRequest>(
+      'apple_offer_code_requests',
+      `id=eq.${requestId}&status=eq.pending_confirmation`,
+      { status: 'creating', confirmed_at: now, error: null },
+    );
+    if (!claimed[0]) return json({ error: 'This request was already confirmed elsewhere.' }, 409);
+    try {
+      const result = await createCustomSubscriptionCode(credentials, {
+        offerCodeId: current.offer_code_id,
+        customCode: current.custom_code,
+        numberOfCodes: current.redemption_limit,
+        expirationDate: current.expiration_date,
+      });
+      const redemptionUrl = `https://apps.apple.com/redeem?ctx=offercodes&id=${encodeURIComponent(current.apple_app_id)}&code=${encodeURIComponent(result.custom_code)}`;
+      const [completed] = await db.update<AppleOfferCodeRequest>(
+        'apple_offer_code_requests',
+        `id=eq.${requestId}`,
+        {
+          status: 'succeeded',
+          apple_resource_id: result.id,
+          custom_code: result.custom_code,
+          redemption_limit: result.redemption_limit,
+          expiration_date: result.expiration_date,
+          redemption_url: redemptionUrl,
+          completed_at: new Date().toISOString(),
+        },
+      );
+      log.info('Apple offer code created', {
+        request_id: requestId,
+        app_id: current.apple_app_id,
+        offer_code_id: current.offer_code_id,
+        redemption_limit: current.redemption_limit,
+        by: owner,
+      });
+      return json(completed);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'App Store Connect request failed.';
+      await db.update(
+        'apple_offer_code_requests',
+        `id=eq.${requestId}`,
+        { status: 'failed', error: message, completed_at: new Date().toISOString() },
+      ).catch(() => undefined);
+      return appStoreFailure(error);
+    }
   }
 
   if (path === '/creative-assets' && req.method === 'POST') {
