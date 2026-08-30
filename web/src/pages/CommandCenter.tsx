@@ -73,7 +73,7 @@ export default function CommandCenter() {
 
       <header className="cc-head">
         <div>
-          <p className="cc-title"><i /> Automation universe</p>
+          <p className="cc-title"><i /> JARVIS agent network</p>
           <h2 className="cc-sub">
             {working.length > 0
               ? `${working.length} agent${working.length === 1 ? '' : 's'} working`
@@ -130,6 +130,7 @@ export default function CommandCenter() {
           apps={apps}
           accounts={accounts}
           drafts={drafts}
+          onOpenAgent={(automation) => setOpenAgent(automation.id)}
           onChanged={refresh}
         />
       </footer>

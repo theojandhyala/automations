@@ -201,10 +201,10 @@ export default function OrbitField({
         <span className="core-halo b" />
         <span className="core-halo c" />
         <span className="core-label">
-          <span className="n">Core</span>
+          <span className="n">JARVIS</span>
           <span className="c">{automations.length}</span>
           <span className="s">
-            {workingCount > 0 ? `${workingCount} working` : 'systems online'}
+            {workingCount > 0 ? `${workingCount} working` : 'agents linked'}
           </span>
         </span>
       </button>

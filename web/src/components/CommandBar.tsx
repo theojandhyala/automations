@@ -45,12 +45,14 @@ export default function CommandBar({
   apps,
   accounts,
   drafts,
+  onOpenAgent,
   onChanged,
 }: {
   automations: Automation[];
   apps: App[];
   accounts: Account[];
   drafts: number;
+  onOpenAgent: (automation: Automation) => void;
   onChanged: () => void;
 }) {
   const [value, setValue] = useState('');
@@ -58,6 +60,8 @@ export default function CommandBar({
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [shutdownArmed, setShutdownArmed] = useState(false);
+  const [publishArmed, setPublishArmed] = useState<string | null>(null);
+  const [voiceReplies, setVoiceReplies] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const navigate = useNavigate();
@@ -86,10 +90,13 @@ export default function CommandBar({
   }, []);
 
   useEffect(() => {
-    if (!shutdownArmed) return undefined;
-    const timeout = window.setTimeout(() => setShutdownArmed(false), 12_000);
+    if (!shutdownArmed && !publishArmed) return undefined;
+    const timeout = window.setTimeout(() => {
+      setShutdownArmed(false);
+      setPublishArmed(null);
+    }, 12_000);
     return () => window.clearTimeout(timeout);
-  }, [shutdownArmed]);
+  }, [publishArmed, shutdownArmed]);
 
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
@@ -99,13 +106,54 @@ export default function CommandBar({
 
   function findAutomation(text: string): Automation | undefined {
     // Longest name first, so "Draft concepts — Cast" beats a bare "cast".
-    return [...automations]
+    const exact = [...automations]
       .sort((a, b) => b.name.length - a.name.length)
       .find((a) => text.includes(a.name.toLowerCase()) || text.includes(a.handler_key));
+    if (exact) return exact;
+
+    const app = findApp(text);
+    const candidates = app ? automations.filter((automation) => automation.app_id === app.id) : automations;
+    const aliases: Array<[RegExp, string]> = [
+      [/draft|concept|idea|creative|content/, 'tiktok.generate'],
+      [/publish|post|upload/, 'tiktok.publish'],
+      [/reconcile|in[- ]flight|settle/, 'tiktok.reconcile'],
+      [/analytics|stats|performance|numbers/, 'analytics.sync'],
+      [/report|briefing|morning/, 'report.daily'],
+      [/audit|pipeline/, 'pipeline.audit'],
+      [/heartbeat|health/, 'system.heartbeat'],
+    ];
+    const alias = aliases.find(([pattern]) => pattern.test(text));
+    if (alias) return candidates.find((automation) => automation.handler_key === alias[1]);
+    return candidates.length === 1 ? candidates[0] : undefined;
+  }
+
+  function describeAgent(agent: Automation): string {
+    const app = apps.find((candidate) => candidate.id === agent.app_id);
+    const state = agent.status === 'running'
+      ? `working on ${agent.current_task ?? 'its current mission'}`
+      : agent.enabled
+        ? 'online and waiting for its next mission'
+        : 'paused';
+    const mission = agent.description?.replace(/\.$/, '') ?? 'No mission description is configured';
+    return `${agent.name} is the ${app?.name ?? 'system'} agent for: ${mission}. It is ${state}.`;
+  }
+
+  function speak(text: string) {
+    if (!voiceReplies || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text.replace(/@/g, 'at '));
+    utterance.rate = 1.02;
+    utterance.pitch = 0.82;
+    window.speechSynthesis.speak(utterance);
   }
 
   async function run(text: string): Promise<Reply> {
-    const t = text.toLowerCase().trim();
+    const t = text
+      .toLowerCase()
+      .trim()
+      .replace(/^jarvis[,:]?\s*/, '')
+      .replace(/^please\s+/, '')
+      .replace(/^(can|could|would) you\s+/, '');
 
     if (/^(status|system status|give me (a )?status|how are things)$/.test(t)) {
       const running = automations.filter((automation) => automation.status === 'running').length;
@@ -119,6 +167,34 @@ export default function CommandBar({
           : `All systems nominal. ${running} active, ${drafts} creations waiting, ${connected} publishing accounts linked.`,
         tone: attention ? 'warn' : 'ok',
       };
+    }
+
+    if (/what agents|list agents|show agents|agent roster|who is online/.test(t)) {
+      const appAgents = apps
+        .map((app) => `${app.name}: ${automations.filter((automation) => automation.app_id === app.id).map((automation) => automation.name).join(', ') || 'none'}`)
+        .join(' · ');
+      const systemCount = automations.filter((automation) => !automation.app_id).length;
+      return { text: `${appAgents} · ${systemCount} system agents. Click any stone or ask me to open one.`, tone: 'ok' };
+    }
+
+    if (/what does|tell me about|explain|mission of/.test(t)) {
+      const agent = findAutomation(t);
+      if (!agent) return { text: 'Name the agent you want me to explain.', tone: 'warn' };
+      return { text: describeAgent(agent), tone: agent.status === 'failed' ? 'warn' : 'ok' };
+    }
+
+    if (/status (of|for)|how is|is .* (online|running|working)/.test(t)) {
+      const agent = findAutomation(t);
+      if (!agent) return { text: 'I could not match that to an agent.', tone: 'warn' };
+      return { text: describeAgent(agent), tone: agent.status === 'failed' ? 'warn' : 'ok' };
+    }
+
+    if (/^(open|show|inspect|view)\b/.test(t)) {
+      const agent = findAutomation(t);
+      if (agent) {
+        onOpenAgent(agent);
+        return { text: `Opened ${agent.name}. Its mission, controls, health, logs and outputs are ready.`, tone: 'ok' };
+      }
     }
 
     if (/what('s| is) (next|scheduled)|next mission/.test(t)) {
@@ -152,11 +228,11 @@ export default function CommandBar({
       navigate('/queue');
       return { text: 'Opened the review queue.', tone: 'ok' };
     }
-    if (/report/.test(t)) {
+    if (/report/.test(t) && !/run|start|trigger|go|status|explain/.test(t)) {
       navigate('/reports');
       return { text: 'Opened reports.', tone: 'ok' };
     }
-    if (/account|connect/.test(t)) {
+    if (/account|connect/.test(t) && !/run|start|trigger|go/.test(t)) {
       navigate('/accounts');
       return { text: 'Opened accounts.', tone: 'ok' };
     }
@@ -196,9 +272,26 @@ export default function CommandBar({
       const agent = findAutomation(t);
       if (!agent) return { text: 'No agent matched that name.', tone: 'warn' };
       if (agent.status === 'running') return { text: `${agent.name} is already working.`, tone: 'warn' };
+      if (agent.handler_key === 'tiktok.publish' && publishArmed !== agent.id) {
+        setPublishArmed(agent.id);
+        return {
+          text: `${agent.name} can publish approved content externally. Say “confirm run ${agent.name}” within 12 seconds to proceed.`,
+          tone: 'warn',
+        };
+      }
       await api(`/automations/${agent.id}/run`, { method: 'POST' });
+      setPublishArmed(null);
       onChanged();
       return { text: `${agent.name} is running.`, tone: 'ok' };
+    }
+
+    if (/^confirm run\b/.test(t)) {
+      const agent = findAutomation(t);
+      if (!agent || publishArmed !== agent.id) return { text: 'No publishing mission is awaiting confirmation.', tone: 'warn' };
+      await api(`/automations/${agent.id}/run`, { method: 'POST' });
+      setPublishArmed(null);
+      onChanged();
+      return { text: `${agent.name} is running with your confirmation.`, tone: 'ok' };
     }
 
     if (/^(pause|stop|disable)\b/.test(t)) {
@@ -230,7 +323,9 @@ export default function CommandBar({
     if (!value.trim() || busy) return;
     setBusy(true);
     try {
-      setReply(await run(value));
+      const nextReply = await run(value);
+      setReply(nextReply);
+      speak(nextReply.text);
       setValue('');
     } catch (err) {
       setReply({ text: err instanceof Error ? err.message : String(err), tone: 'warn' });
@@ -271,7 +366,11 @@ export default function CommandBar({
   async function quick(text: string) {
     setBusy(true);
     try {
-      setReply(await run(text));
+      const nextReply = await run(text);
+      setReply(nextReply);
+      speak(nextReply.text);
+    } catch (err) {
+      setReply({ text: err instanceof Error ? err.message : String(err), tone: 'warn' });
     } finally {
       setBusy(false);
     }
@@ -281,11 +380,22 @@ export default function CommandBar({
     <div className="command-bar">
       <div className="command-label">
         <span><i /> JARVIS command</span>
-        <kbd>⌘ K</kbd>
+        <span className="command-label-tools">
+          <button
+            type="button"
+            className={voiceReplies ? 'active' : ''}
+            onClick={() => setVoiceReplies((enabled) => !enabled)}
+            aria-pressed={voiceReplies}
+          >
+            Voice replies {voiceReplies ? 'on' : 'off'}
+          </button>
+          <kbd>⌘ K</kbd>
+        </span>
       </div>
       {reply && (
         <div className={`command-reply ${reply.tone === 'warn' ? 'warn' : ''}`} role="status">
-          {reply.text}
+          <b>JARVIS</b>
+          <span>{reply.text}</span>
         </div>
       )}
       <form onSubmit={submit}>
@@ -312,6 +422,7 @@ export default function CommandBar({
       </form>
       <div className="quick-actions">
         <button onClick={() => quick('system status')}>System status</button>
+        <button onClick={() => quick('list agents')}>Agent roster</button>
         <button onClick={() => quick('what needs attention')}>Diagnose</button>
         <button onClick={() => quick('show the queue')}>Review queue</button>
         <button onClick={() => quick('run analytics sync')}>Sync analytics</button>

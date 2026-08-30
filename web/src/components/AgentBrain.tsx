@@ -140,6 +140,12 @@ export default function AgentBrain({
             </Link>
           </div>
 
+          <section className="brain-section agent-mission">
+            <h4>JARVIS mission file</h4>
+            <p>{automation.description ?? 'No mission description has been configured for this agent.'}</p>
+            <span className="mono">Try: “JARVIS, run {automation.name}”</span>
+          </section>
+
           <section className="brain-section">
             <h4>Current task</h4>
             {automation.status === 'running' ? (

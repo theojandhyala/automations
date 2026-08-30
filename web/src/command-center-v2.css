@@ -506,6 +506,18 @@
 }
 .command-label span { display: flex; align-items: center; gap: 7px; }
 .command-label i { width: 4px; height: 4px; border-radius: 50%; background: #68f5ff; box-shadow: 0 0 7px #68f5ff; }
+.command-label-tools { gap: 8px !important; }
+.command-label-tools button {
+  padding: 1px 0;
+  border: 0;
+  background: none;
+  color: #526989;
+  font: inherit;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.command-label-tools button:hover,
+.command-label-tools button.active { color: #86ecff; }
 .command-label kbd {
   padding: 2px 5px;
   border: 1px solid rgba(115,164,221,.15);
@@ -548,8 +560,27 @@
 .quick-actions button { padding: 4px 9px; font-size: 9px; background: rgba(9,17,37,.58); border-color: rgba(132,173,232,.13); }
 .quick-actions button.danger { color: #967f98; border-color: rgba(255,107,139,.14); }
 .quick-actions button.danger.armed { color: #ffc0cb; border-color: rgba(255,91,122,.48); background: rgba(86,19,40,.42); }
-.command-reply { border-left: 2px solid #56dfff; background: linear-gradient(90deg, rgba(17,47,76,.84), rgba(7,14,32,.82)); }
+.command-reply {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  border-left: 2px solid #56dfff;
+  background: linear-gradient(90deg, rgba(17,47,76,.84), rgba(7,14,32,.82));
+}
+.command-reply b { color: #7ceaff; font-size: 8px; letter-spacing: .2em; line-height: 1.7; }
+.command-reply span { color: #a7bbd5; line-height: 1.45; }
 .command-reply.warn { border-left-color: #ffc761; }
+.command-reply.warn b { color: #ffc761; }
+
+.agent-mission {
+  background:
+    linear-gradient(90deg, rgba(57,208,255,.075), transparent 58%),
+    linear-gradient(145deg, rgba(20,40,73,.42), rgba(8,15,33,.42));
+  border-left: 2px solid rgba(103,228,255,.55);
+}
+.agent-mission p { margin: 0 0 9px; color: #c6d6ea; font-size: 12px; line-height: 1.55; }
+.agent-mission > span { color: #67809f; font-size: 9px; }
 
 .brain-scrim { background: rgba(1,4,14,.28); backdrop-filter: blur(1px) saturate(.75); }
 .brain {
