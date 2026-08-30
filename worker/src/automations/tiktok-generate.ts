@@ -62,7 +62,8 @@ export const generateDrafts: Handler = {
     );
     const recentHooks = recent.map((r) => r.hook).filter(Boolean);
 
-    ctx.log('info', `drafting ${count} concepts for ${app.name}`, { recent: recentHooks.length });
+    await ctx.setTask(`drafting ${count} concepts for ${app.name}`);
+    ctx.log('debug', 'seeded with recent hooks', { recent: recentHooks.length });
 
     const { ideas } = await completeJson<{ ideas: DraftIdea[] }>(ctx.env, {
       system: SYSTEM,
@@ -79,13 +80,31 @@ export const generateDrafts: Handler = {
 
     if (!Array.isArray(ideas) || ideas.length === 0) throw new Error('model returned no ideas');
 
+    // The concept stage is genuinely done; everything between it and review is
+    // not built yet, and the artifact records that rather than leaving the
+    // dashboard to imply a video exists.
+    const now = new Date().toISOString();
+    const stages = {
+      research: { state: 'not_configured', note: 'No research handler yet' },
+      concept: { state: 'done', at: now },
+      script: { state: 'not_configured', note: 'No scripting handler yet' },
+      assets: { state: 'not_configured', note: 'Footage must be supplied by hand' },
+      edit: { state: 'not_configured', note: 'No render handler yet' },
+      review: { state: 'pending' },
+    };
+
     const rows = ideas.slice(0, count).map((idea) => ({
       run_id: ctx.runId,
       app_id: app.id,
       account_id: config.account_id ?? null,
       status: 'draft',
+      stage: 'concept',
+      stages,
       hook: idea.hook,
       caption: idea.caption,
+      // Persisted, not just logged: these are the filming and editing
+      // instructions, and the review queue is where they are actually needed.
+      shot_notes: idea.shot_notes ?? null,
       hashtags: Array.isArray(idea.hashtags) ? idea.hashtags.slice(0, 5) : [],
     }));
 

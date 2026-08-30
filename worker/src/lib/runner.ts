@@ -1,5 +1,6 @@
 import { Db } from './db';
 import { nextRun } from './cron';
+import { log, errorFields } from './log';
 import type { Automation, Env, LogLevel } from '../types';
 import { getHandler } from '../automations/registry';
 
@@ -12,6 +13,8 @@ export interface RunContext {
   automation: Automation;
   runId: string;
   log(level: LogLevel, message: string, data?: unknown): void;
+  /** Sets the one-line "what am I doing right now" shown on the agent badge. */
+  setTask(task: string): Promise<void>;
 }
 
 /**
@@ -41,16 +44,39 @@ class RunLogger {
       await this.db.insertMany('run_events', rows);
     } catch (err) {
       // Losing logs must never fail an otherwise good run.
-      console.error('failed to flush run_events', err);
+      log.error('failed to flush run_events', { run_id: this.runId, ...errorFields(err) });
     }
   }
 }
 
 /**
- * Executes one automation end to end: opens a run row, calls the handler,
+ * Atomically claims automations that are due. The claim flips each row to
+ * 'running' in the same statement that selects it, so two overlapping
+ * dispatchers partition the due set rather than both running the same
+ * automation. Only claimed rows come back.
+ */
+export function claimDue(env: Env, limit = 20): Promise<Automation[]> {
+  return new Db(env).rpc<Automation[]>('claim_due_automations', { p_limit: limit });
+}
+
+/**
+ * Claims one automation for a manual run. Returns null when it is already
+ * running, which the API turns into a 409 instead of a second concurrent run.
+ */
+export async function claimOne(env: Env, id: string): Promise<Automation | null> {
+  const rows = await new Db(env).rpc<Automation[]>('claim_automation', { p_id: id });
+  return rows[0] ?? null;
+}
+
+/**
+ * Executes one already-claimed automation: opens a run row, calls the handler,
  * records the outcome, and schedules the next occurrence. Never throws -- a
  * failing handler is recorded, not propagated, so one bad automation cannot
  * take down the whole dispatch pass.
+ *
+ * The caller must have claimed the automation first (claimDue / claimOne);
+ * this function assumes the row is already marked 'running' and is responsible
+ * for releasing it.
  */
 export async function executeRun(
   env: Env,
@@ -67,7 +93,6 @@ export async function executeRun(
   });
 
   await db.update('automations', `id=eq.${automation.id}`, {
-    status: 'running',
     last_run_at: new Date().toISOString(),
     last_run_id: run.id,
   });
@@ -79,6 +104,10 @@ export async function executeRun(
     automation,
     runId: run.id,
     log: (level, message, data) => logger.log(level, message, data),
+    setTask: async (task) => {
+      logger.log('info', task);
+      await db.update('automations', `id=eq.${automation.id}`, { current_task: task });
+    },
   };
 
   let status: 'succeeded' | 'failed' = 'succeeded';
@@ -93,12 +122,22 @@ export async function executeRun(
     ctx.log('info', 'finished');
   } catch (err) {
     status = 'failed';
-    error = err instanceof Error ? `${err.message}` : String(err);
+    error = err instanceof Error ? err.message : String(err);
     ctx.log('error', 'run failed', { error });
   }
 
   const durationMs = Date.now() - startedAt;
   await logger.flush();
+
+  log[status === 'failed' ? 'error' : 'info']('run finished', {
+    run_id: run.id,
+    automation: automation.handler_key,
+    automation_id: automation.id,
+    trigger,
+    status,
+    duration_ms: durationMs,
+    ...(error ? { error } : {}),
+  });
 
   await db.update('runs', `id=eq.${run.id}`, {
     status,
@@ -114,10 +153,14 @@ export async function executeRun(
     ? nextRun(automation.cron)
     : null;
 
+  // Releases the claim: running_since goes back to null and the status leaves
+  // 'running', which is what makes the row eligible for the next claim.
   await db.update('automations', `id=eq.${automation.id}`, {
     status: tripped ? 'disabled' : status === 'failed' ? 'failed' : 'idle',
     enabled: tripped ? false : automation.enabled,
     failure_streak: failureStreak,
+    running_since: null,
+    current_task: null,
     next_run_at: next ? next.toISOString() : null,
   });
 
@@ -125,26 +168,30 @@ export async function executeRun(
 }
 
 /**
- * Cron entrypoint: start every automation whose next_run_at has come due.
- * Runs are started concurrently but each is independently guarded.
+ * Cron entrypoint: claim everything due and run it. Runs proceed concurrently
+ * but each is independently guarded.
  */
 export async function dispatchDue(env: Env): Promise<{ started: number }> {
-  const db = new Db(env);
-  const now = new Date().toISOString();
-  const due = await db.select<Automation>(
-    'automations',
-    `enabled=eq.true&status=neq.running&status=neq.disabled&next_run_at=lte.${now}&order=next_run_at.asc&limit=20`,
-  );
+  const claimed = await claimDue(env);
+  if (claimed.length === 0) return { started: 0 };
 
   await Promise.all(
-    due.map((a) =>
+    claimed.map((a) =>
       executeRun(env, a, 'cron').catch((err) => {
-        console.error(`dispatch failed for ${a.handler_key}`, err);
+        log.error('dispatch failed', { automation: a.handler_key, ...errorFields(err) });
+        // The claim would otherwise stay held until it went stale.
+        return new Db(env)
+          .update('automations', `id=eq.${a.id}`, {
+            status: 'failed',
+            running_since: null,
+            current_task: null,
+          })
+          .catch(() => undefined);
       }),
     ),
   );
 
-  return { started: due.length };
+  return { started: claimed.length };
 }
 
 /**

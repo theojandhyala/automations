@@ -41,6 +41,7 @@ export const reconcilePublishing: Handler = {
         if (status.status === 'PUBLISH_COMPLETE') {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
             status: 'published',
+            stage: 'analytics',
             published_at: new Date().toISOString(),
             tiktok_post_id: status.publicaly_available_post_id?.[0] ?? null,
           });

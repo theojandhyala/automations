@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "automations",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The dashboard SPA is served from the same Worker as the API, so there is
+  // one deploy and no CORS.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // The dispatcher wakes every minute and claims whatever is due. Handlers are
+  // expected to be short; anything long-running should chunk itself across runs.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  // Structured JSON logs, queryable in the Workers dashboard. Every log line
+  // the worker emits goes through src/lib/log.ts so the fields stay consistent.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Non-secret config. Secrets are set with `wrangler secret put` -- see README.
+  "vars": {
+    "SUPABASE_URL": "",
+    "SUPABASE_ANON_KEY": "",
+    "OWNER_EMAIL": ""
+  }
+}

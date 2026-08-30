@@ -3,6 +3,9 @@ import { heartbeat } from './heartbeat';
 import { generateDrafts } from './tiktok-generate';
 import { publishApproved } from './tiktok-publish';
 import { reconcilePublishing } from './tiktok-reconcile';
+import { analyticsSync } from './analytics-sync';
+import { reportDaily } from './report-daily';
+import { pipelineAudit } from './pipeline-audit';
 
 export interface Handler {
   key: string;
@@ -17,6 +20,9 @@ const HANDLERS: Handler[] = [
   generateDrafts,
   publishApproved,
   reconcilePublishing,
+  analyticsSync,
+  reportDaily,
+  pipelineAudit,
 ];
 
 const BY_KEY = new Map(HANDLERS.map((h) => [h.key, h]));

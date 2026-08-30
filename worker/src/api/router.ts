@@ -1,9 +1,21 @@
 import { Db } from '../lib/db';
-import { isValidCron, nextRun } from '../lib/cron';
-import { executeRun } from '../lib/runner';
+import { nextRun } from '../lib/cron';
+import { claimOne, executeRun } from '../lib/runner';
 import { listHandlers } from '../automations/registry';
+import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
 import { authorizeUrl, exchangeCode, storeTokens } from '../lib/tiktok';
+import { log, errorFields } from '../lib/log';
+import {
+  ValidationError,
+  createAccountSchema,
+  createAutomationSchema,
+  parseBody,
+  updateAccountSchema,
+  updateArtifactSchema,
+  updateAutomationSchema,
+  validateConfig,
+} from '../lib/schemas';
 import type { Automation, Env } from '../types';
 
 const json = (body: unknown, status = 200): Response =>
@@ -38,10 +50,12 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     try {
       const tokens = await exchangeCode(env, code);
       await storeTokens(env, db, payload.account_id, tokens);
+      log.info('tiktok account connected', { account_id: payload.account_id });
       return Response.redirect(`${url.origin}/accounts?connected=1`, 302);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      log.error('tiktok connect failed', { account_id: payload.account_id, ...errorFields(err) });
       await db.update('tiktok_accounts', `id=eq.${payload.account_id}`, { status: 'error' });
+      const message = err instanceof Error ? err.message : String(err);
       return Response.redirect(`${url.origin}/accounts?error=${encodeURIComponent(message)}`, 302);
     }
   }
@@ -58,22 +72,29 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     return json({ handlers: listHandlers() });
   }
 
+  // The honest pipeline view: which stages actually work in this deployment.
+  if (path === '/pipeline' && req.method === 'GET') {
+    return json({ stages: stageStatuses(env) });
+  }
+
   // --- automations ---
 
   if (path === '/automations' && req.method === 'POST') {
-    const body = (await req.json()) as Partial<Automation>;
-    if (!body.handler_key || !body.name) return json({ error: 'handler_key and name are required' }, 400);
-    if (body.cron && !isValidCron(body.cron)) return json({ error: `invalid cron: ${body.cron}` }, 400);
-
+    const body = await parseBody(req, createAutomationSchema);
+    const config = validateConfig(body.handler_key, body.config);
     const next = body.cron && body.enabled ? nextRun(body.cron) : null;
+
     const created = await db.insert<Automation>('automations', {
       handler_key: body.handler_key,
       name: body.name,
       description: body.description ?? null,
       app_id: body.app_id ?? null,
       cron: body.cron ?? null,
-      enabled: body.enabled ?? false,
-      config: body.config ?? {},
+      enabled: body.enabled,
+      config,
+      icon: body.icon ?? 'gear',
+      accent: body.accent ?? null,
+      kind: body.kind ?? 'system',
       next_run_at: next ? next.toISOString() : null,
     });
     return json(created, 201);
@@ -85,30 +106,43 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const automation = await db.selectOne<Automation>('automations', `id=eq.${id}&select=*`);
     if (!automation) return json({ error: 'not found' }, 404);
 
-    // Manual trigger. The run happens after the response so the dashboard gets
-    // its run id immediately and can start streaming logs.
+    // Manual trigger. The claim is atomic, so a manual run racing the cron
+    // dispatcher loses cleanly rather than both executing.
     if (automationMatch[2] && req.method === 'POST') {
-      if (automation.status === 'running') return json({ error: 'already running' }, 409);
+      const claimed = await claimOne(env, id);
+      if (!claimed) return json({ error: 'already running' }, 409);
+
+      // Run after responding so the dashboard gets its answer immediately and
+      // can start polling logs.
       ctx.waitUntil(
-        executeRun(env, automation, 'manual').catch((err) =>
-          console.error('manual run failed', err),
-        ),
+        executeRun(env, claimed, 'manual').catch(async (err) => {
+          log.error('manual run failed', { automation_id: id, ...errorFields(err) });
+          // Release the claim the failed run would otherwise hold.
+          await db
+            .update('automations', `id=eq.${id}`, {
+              status: 'failed',
+              running_since: null,
+              current_task: null,
+            })
+            .catch(() => undefined);
+        }),
       );
       return json({ ok: true, automation_id: id }, 202);
     }
 
     if (req.method === 'PATCH') {
-      const body = (await req.json()) as Partial<Automation>;
+      const body = await parseBody(req, updateAutomationSchema);
       const patch: Record<string, unknown> = {};
 
-      for (const field of ['name', 'description', 'config', 'app_id'] as const) {
+      for (const field of ['name', 'description', 'app_id', 'icon', 'accent'] as const) {
         if (field in body) patch[field] = body[field];
       }
 
-      if ('cron' in body) {
-        if (body.cron && !isValidCron(body.cron)) return json({ error: `invalid cron: ${body.cron}` }, 400);
-        patch.cron = body.cron ?? null;
+      if ('config' in body) {
+        patch.config = validateConfig(automation.handler_key, body.config);
       }
+
+      if ('cron' in body) patch.cron = body.cron ?? null;
 
       if ('enabled' in body) {
         patch.enabled = body.enabled;
@@ -140,6 +174,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       status: 'disabled',
       next_run_at: null,
     });
+    log.warn('kill switch pulled', { by: owner });
     // Anything mid-flight to TikTok is left alone: it has already been handed
     // over, and reconcile still needs to settle it.
     return json({ ok: true });
@@ -150,21 +185,17 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   const artifactMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})$/);
   if (artifactMatch && req.method === 'PATCH') {
     const id = artifactMatch[1]!;
-    const body = (await req.json()) as {
-      status?: string;
-      caption?: string;
-      hook?: string;
-      hashtags?: string[];
-      video_url?: string;
-      account_id?: string;
-      scheduled_for?: string | null;
-    };
+    const body = await parseBody(req, updateArtifactSchema);
 
-    const current = await db.selectOne<{ status: string }>('artifacts', `id=eq.${id}&select=status`);
+    const current = await db.selectOne<{ status: string; stages: Record<string, unknown> }>(
+      'artifacts',
+      `id=eq.${id}&select=status,stages`,
+    );
     if (!current) return json({ error: 'not found' }, 404);
 
     const patch: Record<string, unknown> = {};
-    for (const field of ['caption', 'hook', 'hashtags', 'video_url', 'account_id', 'scheduled_for'] as const) {
+    for (const field of
+      ['caption', 'hook', 'script', 'shot_notes', 'hashtags', 'video_url', 'account_id', 'scheduled_for'] as const) {
       if (field in body) patch[field] = body[field];
     }
 
@@ -175,6 +206,17 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       }
       patch.status = body.status;
       if (body.status === 'draft') patch.error = null;
+
+      // Keep the pipeline record in step with the review decision.
+      if (body.status === 'approved') {
+        patch.stage = 'schedule';
+        patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString() } };
+      } else if (body.status === 'draft') {
+        patch.stage = 'concept';
+        patch.stages = { ...current.stages, review: { state: 'pending' } };
+      } else if (body.status === 'rejected') {
+        patch.stages = { ...current.stages, review: { state: 'skipped', at: new Date().toISOString() } };
+      }
     }
 
     const [updated] = await db.update('artifacts', `id=eq.${id}`, patch);
@@ -184,14 +226,23 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // --- tiktok accounts ---
 
   if (path === '/tiktok/accounts' && req.method === 'POST') {
-    const body = (await req.json()) as { handle?: string; app_id?: string; daily_post_limit?: number };
-    if (!body.handle) return json({ error: 'handle is required' }, 400);
+    const body = await parseBody(req, createAccountSchema);
     const account = await db.insert<{ id: string }>('tiktok_accounts', {
-      handle: body.handle.replace(/^@/, ''),
+      handle: body.handle,
       app_id: body.app_id ?? null,
-      daily_post_limit: body.daily_post_limit ?? 2,
+      daily_post_limit: body.daily_post_limit,
     });
     return json(account, 201);
+  }
+
+  const accountMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})$/);
+  if (accountMatch && req.method === 'PATCH') {
+    const body = await parseBody(req, updateAccountSchema);
+    const [updated] = await db.update('tiktok_accounts', `id=eq.${accountMatch[1]!}`, body);
+    if (!updated) return json({ error: 'not found' }, 404);
+    // Never echo the token columns back to the browser.
+    const { access_token_enc: _a, refresh_token_enc: _r, ...safe } = updated as Record<string, unknown>;
+    return json(safe);
   }
 
   const connectMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})\/connect$/);
@@ -204,4 +255,17 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   }
 
   return json({ error: 'not found' }, 404);
+}
+
+/** Wraps handleApi so validation failures become 400s rather than 500s. */
+export async function handleApiSafe(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  try {
+    return await handleApi(req, env, ctx);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return json({ error: err.message, issues: err.issues }, 400);
+    }
+    log.error('api error', { path: new URL(req.url).pathname, ...errorFields(err) });
+    return json({ error: err instanceof Error ? err.message : 'internal error' }, 500);
+  }
 }

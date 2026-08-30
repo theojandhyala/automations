@@ -1,5 +1,6 @@
-import { handleApi } from './api/router';
+import { handleApiSafe } from './api/router';
 import { backfillSchedules, dispatchDue } from './lib/runner';
+import { log, errorFields } from './lib/log';
 import type { Env } from './types';
 
 /**
@@ -12,15 +13,7 @@ export default {
     const url = new URL(req.url);
 
     if (url.pathname.startsWith('/api/')) {
-      try {
-        return await handleApi(req, env, ctx);
-      } catch (err) {
-        console.error('api error', err);
-        return new Response(
-          JSON.stringify({ error: err instanceof Error ? err.message : 'internal error' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
+      return handleApiSafe(req, env, ctx);
     }
 
     return env.ASSETS.fetch(req);
@@ -31,8 +24,8 @@ export default {
       (async () => {
         await backfillSchedules(env);
         const { started } = await dispatchDue(env);
-        if (started > 0) console.log(`dispatched ${started} automation(s)`);
-      })().catch((err) => console.error('scheduled pass failed', err)),
+        if (started > 0) log.info('dispatch pass', { started });
+      })().catch((err) => log.error('scheduled pass failed', errorFields(err))),
     );
   },
 };

@@ -72,11 +72,19 @@ export async function signState(payload: object, secret: string): Promise<string
 export async function verifyState<T>(state: string, secret: string): Promise<T | null> {
   const [body, sig] = state.split('.');
   if (!body || !sig) return null;
-  const key = await hmacKey(secret);
-  const ok = await crypto.subtle.verify('HMAC', key, fromB64Url(sig), new TextEncoder().encode(body));
-  if (!ok) return null;
 
-  const payload = JSON.parse(new TextDecoder().decode(fromB64Url(body))) as T & { exp?: number };
-  if (payload.exp && payload.exp < Date.now()) return null;
-  return payload;
+  // The state arrives straight off the network, so malformed base64 or JSON is
+  // an expected input, not an exception: every failure path returns null and
+  // the caller answers 400.
+  try {
+    const key = await hmacKey(secret);
+    const ok = await crypto.subtle.verify('HMAC', key, fromB64Url(sig), new TextEncoder().encode(body));
+    if (!ok) return null;
+
+    const payload = JSON.parse(new TextDecoder().decode(fromB64Url(body))) as T & { exp?: number };
+    if (payload.exp && payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }

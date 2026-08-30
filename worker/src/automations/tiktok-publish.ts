@@ -74,7 +74,12 @@ export const publishApproved: Handler = {
       }
 
       try {
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, { status: 'publishing', error: null });
+        await ctx.setTask(`publishing to @${account.handle}`);
+        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+          status: 'publishing',
+          stage: 'publish',
+          error: null,
+        });
 
         const token = await accessTokenFor(ctx.env, ctx.db, account);
         const info = await creatorInfo(token);

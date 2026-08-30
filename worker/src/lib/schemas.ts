@@ -1,0 +1,148 @@
+import { z } from 'zod';
+import { isValidCron } from './cron';
+
+/**
+ * Runtime schemas for everything crossing the API boundary. Previously request
+ * bodies were cast with `as`, which is a compile-time fiction -- a malformed
+ * body reached PostgREST and failed there, or worse, wrote a shape the
+ * dashboard could not read back.
+ */
+
+const cron = z
+  .string()
+  .trim()
+  .refine((v) => isValidCron(v), 'must be a valid 5-field cron expression');
+
+const uuid = z.string().uuid();
+const jsonObject = z.record(z.unknown());
+
+export const createAutomationSchema = z.object({
+  handler_key: z.string().min(1),
+  name: z.string().min(1).max(120),
+  description: z.string().max(500).nullish(),
+  app_id: uuid.nullish(),
+  cron: cron.nullish(),
+  enabled: z.boolean().default(false),
+  config: jsonObject.default({}),
+  icon: z.string().max(32).optional(),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish(),
+  kind: z.enum(['app', 'system']).optional(),
+});
+
+export const updateAutomationSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    description: z.string().max(500).nullable(),
+    app_id: uuid.nullable(),
+    cron: cron.nullable(),
+    enabled: z.boolean(),
+    config: jsonObject,
+    icon: z.string().max(32),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'no fields to update');
+
+export const updateArtifactSchema = z
+  .object({
+    status: z.enum(['draft', 'approved', 'rejected']),
+    hook: z.string().max(300).nullable(),
+    caption: z.string().max(2200).nullable(),
+    script: z.string().max(20000).nullable(),
+    shot_notes: z.string().max(5000).nullable(),
+    hashtags: z.array(z.string().max(60)).max(10),
+    video_url: z.string().url().nullable(),
+    account_id: uuid.nullable(),
+    scheduled_for: z.string().datetime({ offset: true }).nullable(),
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'no fields to update');
+
+export const createAccountSchema = z.object({
+  handle: z
+    .string()
+    .trim()
+    .min(1)
+    .max(30)
+    .transform((v) => v.replace(/^@/, ''))
+    .refine((v) => /^[A-Za-z0-9._]+$/.test(v), 'handle may only contain letters, numbers, dots and underscores'),
+  app_id: uuid.nullish(),
+  daily_post_limit: z.number().int().min(1).max(10).default(2),
+});
+
+export const updateAccountSchema = z
+  .object({
+    display_name: z.string().max(120).nullable(),
+    app_id: uuid.nullable(),
+    daily_post_limit: z.number().int().min(1).max(10),
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'no fields to update');
+
+/** Per-handler config schemas, checked when an automation's config is saved. */
+export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
+  'system.heartbeat': z.object({}).passthrough(),
+  'tiktok.generate': z.object({
+    app_slug: z.string().min(1),
+    count: z.number().int().min(1).max(10).default(3),
+    account_id: uuid.nullish(),
+    extra_context: z.string().max(2000).nullish(),
+  }),
+  'tiktok.publish': z.object({
+    max_per_run: z.number().int().min(1).max(10).default(3),
+  }),
+  'tiktok.reconcile': z.object({}).passthrough(),
+  'analytics.sync': z.object({
+    lookback_posts: z.number().int().min(1).max(100).default(20),
+  }).passthrough(),
+  'report.daily': z.object({
+    timezone_note: z.string().max(200).optional(),
+  }).passthrough(),
+  'pipeline.audit': z.object({
+    stuck_after_hours: z.number().int().min(1).max(720).default(48),
+  }).passthrough(),
+};
+
+export class ValidationError extends Error {
+  constructor(message: string, readonly issues: unknown) {
+    super(message);
+  }
+}
+
+/** Parses a request body, raising ValidationError with readable field paths. */
+export async function parseBody<T extends z.ZodTypeAny>(req: Request, schema: T): Promise<z.infer<T>> {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    throw new ValidationError('body must be valid JSON', null);
+  }
+
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const path = first?.path.join('.') ?? '';
+    throw new ValidationError(
+      path ? `${path}: ${first?.message}` : (first?.message ?? 'invalid body'),
+      parsed.error.issues,
+    );
+  }
+  return parsed.data;
+}
+
+/** Validates an automation's config against its handler's schema. */
+export function validateConfig(handlerKey: string, config: unknown): Record<string, unknown> {
+  const schema = handlerConfigSchemas[handlerKey];
+  if (!schema) return (config ?? {}) as Record<string, unknown>;
+
+  const parsed = schema.safeParse(config ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const path = first?.path.join('.') ?? '';
+    throw new ValidationError(
+      `config.${path || '(root)'}: ${first?.message ?? 'invalid'}`,
+      parsed.error.issues,
+    );
+  }
+  return parsed.data as Record<string, unknown>;
+}

@@ -14,6 +14,12 @@ worker/    Cloudflare Worker: API + cron dispatcher + automation handlers
 supabase/  SQL migrations
 ```
 
+The dashboard opens on a command center: every automation is an agent node
+orbiting a central core, with its live state (idle / working / failed), today's
+schedule along the bottom, and a command bar. Clicking an agent opens its
+"brain" — current task, schedule, health, config, logs and outputs. The table
+views are still there behind it, one click away and unchanged.
+
 ## How it fits together
 
 ```
@@ -37,6 +43,44 @@ forever.
 artifacts. The publisher picks up `approved` ones, and approval requires a video
 URL and an account, set by hand in the review queue.
 
+Claiming is atomic. The dispatcher calls `claim_due_automations()`, which flips
+rows to `running` in the same statement that selects them, under
+`FOR UPDATE SKIP LOCKED`. Two overlapping dispatchers — or a manual trigger
+racing the cron pass — partition the work instead of both running the same
+automation. A claim that is never released (worker eviction mid-run) goes stale
+after 15 minutes and can be re-taken.
+
+## What is not built
+
+The production pipeline has nine stages. Four of them have no implementation,
+and the dashboard says so rather than implying otherwise — the pipeline rail
+labels them **Not built**, and `GET /api/pipeline` is the source of that truth.
+
+| Stage | State |
+| --- | --- |
+| Research | Not built |
+| Concept | Automated (`tiktok.generate`) |
+| Script | Not built |
+| Assets / footage | Not built — you supply the footage |
+| Edit / render | Not built |
+| Review | You do this, in the queue |
+| Schedule | You do this |
+| Publish | Automated (`tiktok.publish`) |
+| Analytics | Automated (`analytics.sync`) |
+
+So: **the pipeline drafts concepts, it does not make videos.** A draft carries a
+hook, caption, hashtags and shot notes; turning that into a file is still manual,
+and the approve step will not let anything through without a video URL.
+
+Two more things are deliberately unconfigured:
+
+- **Report delivery.** The 08:00 report is generated and readable in the
+  dashboard, but no push/email channel is wired, so `delivery` stays
+  `unconfigured` and the UI states that nothing was sent.
+- **Analytics scopes.** `analytics.sync` needs `user.info.stats` and
+  `video.list`, which are separate from the posting scopes. Without them a
+  snapshot is recorded with quality `partial` rather than as zeroes.
+
 ## Automations
 
 | Handler key | What it does |
@@ -45,6 +89,9 @@ URL and an account, set by hand in the review queue.
 | `tiktok.generate` | Drafts hooks/captions/shot notes for one app. Config: `{app_slug, count, account_id?, extra_context?}` |
 | `tiktok.publish` | Publishes approved artifacts within each account's daily limit. Config: `{max_per_run}` |
 | `tiktok.reconcile` | Polls TikTok and settles in-flight posts. |
+| `analytics.sync` | Pulls follower/view/per-post metrics. Config: `{lookback_posts}` |
+| `report.daily` | Builds the 08:00 morning report. |
+| `pipeline.audit` | Flags stuck artifacts, expiring tokens and unwired stages. |
 
 Adding one: write a handler in `worker/src/automations/`, export it, add it to
 `HANDLERS` in `registry.ts`. It gets logging, run history, scheduling, retries
@@ -123,10 +170,20 @@ cd web    && npm run dev             # dashboard on :5173, proxies /api
 Worker secrets go in `worker/.dev.vars` (gitignored), web vars in `web/.env`.
 
 ```bash
-cd worker && npm test                # cron parser
+cd worker && npm test                # Workers-runtime specs + node cron tests
+cd worker && npm run test:workers    # vitest inside workerd only
 cd worker && npm run typecheck
+cd worker && npm run types           # regenerate worker-configuration.d.ts
 cd web    && npm run build           # typechecks too
 ```
+
+The Worker tests run inside workerd via `@cloudflare/vitest-pool-workers`, so
+the crypto, fetch and Request/Response behaviour under test is the same runtime
+that serves production. They cover the atomic claim and manual-trigger
+idempotency, the owner-only auth paths, request validation, artifact state
+transitions, and that encrypted tokens never reach the browser. Bindings come
+from `wrangler types`; `src/types.ts` widens them rather than duplicating the
+list.
 
 ## Security notes
 
@@ -139,7 +196,9 @@ cd web    && npm run build           # typechecks too
   dashboard reads the `tiktok_accounts_public` view instead.
 - The OAuth callback has no session, so the account being connected travels in
   an HMAC-signed `state` that expires after ten minutes.
-- **Stop everything** on the overview disables every automation at once.
+- Request bodies and per-handler configs are validated with zod schemas at the
+  API boundary, so a malformed body is a 400 rather than a surprise write.
+- **Stop everything** on the command center disables every automation at once.
 
 ## One thing worth knowing
 

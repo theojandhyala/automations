@@ -1,0 +1,197 @@
+import { AgentIcon } from './icons';
+import type { App, Automation } from '../lib/types';
+
+/** Ring radii as a fraction of the field's half-width. */
+const RING_RADIUS: Record<number, number> = { 1: 0.72, 2: 0.94 };
+
+export interface AgentPlacement {
+  automation: Automation;
+  /** Percent coordinates within the field, 0..100. */
+  x: number;
+  y: number;
+  ring: number;
+  accent: string;
+}
+
+/**
+ * Lays agents out around the core. An agent's angle comes from its
+ * orbit_position (0..1 clockwise from the top); agents without one are spread
+ * evenly across the gaps so a freshly created automation still lands somewhere
+ * sensible rather than stacking on top of another.
+ */
+export function placeAgents(automations: Automation[], apps: App[]): AgentPlacement[] {
+  const unplaced = automations.filter((a) => a.orbit_position == null);
+  let nextAuto = 0;
+
+  return automations.map((automation) => {
+    const ring = automation.orbit_ring ?? 1;
+    const position =
+      automation.orbit_position ?? (unplaced.length ? (nextAuto++ + 0.5) / unplaced.length : 0);
+
+    const angle = position * Math.PI * 2 - Math.PI / 2;
+    const radius = (RING_RADIUS[ring] ?? RING_RADIUS[1]!) * 50;
+
+    const app = apps.find((p) => p.id === automation.app_id);
+    return {
+      automation,
+      ring,
+      x: 50 + Math.cos(angle) * radius,
+      y: 50 + Math.sin(angle) * radius,
+      accent: automation.accent ?? app?.accent ?? '#6ea8fe',
+    };
+  });
+}
+
+/** IDLE / WORKING / FAILED / PAUSED, as shown under each badge. */
+function stateLabel(a: Automation): string {
+  if (a.status === 'running') return 'Working';
+  if (a.status === 'failed') return 'Failed';
+  if (a.status === 'disabled' || !a.enabled) return 'Paused';
+  return 'Idle';
+}
+
+function AgentNode({
+  placement,
+  app,
+  onOpen,
+}: {
+  placement: AgentPlacement;
+  app: App | undefined;
+  onOpen: () => void;
+}) {
+  const { automation: a, accent } = placement;
+  const state = a.status === 'idle' && !a.enabled ? 'disabled' : a.status;
+
+  return (
+    <button
+      type="button"
+      className={`agent ring-${placement.ring}`}
+      data-state={state}
+      style={{
+        left: `${placement.x}%`,
+        top: `${placement.y}%`,
+        color: accent,
+      }}
+      onClick={onOpen}
+      aria-label={`${a.name} — ${stateLabel(a)}. Open agent brain.`}
+    >
+      <span className="hex" style={{ background: `linear-gradient(160deg, ${accent}, #0b1120)` }}>
+        <AgentIcon name={a.icon} size={24} />
+      </span>
+      <span className="agent-name">{a.name}</span>
+      <span className="agent-state">{stateLabel(a)}</span>
+      {app && (
+        <span className="agent-workspace" style={{ color: accent }}>
+          {app.name}
+        </span>
+      )}
+      {a.status === 'running' && a.current_task && (
+        <span className="agent-task">{a.current_task}</span>
+      )}
+    </button>
+  );
+}
+
+export default function OrbitField({
+  automations,
+  apps,
+  workingCount,
+  onOpenAgent,
+  onOpenCore,
+}: {
+  automations: Automation[];
+  apps: App[];
+  workingCount: number;
+  onOpenAgent: (a: Automation) => void;
+  onOpenCore: () => void;
+}) {
+  const placements = placeAgents(automations, apps);
+
+  return (
+    <div className="orbit-field">
+      <svg className="rings" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          <radialGradient id="coreGlow">
+            <stop offset="0%" stopColor="#5eead4" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#5eead4" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        <circle cx="50" cy="50" r="30" fill="url(#coreGlow)" />
+
+        {/* Orbit paths, drifting in opposite directions. */}
+        <g className="ring-spin-a">
+          <circle cx="50" cy="50" r={RING_RADIUS[1]! * 50} fill="none"
+                  stroke="rgba(94,234,212,0.18)" strokeWidth="0.22" strokeDasharray="1.2 2.4" />
+        </g>
+        <g className="ring-spin-b">
+          <circle cx="50" cy="50" r={RING_RADIUS[2]! * 50} fill="none"
+                  stroke="rgba(99,102,241,0.16)" strokeWidth="0.22" strokeDasharray="0.7 3.2" />
+        </g>
+        <circle cx="50" cy="50" r={RING_RADIUS[1]! * 50 - 8} fill="none"
+                stroke="rgba(148,163,184,0.07)" strokeWidth="0.15" />
+
+        {/* Connector lines core -> agent, with a pulse riding each one. A
+            working agent's connector is brighter and its pulse faster. */}
+        {placements.map(({ automation: a, x, y, accent }) => {
+          const working = a.status === 'running';
+          const path = `M 50 50 L ${x} ${y}`;
+          return (
+            <g key={a.id}>
+              <line
+                x1="50" y1="50" x2={x} y2={y}
+                stroke={working ? accent : 'rgba(148,163,184,0.3)'}
+                strokeWidth={working ? 0.32 : 0.17}
+                opacity={a.enabled ? 1 : 0.35}
+              />
+              {a.enabled && (
+                <circle
+                  className="pulse"
+                  r={working ? 0.75 : 0.45}
+                  fill={working ? accent : 'rgba(148,163,184,0.6)'}
+                  style={{
+                    offsetPath: `path("${path}")`,
+                    animationDuration: working ? '1.5s' : '3.4s',
+                    animationDelay: `${(x + y) % 3}s`,
+                  }}
+                />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      <button type="button" className="core" onClick={onOpenCore}
+              aria-label="Open the control plane summary">
+        <span className="core-orb" />
+        {workingCount > 0 && (
+          <>
+            <span className="core-halo" />
+            <span className="core-halo b" />
+            <span className="core-halo c" />
+          </>
+        )}
+        <span className="core-label">
+          <span className="n">Core</span>
+          <span className="c">{automations.length}</span>
+          <span className="s">
+            {workingCount > 0 ? `${workingCount} working` : 'all quiet'}
+          </span>
+        </span>
+      </button>
+
+      {/* Below the mobile breakpoint the absolute positions are overridden and
+          this becomes a plain grid. */}
+      <div className="agent-grid">
+        {placements.map((placement) => (
+          <AgentNode
+            key={placement.automation.id}
+            placement={placement}
+            app={apps.find((p) => p.id === placement.automation.app_id)}
+            onOpen={() => onOpenAgent(placement.automation)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

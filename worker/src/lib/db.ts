@@ -54,6 +54,18 @@ export class Db {
     });
   }
 
+  /**
+   * Calls a Postgres function. Used for the atomic claim, where the select and
+   * the status flip have to happen in one statement.
+   */
+  async rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+    const res = await this.request(`rpc/${fn}`, {
+      method: 'POST',
+      body: JSON.stringify(args),
+    });
+    return (await res.json()) as T;
+  }
+
   async update<T>(table: string, query: string, patch: unknown): Promise<T[]> {
     const res = await this.request(`${table}?${query}`, {
       method: 'PATCH',
