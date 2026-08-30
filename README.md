@@ -102,11 +102,13 @@ and the kill switch for free.
 ### 1. Supabase
 
 Create a project, then run every numbered file in `supabase/migrations/` in
-order (`0001` through `0005` at the time of writing). Then pin the owner —
-until you do, the dashboard reads nothing:
+order (`0001` through `0006` at the time of writing). The final migration pins
+the dashboard owner in a private table. To change it later, use the SQL editor:
 
 ```sql
-alter database postgres set app.owner_email = 'you@example.com';
+insert into private.owner_config (email)
+values ('you@example.com')
+on conflict (email) do nothing;
 ```
 
 Under **Authentication → Providers**, leave Email on with magic links, and turn

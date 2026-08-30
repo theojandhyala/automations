@@ -28,8 +28,8 @@
 
   // Non-secret config. Secrets are set with `wrangler secret put` -- see README.
   "vars": {
-    "SUPABASE_URL": "",
-    "SUPABASE_ANON_KEY": "",
-    "OWNER_EMAIL": ""
+    "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3bWd2dWpscXZkY3R6cnlmYmlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMTM3ODMsImV4cCI6MjEwMzY4OTc4M30.sQBCfLDKp6u2ER7ANxnt_stCkbx6qXPWt2UcXo0bw_U",
+    "OWNER_EMAIL": "theojandhyala@icloud.com"
   }
 }

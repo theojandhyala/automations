@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 /**
- * Magic-link sign in. Anyone can request a link, but RLS and the Worker only
- * answer to OWNER_EMAIL, so a link sent elsewhere opens an empty dashboard.
+ * Magic-link sign in for the pre-created owner account. New account creation
+ * stays disabled in Supabase.
  */
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -17,7 +17,10 @@ export default function Login() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: {
+        emailRedirectTo: window.location.origin,
+        shouldCreateUser: false,
+      },
     });
     setBusy(false);
     if (error) setError(error.message);
