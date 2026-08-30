@@ -61,21 +61,30 @@ export default function CommandCenter() {
   }
   const followers = [...latestByAccount.values()].reduce((sum, s) => sum + (s.followers ?? 0), 0);
 
+  const online = automations.filter((a) => a.enabled).length;
+
   return (
-    <div className="cc">
+    <div className={`cc ${agent || coreOpen ? 'has-drawer' : ''}`}>
       <Starfield />
       <div className="grid-plane" aria-hidden="true" />
+      <div className="nebula nebula-a" aria-hidden="true" />
+      <div className="nebula nebula-b" aria-hidden="true" />
 
       <header className="cc-head">
         <div>
-          <p className="cc-title">Mission control</p>
+          <p className="cc-title"><i /> Automation universe</p>
           <h2 className="cc-sub">
             {working.length > 0
               ? `${working.length} agent${working.length === 1 ? '' : 's'} working`
               : failing.length > 0
                 ? `${failing.length} agent${failing.length === 1 ? '' : 's'} need${failing.length === 1 ? 's' : ''} you`
-                : 'All agents idle'}
+                : `${online} agents online`}
           </h2>
+          <p className="cc-status-line">
+            <span>Live orchestration</span>
+            <b>•</b>
+            <span>{drafts} creations in review</span>
+          </p>
         </div>
 
         <div className="cc-head-right">

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { AgentIcon } from './icons';
 import type { App, Automation } from '../lib/types';
 
@@ -46,9 +47,15 @@ export function placeAgents(automations: Automation[], apps: App[]): AgentPlacem
 function stateLabel(a: Automation): string {
   if (a.status === 'running') return 'Working';
   if (a.status === 'failed') return 'Failed';
-  if (a.status === 'disabled' || !a.enabled) return 'Paused';
-  return 'Idle';
+  if (a.status === 'disabled' || !a.enabled) return 'Sleeping';
+  return 'Online';
 }
+
+type AgentStyle = CSSProperties & {
+  '--agent-color': string;
+  '--agent-delay': string;
+  '--agent-index': number;
+};
 
 function AgentNode({
   placement,
@@ -71,12 +78,19 @@ function AgentNode({
         left: `${placement.x}%`,
         top: `${placement.y}%`,
         color: accent,
-      }}
+        '--agent-color': accent,
+        '--agent-delay': `${((placement.x + placement.y) % 7) * -0.35}s`,
+        '--agent-index': Math.round(placement.x + placement.y),
+      } as AgentStyle}
       onClick={onOpen}
       aria-label={`${a.name} — ${stateLabel(a)}. Open agent brain.`}
     >
-      <span className="hex" style={{ background: `linear-gradient(160deg, ${accent}, #0b1120)` }}>
-        <AgentIcon name={a.icon} size={24} />
+      <span className="agent-aura" aria-hidden="true" />
+      <span className="hex-shell">
+        <span className="hex">
+          <span className="gem-core" aria-hidden="true" />
+          <AgentIcon name={a.icon} size={23} />
+        </span>
       </span>
       <span className="agent-name">{a.name}</span>
       <span className="agent-state">{stateLabel(a)}</span>
@@ -109,15 +123,34 @@ export default function OrbitField({
 
   return (
     <div className="orbit-field">
+      <div className="scanner-beam" aria-hidden="true" />
+      <div className="core-energy-field" aria-hidden="true" />
       <svg className="rings" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <defs>
           <radialGradient id="coreGlow">
             <stop offset="0%" stopColor="#5eead4" stopOpacity="0.5" />
             <stop offset="100%" stopColor="#5eead4" stopOpacity="0" />
           </radialGradient>
+          <linearGradient id="radarLine" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#67e8f9" stopOpacity="0" />
+            <stop offset="52%" stopColor="#67e8f9" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+          </linearGradient>
         </defs>
 
-        <circle cx="50" cy="50" r="30" fill="url(#coreGlow)" />
+        <circle cx="50" cy="50" r="34" fill="url(#coreGlow)" />
+
+        <g className="radar-axis">
+          <line x1="50" y1="3" x2="50" y2="97" stroke="url(#radarLine)" strokeWidth="0.12" />
+          <line x1="3" y1="50" x2="97" y2="50" stroke="url(#radarLine)" strokeWidth="0.12" />
+          <line x1="17" y1="17" x2="83" y2="83" stroke="url(#radarLine)" strokeWidth="0.1" />
+          <line x1="83" y1="17" x2="17" y2="83" stroke="url(#radarLine)" strokeWidth="0.1" />
+        </g>
+
+        {[13, 22, 31].map((radius) => (
+          <circle key={radius} cx="50" cy="50" r={radius} fill="none"
+                  stroke="rgba(125,211,252,0.12)" strokeWidth="0.13" />
+        ))}
 
         {/* Orbit paths, drifting in opposite directions. */}
         <g className="ring-spin-a">
@@ -129,7 +162,7 @@ export default function OrbitField({
                   stroke="rgba(99,102,241,0.16)" strokeWidth="0.22" strokeDasharray="0.7 3.2" />
         </g>
         <circle cx="50" cy="50" r={RING_RADIUS[1]! * 50 - 8} fill="none"
-                stroke="rgba(148,163,184,0.07)" strokeWidth="0.15" />
+                stroke="rgba(148,163,184,0.13)" strokeWidth="0.14" strokeDasharray="0.3 1.7" />
 
         {/* Connector lines core -> agent, with a pulse riding each one. A
             working agent's connector is brighter and its pulse faster. */}
@@ -140,9 +173,9 @@ export default function OrbitField({
             <g key={a.id}>
               <line
                 x1="50" y1="50" x2={x} y2={y}
-                stroke={working ? accent : 'rgba(148,163,184,0.3)'}
-                strokeWidth={working ? 0.32 : 0.17}
-                opacity={a.enabled ? 1 : 0.35}
+                stroke={working ? accent : a.enabled ? accent : 'rgba(148,163,184,0.24)'}
+                strokeWidth={working ? 0.34 : 0.14}
+                opacity={a.enabled ? 0.44 : 0.3}
               />
               {a.enabled && (
                 <circle
@@ -163,19 +196,15 @@ export default function OrbitField({
 
       <button type="button" className="core" onClick={onOpenCore}
               aria-label="Open the control plane summary">
-        <span className="core-orb" />
-        {workingCount > 0 && (
-          <>
-            <span className="core-halo" />
-            <span className="core-halo b" />
-            <span className="core-halo c" />
-          </>
-        )}
+        <span className="core-orb"><i /><i /><i /></span>
+        <span className="core-halo" />
+        <span className="core-halo b" />
+        <span className="core-halo c" />
         <span className="core-label">
           <span className="n">Core</span>
           <span className="c">{automations.length}</span>
           <span className="s">
-            {workingCount > 0 ? `${workingCount} working` : 'all quiet'}
+            {workingCount > 0 ? `${workingCount} working` : 'systems online'}
           </span>
         </span>
       </button>

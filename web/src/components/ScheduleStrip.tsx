@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { AgentIcon } from './icons';
 import { Ago } from './bits';
 import type { App, Automation } from '../lib/types';
@@ -45,7 +46,7 @@ export default function ScheduleStrip({
 
   return (
     <div className="schedule-strip">
-      {cards.map((a) => {
+      {cards.map((a, index) => {
         const app = apps.find((p) => p.id === a.app_id);
         const accent = a.accent ?? app?.accent ?? '#6ea8fe';
         const status = !a.enabled
@@ -60,9 +61,10 @@ export default function ScheduleStrip({
           <button
             key={a.id}
             className="sched-card"
-            style={{ borderLeftColor: accent }}
+            style={{ '--card-accent': accent } as CSSProperties}
             onClick={() => onOpenAgent(a)}
           >
+            <span className="sched-index">0{index + 1}</span>
             <span className="when">
               <span>{a.enabled && a.next_run_at ? <Ago at={a.next_run_at} /> : '—'}</span>
               <span

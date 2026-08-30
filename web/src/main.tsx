@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles.css';
 import './command-center.css';
+import './command-center-v2.css';
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
