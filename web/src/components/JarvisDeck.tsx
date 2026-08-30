@@ -46,11 +46,18 @@ export default function JarvisDeck({
       <div className="deck-corner br" aria-hidden="true" />
 
       <button className="jarvis-kernel" type="button" onClick={onOpenCore} aria-label="Open the JARVIS control plane">
+        <span className="kernel-coordinate top">N 51° 30' 26.4&quot; // W 0° 07' 39.1&quot;</span>
+        <span className="kernel-coordinate side">CORE NODE // 00-A</span>
         <span className="kernel-reactor" aria-hidden="true">
+          <i className="reactor-tick tick-a" />
+          <i className="reactor-tick tick-b" />
+          <i className="reactor-tick tick-c" />
           <i className="reactor-ring r1" />
           <i className="reactor-ring r2" />
           <i className="reactor-ring r3" />
+          <i className="reactor-triangle" />
           <i className="reactor-core" />
+          <i className="reactor-scan" />
         </span>
         <span className="kernel-id">J.A.R.V.I.S.</span>
         <strong className={faults ? 'warn' : ''}>{condition}</strong>
@@ -99,6 +106,8 @@ export default function JarvisDeck({
                   <b>{state.label}</b>
                   <small>{nextTime(automation.next_run_at)}</small>
                 </span>
+                <span className="protocol-scan" aria-hidden="true" />
+                <span className="protocol-arc" aria-hidden="true"><i /></span>
                 <span className="protocol-signal" aria-hidden="true"><i /><i /><i /><i /></span>
               </button>
             );

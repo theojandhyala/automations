@@ -96,6 +96,10 @@ export const updateAccountSchema = z
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'no fields to update');
 
+export const pexelsKeySchema = z.object({
+  api_key: z.string().trim().min(16).max(500),
+});
+
 /** Per-handler config schemas, checked when an automation's config is saved. */
 export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
   'system.heartbeat': z.object({}).passthrough(),
@@ -110,6 +114,10 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
   }),
   'tiktok.publish': z.object({
     max_per_run: z.number().int().min(1).max(10).default(3),
+  }),
+  'tiktok.produce': z.object({
+    app_slug: z.string().min(1).default('deadset'),
+    max_per_run: z.number().int().min(1).max(5).default(2),
   }),
   'tiktok.reconcile': z.object({}).passthrough(),
   'analytics.sync': z.object({

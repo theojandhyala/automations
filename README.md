@@ -61,28 +61,29 @@ racing the cron pass — partition the work instead of both running the same
 automation. A claim that is never released (worker eviction mid-run) goes stale
 after 15 minutes and can be re-taken.
 
-## What is not built
+## Production pipeline
 
-The production pipeline has nine stages. Four of them have no implementation,
-and the dashboard says so rather than implying otherwise — the pipeline rail
-labels them **Not built**, and `GET /api/pipeline` is the source of that truth.
+The Deadset photo workflow now runs from concept through final hosted media.
+`GET /api/pipeline` remains the source of truth for the dashboard rail.
 
 | Stage | State |
 | --- | --- |
 | Research | Not built |
 | Concept | Automated (`tiktok.generate`) |
 | Script | Not built |
-| Assets / footage | Not built — you supply the licensed real photo/footage and exact app capture |
-| Edit / render | Not built |
+| Assets / footage | Automated (`tiktok.produce`) with Pexels + the exact-screen library |
+| Edit / render | Automated (`tiktok.produce`) with Cloudflare Browser Run Quick Actions |
 | Review | You do this, in the queue |
 | Schedule | You do this |
 | Publish | Automated (`tiktok.publish`) |
 | Analytics | Automated (`analytics.sync`) |
 
-So: **the pipeline drafts concepts and carousel manifests; it does not yet render
-or host the media.** A draft carries a hook, caption, hashtags, source rules and
-slide notes. Turning that into final files is still manual, and approval rejects
-anything without the final video URL or ordered photo URLs.
+The Creative studio is the anywhere-control surface. Add a free Pexels API key
+there (encrypted at rest), upload the six exact current Deadset feature screens,
+and the production agent will find a licensed portrait photo, record its source,
+render two 1080×1920 JPEG slides, store them privately and expose stable Worker
+media URLs. It runs every 15 minutes or on demand. Approval still rejects
+anything without final ordered photo URLs.
 
 Two more things are deliberately unconfigured:
 
@@ -99,6 +100,7 @@ Two more things are deliberately unconfigured:
 | --- | --- |
 | `system.heartbeat` | Records a run so you can confirm the dispatcher is healthy. |
 | `tiktok.generate` | Drafts hooks/captions/shot notes and, for Deadset, a licensed-real-photo carousel manifest. Config: `{app_slug, count, account_id?, extra_context?, content_format?, source_policy?, feature_rotation?}` |
+| `tiktok.produce` | Sources a licensed Pexels photo, pairs it with an owner-uploaded exact app screen, renders the final carousel and hosts it. Config: `{app_slug, max_per_run}` |
 | `tiktok.publish` | Publishes approved videos or native photo carousels within each account's daily limit. Config: `{max_per_run}` |
 | `tiktok.reconcile` | Polls TikTok and settles in-flight posts. |
 | `analytics.sync` | Pulls follower/view/per-post metrics. Config: `{lookback_posts}` |
@@ -114,7 +116,7 @@ and the kill switch for free.
 ### 1. Supabase
 
 Create a project, then run every numbered file in `supabase/migrations/` in
-order (`0001` through `0006` at the time of writing). The final migration pins
+order (`0001` through `0008` at the time of writing). Migration `0006` pins
 the dashboard owner in a private table. To change it later, use the SQL editor:
 
 ```sql
@@ -153,6 +155,11 @@ key. On Cloudflare's Free plan, inference stops when the daily free allocation
 is exhausted instead of incurring paid overage. The generator also caps each
 brand at four runs per UTC day to prevent accidental manual-trigger loops.
 
+Carousel rendering uses Cloudflare Browser Run Quick Actions. The production
+volume is designed to fit inside the Free plan's included browser allowance;
+it does not use OpenAI or Anthropic credits. Pexels also has a free API: enter
+that key in Creative studio rather than adding it to source or Wrangler vars.
+
 ### 3. Deploy
 
 ```bash
@@ -179,8 +186,9 @@ actual use case.
 
 ### 5. First run
 
-Enable `Heartbeat` first and confirm runs appear on the overview. Then enable
-the drafting automations, look at what lands in the queue, and only enable
+Enable `Heartbeat` first and confirm runs appear on the overview. Open Creative
+studio, connect Pexels and upload the current Deadset feature screens. Then
+enable the drafting automations, look at what lands in the queue, and only enable
 `tiktok.publish` and `tiktok.reconcile` once you are happy with the drafts.
 
 ## Local development

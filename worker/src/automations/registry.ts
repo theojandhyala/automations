@@ -6,6 +6,7 @@ import { reconcilePublishing } from './tiktok-reconcile';
 import { analyticsSync } from './analytics-sync';
 import { reportDaily } from './report-daily';
 import { pipelineAudit } from './pipeline-audit';
+import { produceCarousels } from './tiktok-produce';
 
 export interface Handler {
   key: string;
@@ -18,6 +19,7 @@ export interface Handler {
 const HANDLERS: Handler[] = [
   heartbeat,
   generateDrafts,
+  produceCarousels,
   publishApproved,
   reconcilePublishing,
   analyticsSync,

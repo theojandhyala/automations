@@ -8,14 +8,30 @@ import CommandBar from '../components/CommandBar';
 import ScheduleStrip from '../components/ScheduleStrip';
 import PipelineRail from '../components/PipelineRail';
 import AnalyticsCards from '../components/AnalyticsCards';
+import HudAtmosphere from '../components/HudAtmosphere';
 import type { Account, AnalyticsSnapshot, App, Automation } from '../lib/types';
 
+const SYSTEM_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+export interface CommandCenterPreviewData {
+  automations: Automation[];
+  apps: App[];
+  accounts: Account[];
+  queue: Array<{ status: string }>;
+  snapshots: AnalyticsSnapshot[];
+}
+
 /** The live system overview: JARVIS kernel, agent matrix, schedule and commands. */
-export default function CommandCenter() {
+export default function CommandCenter({ previewData }: { previewData?: CommandCenterPreviewData }) {
   const [openAgent, setOpenAgent] = useState<string | null>(null);
   const [coreOpen, setCoreOpen] = useState(false);
 
   const { data, refresh } = useData(async () => {
+    if (previewData) return previewData;
     const [automations, apps, accounts, queue, snapshots] = await Promise.all([
       supabase.from('automations').select('*').order('orbit_ring').order('orbit_position'),
       supabase.from('apps').select('*').order('sort_order'),
@@ -32,7 +48,7 @@ export default function CommandCenter() {
       queue: (queue.data ?? []) as Array<{ status: string }>,
       snapshots: (snapshots.data ?? []) as AnalyticsSnapshot[],
     };
-  }, [], 4000);
+  }, [previewData], previewData ? 0 : 4000);
 
   if (!data) {
     return (
@@ -59,12 +75,17 @@ export default function CommandCenter() {
 
   return (
     <div className={`cc ${agent || coreOpen ? 'has-drawer' : ''}`}>
+      <HudAtmosphere />
       <div className="grid-plane" aria-hidden="true" />
       <div className="stark-scan" aria-hidden="true" />
 
       <header className="cc-head">
-        <div>
-          <p className="cc-title"><i /> Stark operating environment</p>
+        <div className="cc-identity">
+          <div className="stark-mark" aria-hidden="true">
+            <span><i /></span>
+          </div>
+          <div>
+          <p className="cc-title"><i /> Stark operating environment <b>MK VII</b></p>
           <h2 className="cc-sub">
             {working.length > 0
               ? `J.A.R.V.I.S. // ${working.length} protocol${working.length === 1 ? '' : 's'} executing`
@@ -73,10 +94,14 @@ export default function CommandCenter() {
                 : 'J.A.R.V.I.S. // ONLINE'}
           </h2>
           <p className="cc-status-line">
+            <span className="signal-bars"><i /><i /><i /><i /></span>
             <span>Voice command linked</span>
             <b>•</b>
             <span>{online} agent protocols ready</span>
+            <b>•</b>
+            <span className="encrypted-label">AES // ENCRYPTED</span>
           </p>
+          </div>
         </div>
 
         <div className="cc-head-right">
@@ -96,6 +121,11 @@ export default function CommandCenter() {
             <div className="k">Attention</div>
             <div className="v">{failing.length}</div>
           </div>
+          <div className="hud-clock" aria-label="System clock">
+            <span>SYS TIME</span>
+            <b>{SYSTEM_TIME_FORMATTER.format(new Date())}</b>
+            <i>GMT LINK</i>
+          </div>
         </div>
       </header>
 
@@ -111,6 +141,15 @@ export default function CommandCenter() {
       </div>
 
       <footer className="cc-foot">
+        <div className="deck-telemetry" aria-hidden="true">
+          <span>REACTOR OUTPUT <b>98.7%</b></span>
+          <i />
+          <span>NEURAL LATENCY <b>04ms</b></span>
+          <i />
+          <span>DEFENCE GRID <b>PASSIVE</b></span>
+          <i />
+          <span>DATA BUS <b>STABLE</b></span>
+        </div>
         <ScheduleStrip
           automations={automations}
           apps={apps}

@@ -9,6 +9,8 @@ import AutomationDetail from './pages/AutomationDetail';
 import Queue from './pages/Queue';
 import Accounts from './pages/Accounts';
 import Reports from './pages/Reports';
+import HudPreview from './pages/HudPreview';
+import CreativeStudio from './pages/CreativeStudio';
 
 /**
  * The command center is the landing page and gets the full viewport with no
@@ -23,6 +25,7 @@ function Shell({ session }: { session: Session }) {
           <NavLink to="/" end>Command center</NavLink>
           <NavLink to="/overview">Overview</NavLink>
           <NavLink to="/queue">Review queue</NavLink>
+          <NavLink to="/studio">Creative studio</NavLink>
           <NavLink to="/reports">Reports</NavLink>
           <NavLink to="/accounts">Accounts</NavLink>
         </nav>
@@ -36,6 +39,7 @@ function Shell({ session }: { session: Session }) {
           <Route path="/overview" element={<Overview />} />
           <Route path="/automations/:id" element={<AutomationDetail />} />
           <Route path="/queue" element={<Queue />} />
+          <Route path="/studio" element={<CreativeStudio />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -58,6 +62,10 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('hud-preview')) {
+    return <HudPreview />;
+  }
 
   if (!ready) return null;
   if (!session) return <Login />;

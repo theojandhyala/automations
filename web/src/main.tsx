@@ -5,6 +5,7 @@ import App from './App';
 import './styles.css';
 import './command-center.css';
 import './command-center-v2.css';
+import './command-center-mark.css';
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

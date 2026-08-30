@@ -54,6 +54,17 @@ export class Db {
     });
   }
 
+  async upsert<T>(table: string, row: unknown, onConflict: string): Promise<T> {
+    const res = await this.request(`${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+      method: 'POST',
+      body: JSON.stringify(row),
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    });
+    const rows = (await res.json()) as T[];
+    if (!rows[0]) throw new Error(`upsert into ${table} returned no row`);
+    return rows[0];
+  }
+
   /**
    * Calls a Postgres function. Used for the atomic claim, where the select and
    * the status flip have to happen in one statement.

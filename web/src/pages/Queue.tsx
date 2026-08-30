@@ -31,6 +31,7 @@ export default function Queue() {
   const [creatorInfo, setCreatorInfo] = useState<Record<string, CreatorInfo>>({});
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
   const [consent, setConsent] = useState<Record<string, boolean>>({});
+  const [producing, setProducing] = useState<string | null>(null);
 
   const { data, refresh } = useData(async () => {
     const [artifacts, apps, accounts] = await Promise.all([
@@ -68,6 +69,20 @@ export default function Queue() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingAccount(null);
+    }
+  }
+
+  async function produce(id: string) {
+    setError(null);
+    setProducing(id);
+    try {
+      await api(`/artifacts/${id}/produce`, { method: 'POST' });
+      window.setTimeout(refresh, 3000);
+      window.setTimeout(refresh, 8000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProducing(null);
     }
   }
 
@@ -149,6 +164,17 @@ export default function Queue() {
               )}
 
               {artifact.error && <p className="mono" style={{ color: 'var(--bad)' }}>{artifact.error}</p>}
+
+              {artifact.status === 'draft' && artifact.media_type === 'photo' && !mediaReady && (
+                <button
+                  className="primary"
+                  onClick={() => produce(artifact.id)}
+                  disabled={producing === artifact.id}
+                  style={{ marginBottom: 14 }}
+                >
+                  {producing === artifact.id ? 'Starting production…' : 'Build final slides'}
+                </button>
+              )}
 
               {isEditable && (
                 <div className="review-fields">

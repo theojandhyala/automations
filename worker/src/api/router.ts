@@ -6,11 +6,15 @@ import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
 import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, storeTokens } from '../lib/tiktok';
 import { log, errorFields } from '../lib/log';
+import { encrypt } from '../lib/crypto';
+import { publicMediaUrl, uploadMedia } from '../lib/storage';
+import { produceOne } from '../automations/tiktok-produce';
 import {
   ValidationError,
   createAccountSchema,
   createAutomationSchema,
   parseBody,
+  pexelsKeySchema,
   updateAccountSchema,
   updateArtifactSchema,
   updateAutomationSchema,
@@ -31,6 +35,15 @@ const ARTIFACT_TRANSITIONS: Record<string, string[]> = {
   approved: ['draft', 'rejected'],
   rejected: ['draft'],
   failed: ['draft', 'rejected'],
+};
+
+const DEADSET_FEATURES: Record<string, string> = {
+  muscle_diagram: 'Muscle diagram',
+  training_heatmap: 'Training heatmap',
+  pr_wall: 'PR wall',
+  progression_board: 'Progression board',
+  workout_plan: 'Workout plan',
+  live_logger: 'Live workout logger',
 };
 
 export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -75,6 +88,64 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // The honest pipeline view: which stages actually work in this deployment.
   if (path === '/pipeline' && req.method === 'GET') {
     return json({ stages: stageStatuses(env) });
+  }
+
+  // --- creative production studio ---
+
+  if (path === '/creative-studio' && req.method === 'GET') {
+    const [secret, assets] = await Promise.all([
+      db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
+      db.select<Record<string, unknown>>('creative_assets', 'app_slug=eq.deadset&select=*&order=asset_key.asc'),
+    ]);
+    return json({
+      pexels: { configured: Boolean(secret) },
+      features: assets.map((asset) => ({
+        ...asset,
+        public_url: publicMediaUrl(env, String(asset.storage_path)),
+      })),
+      required_features: Object.entries(DEADSET_FEATURES).map(([key, label]) => ({ key, label })),
+    });
+  }
+
+  if (path === '/integrations/pexels' && req.method === 'PUT') {
+    const body = await parseBody(req, pexelsKeySchema);
+    const check = await fetch('https://api.pexels.com/v1/curated?per_page=1', {
+      headers: { Authorization: body.api_key },
+    });
+    if (!check.ok) return json({ error: 'Pexels rejected that API key.' }, 400);
+    await db.upsert('integration_secrets', {
+      provider: 'pexels',
+      secret_enc: await encrypt(body.api_key, env.TOKEN_ENCRYPTION_KEY),
+      updated_at: new Date().toISOString(),
+    }, 'provider');
+    return json({ configured: true });
+  }
+
+  if (path === '/creative-assets' && req.method === 'POST') {
+    const form = await req.formData();
+    const assetKey = String(form.get('asset_key') ?? '');
+    const file = form.get('file');
+    if (!(assetKey in DEADSET_FEATURES)) return json({ error: 'unknown Deadset feature key' }, 400);
+    if (!(file instanceof File)) return json({ error: 'image file is required' }, 400);
+    const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (!allowed.has(file.type)) return json({ error: 'upload PNG, JPEG or WebP only' }, 400);
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) return json({ error: 'image must be 10 MB or smaller' }, 400);
+
+    const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const storagePath = `features/deadset/${assetKey}/${crypto.randomUUID()}.${extension}`;
+    await uploadMedia(env, storagePath, await file.arrayBuffer(), file.type);
+    const asset = await db.upsert<Record<string, unknown>>('creative_assets', {
+      app_slug: 'deadset',
+      asset_key: assetKey,
+      label: DEADSET_FEATURES[assetKey],
+      storage_path: storagePath,
+      mime_type: file.type,
+      source_kind: 'owner_upload',
+      source_url: null,
+      licence_note: 'Exact current Deadset app capture uploaded by the owner.',
+      updated_at: new Date().toISOString(),
+    }, 'app_slug,asset_key');
+    return json({ ...asset, public_url: publicMediaUrl(env, storagePath) }, 201);
   }
 
   // --- automations ---
@@ -182,8 +253,44 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
   // --- artifacts (the review queue) ---
 
-  const artifactMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})$/);
-  if (artifactMatch && req.method === 'PATCH') {
+  const artifactMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})(\/produce)?$/);
+  if (artifactMatch?.[2] && req.method === 'POST') {
+    const id = artifactMatch[1]!;
+    const artifact = await db.selectOne<Artifact>('artifacts', `id=eq.${id}&select=*`);
+    if (!artifact) return json({ error: 'not found' }, 404);
+    if (artifact.status !== 'draft' || artifact.media_type !== 'photo') {
+      return json({ error: 'only draft photo carousels can be produced' }, 400);
+    }
+    await db.update('artifacts', `id=eq.${id}`, {
+      error: null,
+      stage: 'assets',
+      stages: { ...artifact.stages, assets: { state: 'running', at: new Date().toISOString() } },
+    });
+    ctx.waitUntil(
+      produceOne(env, db, artifact)
+        .then(async (result) => {
+          if (result.state === 'blocked') {
+            await db.update('artifacts', `id=eq.${id}`, {
+              error: result.reason,
+              stage: 'assets',
+              stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
+            });
+          }
+        })
+        .catch(async (err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          log.error('manual carousel production failed', { artifact_id: id, ...errorFields(err) });
+          await db.update('artifacts', `id=eq.${id}`, {
+            error: message,
+            stage: 'assets',
+            stages: { ...artifact.stages, assets: { state: 'failed', note: message } },
+          }).catch(() => undefined);
+        }),
+    );
+    return json({ ok: true, artifact_id: id }, 202);
+  }
+
+  if (artifactMatch && !artifactMatch[2] && req.method === 'PATCH') {
     const id = artifactMatch[1]!;
     const body = await parseBody(req, updateArtifactSchema);
 

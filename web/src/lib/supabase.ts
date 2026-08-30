@@ -15,13 +15,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = data.session?.access_token;
   if (!token) throw new Error('not signed in');
 
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  if (!(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(`/api${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
-    },
+    headers,
   });
 
   const body = await res.json().catch(() => ({}));

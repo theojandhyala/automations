@@ -2,6 +2,7 @@ import { handleApiSafe } from './api/router';
 import { backfillSchedules, dispatchDue } from './lib/runner';
 import { log, errorFields } from './lib/log';
 import type { Env } from './types';
+import { streamMedia } from './lib/storage';
 
 /**
  * One Worker serves both halves of the control plane: the dashboard SPA and
@@ -14,6 +15,10 @@ export default {
 
     if (url.pathname.startsWith('/api/')) {
       return handleApiSafe(req, env, ctx);
+    }
+
+    if (url.pathname.startsWith('/media/') && (req.method === 'GET' || req.method === 'HEAD')) {
+      return streamMedia(env, url.pathname.slice('/media/'.length), req);
     }
 
     return env.ASSETS.fetch(req);

@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "automations",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-22",
+  "compatibility_date": "2026-08-30",
   "compatibility_flags": ["nodejs_compat"],
 
   // The dashboard SPA is served from the same Worker as the API, so there is
@@ -33,9 +33,16 @@
     "remote": true
   },
 
+  // Low-volume Quick Actions slide rendering stays within Browser Run's
+  // included free-plan allowance and needs no provider API token.
+  "browser": {
+    "binding": "BROWSER"
+  },
+
   // Non-secret config. Secrets are set with `wrangler secret put` -- see README.
   "vars": {
     "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",
+    "PUBLIC_BASE_URL": "https://automations.theojandhyala.workers.dev",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3bWd2dWpscXZkY3R6cnlmYmlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMTM3ODMsImV4cCI6MjEwMzY4OTc4M30.sQBCfLDKp6u2ER7ANxnt_stCkbx6qXPWt2UcXo0bw_U",
     "OWNER_EMAIL": "theojandhyala@icloud.com"
   }
