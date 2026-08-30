@@ -13,6 +13,9 @@ export default defineConfig({
         compatibilityDate: '2026-08-22',
         compatibilityFlags: ['nodejs_compat'],
         bindings: {
+          // Pipeline status only needs to know the binding is configured; AI
+          // inference itself remains remote and is not called by unit tests.
+          AI: {},
           SUPABASE_URL: 'https://test.supabase.co',
           SUPABASE_ANON_KEY: 'anon-test-key',
           OWNER_EMAIL: 'owner@example.com',
@@ -22,7 +25,6 @@ export default defineConfig({
           TIKTOK_CLIENT_KEY: 'test-client-key',
           TIKTOK_CLIENT_SECRET: 'test-client-secret',
           TIKTOK_REDIRECT_URI: 'https://example.test/api/tiktok/callback',
-          ANTHROPIC_API_KEY: 'test-anthropic-key',
         },
       },
     }),

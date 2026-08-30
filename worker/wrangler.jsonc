@@ -26,6 +26,13 @@
     "head_sampling_rate": 1
   },
 
+  // In-process open-source model inference. The Free plan hard-stops at its
+  // daily allowance, so this does not need a paid provider API key.
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+
   // Non-secret config. Secrets are set with `wrangler secret put` -- see README.
   "vars": {
     "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",

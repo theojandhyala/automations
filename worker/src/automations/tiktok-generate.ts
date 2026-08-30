@@ -1,4 +1,4 @@
-import { completeJson } from '../lib/claude';
+import { completeJson } from '../lib/ai';
 import type { Handler } from './registry';
 
 interface App {
@@ -15,6 +15,11 @@ interface DraftIdea {
   hashtags: string[];
   shot_notes: string;
 }
+
+// Four manual/scheduled runs per brand per UTC day is far above the normal
+// twice-weekly schedule but prevents a stuck client from burning through the
+// shared Workers AI free allocation.
+const MAX_DAILY_RUNS_PER_APP = 4;
 
 const SYSTEM = `You write short-form vertical video concepts for a solo app developer
 promoting their own apps on TikTok.
@@ -54,6 +59,17 @@ export const generateDrafts: Handler = {
 
     const app = await ctx.db.selectOne<App>('apps', `slug=eq.${appSlug}&select=*`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
+
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const todayRuns = await ctx.db.select<{ id: string }>(
+      'runs',
+      `automation_id=eq.${ctx.automation.id}&started_at=gte.${dayStart.toISOString()}&select=id&limit=${MAX_DAILY_RUNS_PER_APP + 1}`,
+    );
+    // The current run row already exists by the time the handler starts.
+    if (todayRuns.length > MAX_DAILY_RUNS_PER_APP) {
+      throw new Error(`daily free-AI run limit reached for ${app.name}`);
+    }
 
     // Avoid re-treading recent angles: show the model what already exists.
     const recent = await ctx.db.select<{ hook: string | null }>(

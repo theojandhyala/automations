@@ -2,7 +2,6 @@
 # set in production with `wrangler secret put`.
 SUPABASE_SERVICE_ROLE_KEY=
 TOKEN_ENCRYPTION_KEY=
-ANTHROPIC_API_KEY=
 TIKTOK_CLIENT_KEY=
 TIKTOK_CLIENT_SECRET=
 TIKTOK_REDIRECT_URI=http://localhost:8787/api/tiktok/callback

@@ -35,7 +35,7 @@ export const STAGES: StageDef[] = [
     name: 'Concept',
     description: 'Draft hooks, captions and shot notes.',
     handler: 'tiktok.generate',
-    requires: ['ANTHROPIC_API_KEY'],
+    requires: ['AI'],
   },
   {
     key: 'script',

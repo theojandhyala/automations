@@ -6,14 +6,13 @@
  * Two adjustments the generator cannot make on its own: vars declared empty in
  * wrangler.jsonc are typed as the literal "", which is widened back to string;
  * and the secrets that are genuinely optional are marked optional, because a
- * deployment without TikTok or Anthropic credentials is a supported state that
- * the pipeline reports as "not configured".
+ * deployment without TikTok credentials is a supported state that the pipeline
+ * reports as "not configured".
  */
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : T[K] };
 
 /** Secrets a deployment can legitimately be missing. */
 type OptionalSecret =
-  | 'ANTHROPIC_API_KEY'
   | 'TIKTOK_CLIENT_KEY'
   | 'TIKTOK_CLIENT_SECRET'
   | 'TIKTOK_REDIRECT_URI';

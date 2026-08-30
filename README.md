@@ -127,7 +127,6 @@ Set the non-secret vars in `wrangler.jsonc` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`
 ```bash
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 wrangler secret put TOKEN_ENCRYPTION_KEY   # openssl rand -base64 32
-wrangler secret put ANTHROPIC_API_KEY
 wrangler secret put TIKTOK_CLIENT_KEY
 wrangler secret put TIKTOK_CLIENT_SECRET
 wrangler secret put TIKTOK_REDIRECT_URI    # https://<worker>/api/tiktok/callback
@@ -135,6 +134,12 @@ wrangler secret put TIKTOK_REDIRECT_URI    # https://<worker>/api/tiktok/callbac
 
 `TOKEN_ENCRYPTION_KEY` must be 32 bytes base64. It encrypts the TikTok OAuth
 tokens at rest, so a database dump on its own does not hand over posting access.
+
+Concept generation uses the Worker-native `AI` binding with
+`@cf/meta/llama-3.1-8b-instruct-fp8-fast`; it needs no OpenAI or Anthropic API
+key. On Cloudflare's Free plan, inference stops when the daily free allocation
+is exhausted instead of incurring paid overage. The generator also caps each
+brand at four runs per UTC day to prevent accidental manual-trigger loops.
 
 ### 3. Deploy
 
