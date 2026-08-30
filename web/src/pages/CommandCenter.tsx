@@ -2,22 +2,15 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useData } from '../lib/useData';
-import Starfield from '../components/Starfield';
-import OrbitField from '../components/OrbitField';
+import JarvisDeck from '../components/JarvisDeck';
 import AgentBrain from '../components/AgentBrain';
 import CommandBar from '../components/CommandBar';
 import ScheduleStrip from '../components/ScheduleStrip';
 import PipelineRail from '../components/PipelineRail';
 import AnalyticsCards from '../components/AnalyticsCards';
-import JarvisBriefing from '../components/JarvisBriefing';
 import type { Account, AnalyticsSnapshot, App, Automation } from '../lib/types';
 
-/**
- * The landing page: every agent as a node around a central core, today's
- * schedule underneath, and a command bar. The tables have not gone anywhere --
- * they are one click away and unchanged -- but this is the view that answers
- * "what is happening right now" at a glance.
- */
+/** The live system overview: JARVIS kernel, agent matrix, schedule and commands. */
 export default function CommandCenter() {
   const [openAgent, setOpenAgent] = useState<string | null>(null);
   const [coreOpen, setCoreOpen] = useState(false);
@@ -66,25 +59,23 @@ export default function CommandCenter() {
 
   return (
     <div className={`cc ${agent || coreOpen ? 'has-drawer' : ''}`}>
-      <Starfield />
       <div className="grid-plane" aria-hidden="true" />
-      <div className="nebula nebula-a" aria-hidden="true" />
-      <div className="nebula nebula-b" aria-hidden="true" />
+      <div className="stark-scan" aria-hidden="true" />
 
       <header className="cc-head">
         <div>
-          <p className="cc-title"><i /> JARVIS agent network</p>
+          <p className="cc-title"><i /> Stark operating environment</p>
           <h2 className="cc-sub">
             {working.length > 0
-              ? `${working.length} agent${working.length === 1 ? '' : 's'} working`
+              ? `J.A.R.V.I.S. // ${working.length} protocol${working.length === 1 ? '' : 's'} executing`
               : failing.length > 0
-                ? `${failing.length} agent${failing.length === 1 ? '' : 's'} need${failing.length === 1 ? 's' : ''} you`
-                : `${online} agents online`}
+                ? `J.A.R.V.I.S. // ${failing.length} system fault${failing.length === 1 ? '' : 's'}`
+                : 'J.A.R.V.I.S. // ONLINE'}
           </h2>
           <p className="cc-status-line">
-            <span>Live orchestration</span>
+            <span>Voice command linked</span>
             <b>•</b>
-            <span>{drafts} creations in review</span>
+            <span>{online} agent protocols ready</span>
           </p>
         </div>
 
@@ -109,11 +100,11 @@ export default function CommandCenter() {
       </header>
 
       <div className="cc-stage">
-        <JarvisBriefing automations={automations} accounts={accounts} drafts={drafts} />
-        <OrbitField
+        <JarvisDeck
           automations={automations}
           apps={apps}
-          workingCount={working.length}
+          accounts={accounts}
+          drafts={drafts}
           onOpenAgent={(a) => setOpenAgent(a.id)}
           onOpenCore={() => setCoreOpen(true)}
         />
