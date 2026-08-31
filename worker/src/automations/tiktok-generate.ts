@@ -134,6 +134,9 @@ export const generateDrafts: Handler = {
     // one-concept mission, where one wrong free-form feature key previously
     // caused the entire run to fail without a second chance.
     const candidateCount = isCarousel ? Math.min(Math.max(count * 3, count), 10) : count;
+    const featureAssignments = isCarousel
+      ? Array.from({ length: candidateCount }, (_, index) => allowedFeatures[index % allowedFeatures.length])
+      : [];
     const { ideas } = await completeJson<{ ideas: DraftIdea[] }>(ctx.env, {
       system: isCarousel ? photoSystem(playbook) : `${SYSTEM}\n\n${productTruth(playbook)}`,
       maxTokens: isCarousel ? 2800 : 2600,
@@ -145,6 +148,9 @@ export const generateDrafts: Handler = {
           : null,
         isCarousel && allowedFeatures.length === 1
           ? `Every candidate MUST use this exact feature key: ${allowedFeatures[0]}. Its hook and proof must directly resolve through that feature.`
+          : null,
+        isCarousel
+          ? `Required candidate-to-feature assignment, in order: ${featureAssignments.map((feature, index) => `${index + 1}=${feature}`).join(', ')}. Write each candidate specifically for its assigned feature.`
           : null,
         config.extra_context ? `Context: ${config.extra_context}` : null,
         config.creative_brief ? `Creative brief: ${JSON.stringify(config.creative_brief)}` : null,
@@ -159,8 +165,22 @@ export const generateDrafts: Handler = {
 
     if (!Array.isArray(ideas) || ideas.length === 0) throw new Error('model returned no ideas');
 
+    const normalizedIdeas = ideas.map((idea, index) => {
+      const hook = idea.hook?.trim() ?? '';
+      const slideOverlay = Array.isArray(idea.slides) ? idea.slides[0]?.overlay?.trim() : '';
+      return {
+        ...idea,
+        // Product-proof routing is campaign configuration, not a creative
+        // model decision. The model is told the assignment, while the stored
+        // key is always taken from the verified server-side rotation.
+        feature: isCarousel ? featureAssignments[index % featureAssignments.length] : idea.feature,
+        // The native slide overlay is often the strongest short hook even when
+        // the model also returns a sentence-length explanatory hook.
+        hook: hook.length > 120 && slideOverlay && slideOverlay.length <= 120 ? slideOverlay : hook,
+      };
+    });
     const seenFeatures = new Set<string>();
-    const validIdeas = ideas.filter((idea) => {
+    const validIdeas = normalizedIdeas.filter((idea) => {
       const combined = `${idea.hook ?? ''} ${idea.caption ?? ''} ${idea.single_promise ?? ''}`;
       const forbidden = containsForbiddenClaim(combined, playbook.claimsToAvoid);
       let reason: string | null = null;
