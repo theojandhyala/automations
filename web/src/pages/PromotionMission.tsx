@@ -102,6 +102,13 @@ export default function PromotionMission() {
   const audienceOptions = selectedApp?.content_domain === 'fishing' ? FISHING_AUDIENCES : FITNESS_AUDIENCES;
   const selectedAssetsReady = features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
   const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady);
+  const productionStatus = !selectedApp?.producer_available
+    ? 'Production agent needs attention'
+    : !selectedAssetsReady
+      ? 'Finish the selected screens in Creative Studio'
+      : !selectedApp.photo_source_ready
+        ? 'Connect the free Pexels source in Creative Studio'
+        : 'Licensed source + selected exact screens ready';
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
 
@@ -199,7 +206,7 @@ export default function PromotionMission() {
             <div className="mission-controls">
               <label>CONCEPTS<select value={count} onChange={(event) => { const next = Number(event.target.value); setCount(next); setFeatures((current) => current.slice(0, next)); }}>{[1, 2, 3, 4, 5, 6].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
               <label>TIKTOK DESTINATION<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Draft without an account</option>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>@{account.handle}{account.display_name ? ` · ${account.display_name}` : ''}</option>)}</select></label>
-              {format === 'photo_carousel' && <label className="switch-row"><input type="checkbox" disabled={!selectedProductionReady} checked={autoProduce && selectedProductionReady} onChange={(event) => setAutoProduce(event.target.checked)} /><span>{selectedProductionReady ? 'Produce slides after drafting' : 'Upload selected screens in Studio'}</span></label>}
+              {format === 'photo_carousel' && <label className="switch-row"><input type="checkbox" disabled={!selectedProductionReady} checked={autoProduce && selectedProductionReady} onChange={(event) => setAutoProduce(event.target.checked)} /><span>{selectedProductionReady ? 'Produce slides after drafting' : productionStatus}</span></label>}
             </div>
           </section>
         </div>
@@ -208,7 +215,7 @@ export default function PromotionMission() {
           <section className="mission-status-card">
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
             <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `Truth-locked playbook ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
-            <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{selectedProductionReady ? 'Licensed source + selected exact screens ready' : format === 'video_brief' ? 'Not required for a shoot brief' : 'Finish the selected screens in Creative Studio'}</small></div></div>
+            <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Publishing agent and account ready' : 'Drafting still works; connect an account later'}</small></div></div>
             <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
