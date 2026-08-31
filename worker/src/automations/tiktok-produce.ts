@@ -19,6 +19,12 @@ interface CreativeAsset {
   mime_type: string;
 }
 
+interface PromotionMissionLink {
+  id: string;
+  draft_run_id: string;
+  draft_count: number;
+}
+
 interface ManifestSlide {
   role?: string;
   overlay?: string;
@@ -102,6 +108,23 @@ async function providerKey(env: Env, db: Db): Promise<string | null> {
     'provider=eq.pexels&select=secret_enc',
   );
   return secret ? decrypt(secret.secret_enc, env.TOKEN_ENCRYPTION_KEY) : null;
+}
+
+async function syncMissionOutput(db: Db, mission: PromotionMissionLink): Promise<void> {
+  const artifacts = await db.select<Pick<Artifact, 'photo_urls' | 'error'>>(
+    'artifacts',
+    `run_id=eq.${mission.draft_run_id}&media_type=eq.photo&select=photo_urls,error`,
+  );
+  const rendered = artifacts.filter((artifact) => artifact.photo_urls.length >= 2).length;
+  const complete = rendered >= mission.draft_count;
+  await db.update('promotion_missions', `id=eq.${mission.id}`, {
+    status: complete ? 'awaiting_review' : 'failed',
+    error: complete
+      ? null
+      : artifacts.find((artifact) => artifact.error)?.error
+        ?? `${rendered}/${mission.draft_count} carousels rendered. The scheduled producer will resume this exact batch.`,
+    ...(complete ? { completed_at: new Date().toISOString() } : {}),
+  });
 }
 
 async function preflightArtifact(env: Env, db: Db, artifact: Artifact, appSlug: string): Promise<string | null> {
@@ -225,20 +248,41 @@ export const produceCarousels: Handler = {
   name: 'Build TikTok carousels',
   description: 'Finds licensed real photos, renders them with exact app screens, and hosts final slides.',
   async run(ctx) {
-    const config = ctx.automation.config as { app_slug?: string; max_per_run?: number };
+    const config = ctx.automation.config as { app_slug?: string; max_per_run?: number; source_run_id?: string };
     const appSlug = config.app_slug ?? 'deadset';
     const playbook = getCreativePlaybook(appSlug);
     if (!playbook) throw new Error(`no verified production playbook for "${appSlug}"`);
-    const maxPerRun = Math.min(Math.max(config.max_per_run ?? 2, 1), 5);
+    // One artifact per run avoids Browser Rendering burst limits. Scheduled
+    // runs keep advancing the most recent incomplete mission safely.
+    const maxPerRun = 1;
     const app = await ctx.db.selectOne<{ id: string }>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
 
+    const activeMission = config.source_run_id
+      ? null
+      : await ctx.db.selectOne<PromotionMissionLink>(
+          'promotion_missions',
+          `app_id=eq.${app.id}&auto_produce=eq.true&content_format=eq.photo_carousel&draft_run_id=not.is.null&status=in.(failed,producing,awaiting_review)&select=id,draft_run_id,draft_count&order=created_at.desc&limit=1`,
+        );
+    const sourceRunId = config.source_run_id ?? activeMission?.draft_run_id;
+
     const candidates = await ctx.db.select<Artifact>(
       'artifacts',
-      `app_id=eq.${app.id}&status=eq.draft&media_type=eq.photo&select=*&order=created_at.asc&limit=30`,
+      [
+        `app_id=eq.${app.id}`,
+        'status=eq.draft',
+        'media_type=eq.photo',
+        sourceRunId ? `run_id=eq.${encodeURIComponent(sourceRunId)}` : null,
+        'select=*',
+        'order=created_at.asc',
+        'limit=30',
+      ].filter(Boolean).join('&'),
     );
     const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0).slice(0, maxPerRun);
-    if (pending.length === 0) return { produced: 0, blocked: 0, message: 'No unrendered photo drafts.' };
+    if (pending.length === 0) {
+      if (activeMission) await syncMissionOutput(ctx.db, activeMission);
+      return { produced: 0, blocked: 0, message: 'No unrendered photo drafts.' };
+    }
 
     await ctx.setTask(`building ${pending.length} ${playbook.appName} carousel${pending.length === 1 ? '' : 's'}`);
     let produced = 0;
@@ -260,32 +304,39 @@ export const produceCarousels: Handler = {
     }
     if (ready.length === 0) return { produced, blocked: blocked.length, blockers: blocked };
 
-    for (const artifact of ready) {
-      try {
-        const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
-        if (result.state === 'produced') {
-          produced += 1;
-          ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
-        } else {
-          blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
-          ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
+    // Browser Rendering is I/O-bound. Three artifacts at a time stays inside
+    // the free-plan browser concurrency while preventing a normal mission from
+    // outliving the Worker's waitUntil window.
+    for (let start = 0; start < ready.length; start += 3) {
+      const batch = ready.slice(start, start + 3);
+      await Promise.all(batch.map(async (artifact) => {
+        try {
+          const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
+          if (result.state === 'produced') {
+            produced += 1;
+            ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
+          } else {
+            blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
+            ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
+            await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+              error: result.reason,
+              stage: 'assets',
+              stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
+            });
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          blocked.push({ id: artifact.id, reason });
+          ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-            error: result.reason,
+            error: reason,
             stage: 'assets',
-            stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
+            stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
           });
         }
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        blocked.push({ id: artifact.id, reason });
-        ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-          error: reason,
-          stage: 'assets',
-          stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
-        });
-      }
+      }));
     }
+    if (activeMission) await syncMissionOutput(ctx.db, activeMission);
     return { produced, blocked: blocked.length, blockers: blocked };
   },
 };

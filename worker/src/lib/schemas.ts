@@ -171,6 +171,7 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
   'tiktok.produce': z.object({
     app_slug: z.string().min(1).default('deadset'),
     max_per_run: z.number().int().min(1).max(5).default(2),
+    source_run_id: uuid.optional(),
   }),
   'tiktok.reconcile': z.object({}).passthrough(),
   'analytics.sync': z.object({

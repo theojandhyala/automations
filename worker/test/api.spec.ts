@@ -336,6 +336,7 @@ describe('promotion missions', () => {
     },
     { match: /creative_assets\?app_slug=in\.\(deadset,cast\)/, respond: () => jsonResponse([]) },
     { match: /artifacts\?status=eq\.draft/, respond: () => jsonResponse([]) },
+    { match: /artifacts\?error=not\.is\.null/, respond: () => jsonResponse([]) },
   ];
 
   it('reports capabilities and the permanent review gate without leaking credentials', async () => {
@@ -348,6 +349,32 @@ describe('promotion missions', () => {
     expect(text).not.toContain('MUST-NOT-LEAK');
     expect(text).not.toContain('secret_enc');
     expect(text).not.toContain('access_token_enc');
+  });
+
+  it('does not call a carousel review-ready until every final slide pair exists', async () => {
+    const draftRunId = '55555555-5555-4555-8555-555555555555';
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/promotion_missions\?select=/,
+        respond: () => jsonResponse([{
+          id: ARTIFACT_ID,
+          app_id: appId,
+          draft_run_id: draftRunId,
+          status: 'awaiting_review',
+          content_format: 'photo_carousel',
+          draft_count: 3,
+        }]),
+      },
+      {
+        match: /\/rest\/v1\/artifacts\?run_id=in/,
+        respond: () => jsonResponse([{ run_id: draftRunId, photo_urls: ['https://a.example/1.jpg', 'https://a.example/2.jpg'] }]),
+      },
+    ]);
+    const res = await call(apiRequest('/promotion/missions'));
+    const body = await res.json() as { missions: Array<{ rendered_count: number; render_complete: boolean }> };
+    expect(res.status).toBe(200);
+    expect(body.missions[0]).toMatchObject({ rendered_count: 1, render_complete: false });
   });
 
   it('does not launch a carousel with another app’s feature key or claim an agent', async () => {

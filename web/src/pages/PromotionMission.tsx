@@ -15,7 +15,7 @@ interface PromotionApp {
   drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean;
   pending_drafts: number; blockers: string[]; playbook_version: string; content_domain: 'fitness' | 'fishing';
   uploaded_feature_keys: string[]; uploaded_feature_count: number; feature_count: number;
-  photo_source_ready: boolean; producer_available: boolean;
+  photo_source_ready: boolean; producer_available: boolean; renderer_available: boolean;
 }
 interface Readiness {
   free_ai: boolean; review_required: true; feature_libraries: Record<string, FeatureReadiness[]>;
@@ -23,6 +23,7 @@ interface Readiness {
 }
 interface Mission {
   id: string; app_id: string; status: 'queued' | 'drafting' | 'producing' | 'awaiting_review' | 'failed';
+  draft_run_id: string | null; rendered_count: number; render_complete: boolean;
   goal: Goal; audience: Audience; angle: Angle; content_format: ContentFormat;
   draft_count: number; auto_produce: boolean; error: string | null; created_at: string;
 }
@@ -52,8 +53,9 @@ const ANGLES: Array<{ value: Angle; title: string; copy: string }> = [
   { value: 'routine', title: 'Daily routine', copy: 'The app appears as the natural next action.' },
 ];
 
-function stateLabel(state: Mission['status']) {
-  return state === 'awaiting_review' ? 'READY FOR YOUR REVIEW' : state.replace('_', ' ').toUpperCase();
+function stateLabel(mission: Mission) {
+  if (mission.status === 'awaiting_review') return mission.render_complete ? 'READY FOR YOUR REVIEW' : 'DRAFTS READY';
+  return mission.status.replace('_', ' ').toUpperCase();
 }
 
 function preferredFeatures(library: FeatureReadiness[], count: number) {
@@ -77,6 +79,7 @@ export default function PromotionMission() {
   const [features, setFeatures] = useState<string[]>([]);
   const [autoProduce, setAutoProduce] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [recoveringMission, setRecoveringMission] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -101,9 +104,11 @@ export default function PromotionMission() {
   const featureLibrary = readiness?.feature_libraries[appSlug] ?? [];
   const audienceOptions = selectedApp?.content_domain === 'fishing' ? FISHING_AUDIENCES : FITNESS_AUDIENCES;
   const selectedAssetsReady = features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
-  const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady);
+  const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady && selectedApp.renderer_available);
   const productionStatus = !selectedApp?.producer_available
     ? 'Production agent needs attention'
+    : !selectedApp.renderer_available
+      ? 'Free slide renderer is cooling down; retry exact outputs later'
     : !selectedAssetsReady
       ? 'Finish the selected screens in Creative Studio'
       : !selectedApp.photo_source_ready
@@ -149,6 +154,18 @@ export default function PromotionMission() {
     } finally { setBusy(false); }
   }
 
+  async function retryProduction(mission: Mission) {
+    setRecoveringMission(mission.id);
+    setMessage(null);
+    try {
+      await api(`/promotion/missions/${mission.id}/retry-production`, { method: 'POST' });
+      setMessage({ tone: 'ok', text: 'Production recovery started for this exact mission batch.' });
+      await refresh();
+    } catch (error) {
+      setMessage({ tone: 'bad', text: error instanceof Error ? error.message : 'Production could not restart.' });
+    } finally { setRecoveringMission(null); }
+  }
+
   return (
     <div className="ops-page promote-page">
       <div className="ops-grid-plane" aria-hidden="true" />
@@ -162,6 +179,13 @@ export default function PromotionMission() {
       </header>
 
       {message && <div className={`ops-alert ${message.tone}`}>{message.text}</div>}
+
+      <section className="mission-flightpath" aria-label={`${selectedApp?.name ?? 'App'} mission readiness`}>
+        <article className={selectedApp?.drafting_ready ? 'ready' : ''}><i>01</i><div><span>THINK</span><b>Truth-locked concepts</b></div><em>{selectedApp?.drafting_ready ? 'ONLINE' : 'CHECK'}</em></article>
+        <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>Exact-screen carousels</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
+        <article className={selectedApp?.publishing_ready ? 'ready' : ''}><i>03</i><div><span>ROUTE</span><b>{selectedApp?.name ?? 'App'} TikTok channel</b></div><em>{selectedApp?.publishing_ready ? 'ONLINE' : 'CONNECT'}</em></article>
+        <article className="authority"><i>04</i><div><span>AUTHORISE</span><b>Your final review</b></div><em>LOCKED</em></article>
+      </section>
 
       <form className="mission-layout" onSubmit={launch}>
         <div className="mission-builder">
@@ -219,7 +243,7 @@ export default function PromotionMission() {
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Publishing agent and account ready' : 'Drafting still works; connect an account later'}</small></div></div>
             <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
-            <div className="mission-shortcuts"><Link to="/studio">OPEN STUDIO</Link><Link to="/accounts">OPEN ACCOUNTS</Link></div>
+            <div className="mission-shortcuts"><Link to={`/studio?app=${appSlug}`}>OPEN STUDIO</Link><Link to={`/accounts?app=${appSlug}`}>OPEN ACCOUNTS</Link></div>
           </section>
 
           <section className="launch-card">
@@ -231,7 +255,14 @@ export default function PromotionMission() {
 
           <section className="mission-stream">
             <div><span>RECENT MISSIONS</span><Link to="/queue">REVIEW QUEUE →</Link></div>
-            {appMissions.length ? appMissions.map((mission) => <article key={mission.id}><i className={mission.status} /><div><b>{mission.draft_count} {mission.content_format === 'photo_carousel' ? 'carousels' : 'video briefs'}</b><small>{new Date(mission.created_at).toLocaleString()}</small>{mission.error && <em>{mission.error}</em>}</div><span>{stateLabel(mission.status)}</span></article>) : <p className="empty">No promotion missions for this app yet.</p>}
+            {appMissions.length ? appMissions.map((mission) => {
+              const recoverable = mission.content_format === 'photo_carousel' && !mission.render_complete && (
+                mission.status === 'failed'
+                || mission.status === 'awaiting_review'
+                || (mission.status === 'producing' && Date.now() - Date.parse(mission.created_at) > 90_000)
+              );
+              return <article key={mission.id}><i className={mission.status} /><div><b>{mission.draft_count} {mission.content_format === 'photo_carousel' ? 'carousels' : 'video briefs'}</b><small>{new Date(mission.created_at).toLocaleString()}{mission.content_format === 'photo_carousel' ? ` · ${mission.rendered_count}/${mission.draft_count} rendered` : ''}</small>{mission.error && <em>{mission.error}</em>}{recoverable && <button type="button" className="mission-recover" disabled={recoveringMission === mission.id} onClick={() => retryProduction(mission)}>{recoveringMission === mission.id ? 'RECOVERING…' : 'RETRY EXACT OUTPUTS'}</button>}</div><span>{stateLabel(mission)}</span></article>;
+            }) : <p className="empty">No promotion missions for this app yet.</p>}
           </section>
         </aside>
       </form>

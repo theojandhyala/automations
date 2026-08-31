@@ -2,6 +2,9 @@ export interface CreativeFeature {
   label: string;
   truth: string;
   stockDirection: string;
+  fallbackHook: string;
+  fallbackCaption: string;
+  fallbackProofOverlay: string;
 }
 
 export interface CreativePlaybook {
@@ -19,7 +22,7 @@ export interface CreativePlaybook {
 
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-08-31.1',
+    version: 'deadset-2026-08-31.2',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
@@ -31,31 +34,49 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         label: 'Muscle diagram',
         truth: 'The exercise library highlights primary and secondary target muscles. It is not a body-transformation or strength-progress comparison.',
         stockDirection: 'candid gym mirror photo or lifter choosing an exercise',
+        fallbackHook: 'Which muscle is this exercise actually training?',
+        fallbackCaption: 'The screen I check before I commit to an exercise.',
+        fallbackProofOverlay: 'Primary and secondary muscles, shown clearly',
       },
       training_heatmap: {
         label: 'Training heatmap',
         truth: 'Logged sessions build a visual consistency and volume heatmap.',
         stockDirection: 'person arriving at the gym or packing a gym bag',
+        fallbackHook: 'Did I train consistently or just remember the good weeks?',
+        fallbackCaption: 'My training history is much harder to argue with when I can see it.',
+        fallbackProofOverlay: 'Logged sessions become a training heatmap',
       },
       pr_wall: {
         label: 'PR wall',
         truth: 'Logged personal records appear together in the app as a PR wall.',
         stockDirection: 'lifter after a difficult set or looking at the barbell',
+        fallbackHook: 'The set was ugly. The number still counts.',
+        fallbackCaption: 'Keeping every personal record in one place makes the hard sessions worth remembering.',
+        fallbackProofOverlay: 'Logged personal records, together',
       },
       progression_board: {
         label: 'Progression board',
         truth: 'Logged training history helps the user see what load they used and choose what to use next.',
         stockDirection: 'lifter checking a phone between weighted sets',
+        fallbackHook: 'What weight did I use last time?',
+        fallbackCaption: 'One less thing to guess between sets.',
+        fallbackProofOverlay: 'See the last load before choosing the next one',
       },
       workout_plan: {
         label: 'Workout plan',
         truth: 'Users can build or follow a structured weekly workout plan.',
         stockDirection: 'ordinary gym arrival, locker-room mirror or workout preparation',
+        fallbackHook: 'Walking into the gym with no plan again?',
+        fallbackCaption: 'A clear week makes starting the next session easier.',
+        fallbackProofOverlay: 'A structured week, ready before the session',
       },
       live_logger: {
         label: 'Live workout logger',
         truth: 'Users record sets, reps and weights during a workout.',
         stockDirection: 'hands using a phone between sets beside real gym equipment',
+        fallbackHook: 'If I do not log the set now, it never happened.',
+        fallbackCaption: 'Sets, reps and weight recorded while the workout is still happening.',
+        fallbackProofOverlay: 'Log the working set before the next one',
       },
     },
     claimsToAvoid: [
@@ -72,7 +93,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     ],
   },
   cast: {
-    version: 'cast-2026-08-31.1',
+    version: 'cast-2026-08-31.2',
     appSlug: 'cast',
     appName: 'Cast',
     category: 'fishing',
@@ -84,31 +105,49 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         label: 'Bite forecast',
         truth: 'CAST combines solunar windows, tide state, pressure trend and weather at the selected mark into one fishing score and exposes the underlying signals.',
         stockDirection: 'angler checking conditions by a lake, river or coast before fishing',
+        fallbackHook: 'Would you fish this window or wait?',
+        fallbackCaption: 'I want the conditions behind the score before I choose a mark.',
+        fallbackProofOverlay: 'The fishing score with its real conditions',
       },
       fishkey: {
         label: 'FishKey',
         truth: 'FishKey narrows species from observable field marks and works offline. A photo is a private reference; CAST does not claim automatic AI photo recognition.',
         stockDirection: 'angler safely holding or observing a real fish beside the water',
+        fallbackHook: 'What fish did you actually catch?',
+        fallbackCaption: 'Field marks make a better answer than a guess.',
+        fallbackProofOverlay: 'Narrow the species from observable field marks',
       },
       catch_map: {
         label: 'Catch activity map',
         truth: 'Photo-backed catches can be shared with a public spot, stable approximate area or no location; private notes and exact times are excluded.',
         stockDirection: 'angler walking a bank or looking across a fishing mark',
+        fallbackHook: 'Would you share this spot or keep it quiet?',
+        fallbackCaption: 'Share the catch without giving away more location than you choose.',
+        fallbackProofOverlay: 'Public, approximate or no location—you choose',
       },
       catch_log: {
         label: 'Catch logbook',
         truth: 'A catch can store species, size, rarity, photo, mark, weather, tide, pressure and session context.',
         stockDirection: 'hands measuring or photographing a catch responsibly',
+        fallbackHook: 'The catch details I always forget by next week',
+        fallbackCaption: 'Species, conditions and session context saved while they are still fresh.',
+        fallbackProofOverlay: 'The full catch, not just the photo',
       },
       records: {
         label: 'Records and trophy room',
         truth: 'Logged catches become personal records, patterns and trip summaries.',
         stockDirection: 'angler looking back at catch photos or finishing a session',
+        fallbackHook: 'The session that quietly became a personal best',
+        fallbackCaption: 'The catches I log become records and trip patterns I can look back on.',
+        fallbackProofOverlay: 'Personal records and trip patterns from your log',
       },
       crew: {
         label: 'Crew Dock',
         truth: 'Crews use invite links, CAST IDs, requests, posts, challenges and live sessions with owner-controlled audiences.',
         stockDirection: 'small group of friends fishing together at a real mark',
+        fallbackHook: 'The group chat finally has a fishing plan',
+        fallbackCaption: 'One place for the crew, the challenge and the next live session.',
+        fallbackProofOverlay: 'Plan and fish together in Crew Dock',
       },
     },
     claimsToAvoid: [

@@ -1,5 +1,6 @@
 import { completeJson } from '../lib/ai';
 import { getCreativePlaybook, photoSystem, productTruth } from '../lib/creative-playbooks';
+import type { CreativePlaybook } from '../lib/creative-playbooks';
 import type { Handler } from './registry';
 
 interface App {
@@ -10,7 +11,7 @@ interface App {
   app_store_url: string | null;
 }
 
-interface DraftIdea {
+export interface DraftIdea {
   hook: string;
   caption: string;
   hashtags: string[];
@@ -64,6 +65,79 @@ Reply with JSON only: {"ideas":[{
 function containsForbiddenClaim(text: string, claims: string[]): string | null {
   const lower = text.toLowerCase();
   return claims.find((claim) => lower.includes(claim)) ?? null;
+}
+
+/**
+ * The model is allowed to be creative, but it is not allowed to make a
+ * promotion mission unreliable. If every free-form candidate misses a truth
+ * or shape gate, these server-owned concepts keep the run moving using only
+ * verified feature copy from the playbook.
+ */
+export function buildCarouselFallbacks(
+  playbook: CreativePlaybook,
+  allowedFeatures: string[],
+  needed: number,
+  existingIdeas: DraftIdea[] = [],
+  recentHooks: string[] = [],
+): DraftIdea[] {
+  if (needed <= 0 || allowedFeatures.length === 0) return [];
+
+  const usedFeatures = new Set(existingIdeas.map((idea) => idea.feature).filter(Boolean));
+  const featureOrder = [
+    ...allowedFeatures.filter((feature) => !usedFeatures.has(feature)),
+    ...allowedFeatures.filter((feature) => usedFeatures.has(feature)),
+  ];
+  const usedHooks = new Set(
+    [...recentHooks, ...existingIdeas.map((idea) => idea.hook)]
+      .filter(Boolean)
+      .map((hook) => hook.trim().toLowerCase()),
+  );
+  const session = playbook.category === 'fishing' ? 'session' : 'workout';
+  const fallbacks: DraftIdea[] = [];
+
+  for (let index = 0; index < featureOrder.length * 6 && fallbacks.length < needed; index += 1) {
+    const feature = featureOrder[index % featureOrder.length]!;
+    const spec = playbook.features[feature];
+    if (!spec) continue;
+    const variant = Math.floor(index / featureOrder.length);
+    const candidates = [
+      spec.fallbackHook,
+      `${spec.label}: the check I make before the next ${session}`,
+      `The ${spec.label.toLowerCase()} detail I kept forgetting`,
+      `One ${spec.label.toLowerCase()} screen before the next ${session}`,
+      `The ${spec.label.toLowerCase()} check after the last ${session}`,
+      `${spec.label}: the part I want saved for next time`,
+    ];
+    const hook = candidates[variant];
+    if (!hook || hook.length > 120 || usedHooks.has(hook.toLowerCase())) continue;
+    usedHooks.add(hook.toLowerCase());
+    fallbacks.push({
+      hook,
+      caption: spec.fallbackCaption,
+      hashtags: playbook.defaultHashtags.slice(0, 5),
+      shot_notes: `two 1080x1920 stills; ${spec.stockDirection}; native bold white text with black outline; exact app capture`,
+      audience: playbook.category === 'fishing' ? 'anglers making their next session decision' : 'lifters planning their next workout',
+      single_promise: spec.truth,
+      hook_hypothesis: `A familiar ${playbook.category} decision earns attention before the exact product proof.`,
+      proof_shown: spec.truth,
+      feature,
+      slides: [
+        {
+          role: 'hook',
+          overlay: hook,
+          asset_query: spec.stockDirection,
+          source_requirement: 'licensed real photo; record source and licence',
+        },
+        {
+          role: 'feature_proof',
+          overlay: spec.fallbackProofOverlay,
+          app_asset_key: feature,
+          source_requirement: `exact current ${playbook.appName} screenshot; no rebuilt UI`,
+        },
+      ],
+    });
+  }
+  return fallbacks;
 }
 
 /**
@@ -200,11 +274,28 @@ export const generateDrafts: Handler = {
       if (idea.feature) seenFeatures.add(idea.feature);
       return true;
     });
-    if (validIdeas.length === 0) throw new Error(`all generated ideas failed ${playbook.appName} playbook ${playbook.version}`);
+    const acceptedIdeas: DraftIdea[] = validIdeas.slice(0, count);
+    if (isCarousel && acceptedIdeas.length < count) {
+      const recovered = buildCarouselFallbacks(
+        playbook,
+        allowedFeatures,
+        count - acceptedIdeas.length,
+        acceptedIdeas,
+        recentHooks as string[],
+      );
+      acceptedIdeas.push(...recovered);
+      if (recovered.length) {
+        ctx.log('warn', 'recovered rejected model output with verified playbook fallbacks', {
+          recovered: recovered.length,
+          playbook: playbook.version,
+        });
+      }
+    }
+    if (acceptedIdeas.length === 0) throw new Error(`all generated ideas failed ${playbook.appName} playbook ${playbook.version}`);
 
     const now = new Date().toISOString();
 
-    const rows = validIdeas.slice(0, count).map((idea) => {
+    const rows = acceptedIdeas.map((idea) => {
       const rawSlides = Array.isArray(idea.slides) ? idea.slides.slice(0, 2) : [];
       const feature = isCarousel ? idea.feature! : null;
       const featureSpec = feature ? playbook.features[feature] : null;
@@ -333,10 +424,16 @@ export const generateDrafts: Handler = {
     });
 
     await ctx.db.insertMany('artifacts', rows);
-    for (const idea of validIdeas.slice(0, count)) {
+    for (const idea of acceptedIdeas) {
       ctx.log('info', `drafted: ${idea.hook}`, { shot_notes: idea.shot_notes });
     }
 
-    return { app: app.slug, playbook: playbook.version, drafted: rows.length, discarded: ideas.length - validIdeas.length };
+    return {
+      app: app.slug,
+      playbook: playbook.version,
+      drafted: rows.length,
+      discarded: ideas.length - validIdeas.length,
+      recovered: Math.max(0, rows.length - Math.min(validIdeas.length, count)),
+    };
   },
 };

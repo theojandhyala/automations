@@ -74,6 +74,7 @@ export interface Artifact {
   duration_s: number | null;
   publish_id: string | null;
   tiktok_post_id: string | null;
+  error: string | null;
   scheduled_for: string | null;
   stage: string;
   stages: Record<string, { state: string; at?: string; note?: string }>;
