@@ -13,6 +13,7 @@ import HudPreview from './pages/HudPreview';
 import CreativeStudio from './pages/CreativeStudio';
 import RemoteOperations from './pages/RemoteOperations';
 import PromotionMission from './pages/PromotionMission';
+import ArcReactorMark from './components/ArcReactorMark';
 
 /**
  * The command center is the landing page and gets the full viewport with no
@@ -22,7 +23,13 @@ function Shell({ session }: { session: Session }) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <h1>Automations</h1>
+        <div className="sidebar-brand">
+          <ArcReactorMark size={38} />
+          <div className="sidebar-brand-copy">
+            <strong>J.A.R.V.I.S.</strong>
+            <small>Automation core</small>
+          </div>
+        </div>
         <nav>
           <NavLink to="/" end>Command center</NavLink>
           <NavLink to="/overview">Overview</NavLink>

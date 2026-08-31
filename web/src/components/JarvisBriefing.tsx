@@ -24,13 +24,12 @@ export default function JarvisBriefing({
   drafts: number;
 }) {
   const running = automations.filter((automation) => automation.status === 'running').length;
-  const attention = automations.filter(
-    (automation) => automation.status === 'failed' || automation.status === 'disabled',
-  );
+  const attention = automations.filter((automation) => automation.status === 'failed');
   const connected = accounts.filter((account) => account.status === 'connected').length;
+  const accountProblem = accounts.find((account) => account.status !== 'connected');
   const next = nextScheduled(automations);
 
-  const condition = attention.length
+  const condition = attention.length || accountProblem
     ? { label: 'Attention required', tone: 'warn' }
     : running
       ? { label: 'Mission in progress', tone: 'active' }
@@ -38,8 +37,10 @@ export default function JarvisBriefing({
 
   const recommendation = attention.length
     ? `Inspect ${attention[0].name}`
+    : accountProblem
+      ? `Reconnect @${accountProblem.handle}`
     : connected === 0
-      ? 'Connect Deadset publishing'
+      ? 'Connect a publishing channel'
       : drafts > 0
         ? `Review ${drafts} creation${drafts === 1 ? '' : 's'}`
         : next
@@ -52,7 +53,7 @@ export default function JarvisBriefing({
       <div className="jarvis-copy">
         <div className="jarvis-kicker">
           <span>JARVIS</span>
-          <em>Local intelligence</em>
+          <em>Edge intelligence</em>
         </div>
         <strong className={`jarvis-condition ${condition.tone}`}>{condition.label}</strong>
         <p>{recommendation}</p>

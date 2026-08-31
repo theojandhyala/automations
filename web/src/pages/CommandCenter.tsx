@@ -10,6 +10,7 @@ import PipelineRail from '../components/PipelineRail';
 import AnalyticsCards from '../components/AnalyticsCards';
 import HudAtmosphere from '../components/HudAtmosphere';
 import type { Account, AnalyticsSnapshot, App, Automation } from '../lib/types';
+import ArcReactorMark from '../components/ArcReactorMark';
 
 const SYSTEM_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
@@ -60,7 +61,9 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
 
   const { automations, apps, accounts, queue, snapshots } = data;
   const working = automations.filter((a) => a.status === 'running');
-  const failing = automations.filter((a) => a.status === 'failed' || a.status === 'disabled');
+  const failing = automations.filter((a) => a.status === 'failed');
+  const connectionFaults = accounts.filter((account) => account.status !== 'connected').length;
+  const attentionCount = failing.length + connectionFaults;
   const drafts = queue.filter((a) => a.status === 'draft').length;
   const agent = automations.find((a) => a.id === openAgent);
 
@@ -81,25 +84,23 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
 
       <header className="cc-head">
         <div className="cc-identity">
-          <div className="stark-mark" aria-hidden="true">
-            <span><i /></span>
-          </div>
+          <ArcReactorMark size={48} label="JARVIS system core" />
           <div>
           <p className="cc-title"><i /> Stark operating environment <b>MK VII</b></p>
           <h2 className="cc-sub">
             {working.length > 0
               ? `J.A.R.V.I.S. // ${working.length} protocol${working.length === 1 ? '' : 's'} executing`
-              : failing.length > 0
-                ? `J.A.R.V.I.S. // ${failing.length} system fault${failing.length === 1 ? '' : 's'}`
+              : attentionCount > 0
+                ? `J.A.R.V.I.S. // ${attentionCount} system fault${attentionCount === 1 ? '' : 's'}`
                 : 'J.A.R.V.I.S. // ONLINE'}
           </h2>
           <p className="cc-status-line">
             <span className="signal-bars"><i /><i /><i /><i /></span>
-            <span>Voice command linked</span>
+            <span>Command bus online</span>
             <b>•</b>
             <span>{online} agent protocols ready</span>
             <b>•</b>
-            <span className="encrypted-label">AES // ENCRYPTED</span>
+            <span className="encrypted-label">OWNER SESSION // LOCKED</span>
           </p>
           </div>
         </div>
@@ -117,14 +118,14 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
             <div className="k">Followers</div>
             <div className="v">{latestByAccount.size ? followers.toLocaleString() : '—'}</div>
           </div>
-          <div className={`hud-chip ${failing.length ? 'alert' : ''}`}>
+          <div className={`hud-chip ${attentionCount ? 'alert' : ''}`}>
             <div className="k">Attention</div>
-            <div className="v">{failing.length}</div>
+            <div className="v">{attentionCount}</div>
           </div>
           <div className="hud-clock" aria-label="System clock">
             <span>SYS TIME</span>
             <b>{SYSTEM_TIME_FORMATTER.format(new Date())}</b>
-            <i>GMT LINK</i>
+            <i>LOCAL TIME</i>
           </div>
         </div>
       </header>
@@ -142,13 +143,13 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
 
       <footer className="cc-foot">
         <div className="deck-telemetry" aria-hidden="true">
-          <span>REACTOR OUTPUT <b>98.7%</b></span>
+          <span>AGENT AVAILABILITY <b>{online}/{automations.length}</b></span>
           <i />
-          <span>NEURAL LATENCY <b>04ms</b></span>
+          <span>ACTIVE MISSIONS <b>{working.length}</b></span>
           <i />
-          <span>DEFENCE GRID <b>PASSIVE</b></span>
+          <span>OWNER REVIEW LOCK <b>ON</b></span>
           <i />
-          <span>DATA BUS <b>STABLE</b></span>
+          <span>WAITING REVIEW <b>{drafts}</b></span>
         </div>
         <ScheduleStrip
           automations={automations}

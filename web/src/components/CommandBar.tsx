@@ -19,6 +19,39 @@ interface Reply {
   tone: 'ok' | 'warn';
 }
 
+interface PromotionFeature {
+  key: string;
+  label: string;
+  uploaded: boolean;
+}
+
+interface PromotionAppReadiness {
+  id: string;
+  slug: string;
+  name: string;
+  content_domain: 'fitness' | 'fishing';
+  drafting_ready: boolean;
+  producer_available: boolean;
+  photo_source_ready: boolean;
+  blockers: string[];
+}
+
+interface PromotionReadiness {
+  apps: PromotionAppReadiness[];
+  feature_libraries: Record<string, PromotionFeature[]>;
+}
+
+const COUNT_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+};
+
+function commandCount(text: string): number {
+  const numeric = text.match(/\b([1-6])\b/);
+  if (numeric) return Number(numeric[1]);
+  const word = Object.entries(COUNT_WORDS).find(([candidate]) => text.includes(candidate));
+  return word?.[1] ?? 3;
+}
+
 interface RecognitionResultLike {
   readonly 0: { transcript: string };
 }
@@ -115,6 +148,7 @@ export default function CommandBar({
     const candidates = app ? automations.filter((automation) => automation.app_id === app.id) : automations;
     const aliases: Array<[RegExp, string]> = [
       [/draft|concept|idea|creative|content/, 'tiktok.generate'],
+      [/produce|render|build (final )?slides/, 'tiktok.produce'],
       [/publish|post|upload/, 'tiktok.publish'],
       [/reconcile|in[- ]flight|settle/, 'tiktok.reconcile'],
       [/analytics|stats|performance|numbers/, 'analytics.sync'],
@@ -123,7 +157,10 @@ export default function CommandBar({
       [/heartbeat|health/, 'system.heartbeat'],
     ];
     const alias = aliases.find(([pattern]) => pattern.test(text));
-    if (alias) return candidates.find((automation) => automation.handler_key === alias[1]);
+    if (alias) {
+      return candidates.find((automation) => automation.handler_key === alias[1])
+        ?? automations.find((automation) => automation.handler_key === alias[1] && !automation.app_id);
+    }
     return candidates.length === 1 ? candidates[0] : undefined;
   }
 
@@ -157,9 +194,8 @@ export default function CommandBar({
 
     if (/^(status|system status|give me (a )?status|how are things)$/.test(t)) {
       const running = automations.filter((automation) => automation.status === 'running').length;
-      const attention = automations.filter(
-        (automation) => automation.status === 'failed' || automation.status === 'disabled',
-      ).length;
+      const attention = automations.filter((automation) => automation.status === 'failed').length
+        + accounts.filter((account) => account.status !== 'connected').length;
       const connected = accounts.filter((account) => account.status === 'connected').length;
       return {
         text: attention
@@ -175,6 +211,13 @@ export default function CommandBar({
         .join(' · ');
       const systemCount = automations.filter((automation) => !automation.app_id).length;
       return { text: `${appAgents} · ${systemCount} system agents. Click any stone or ask me to open one.`, tone: 'ok' };
+    }
+
+    if (/what can you do|capabilit|help me|command list|available commands/.test(t)) {
+      return {
+        text: 'I can launch Cast or Deadset draft missions, target an audience or exact feature, run or pause agents, diagnose the system, open any workspace, build reports, control the review queue, and publish only owner-approved media after confirmation. If an account or source is missing, I will name the blocker instead of pretending the action ran.',
+        tone: 'ok',
+      };
     }
 
     if (/what does|tell me about|explain|mission of/.test(t)) {
@@ -209,9 +252,7 @@ export default function CommandBar({
     }
 
     if (/what needs attention|diagnose|check system/.test(t)) {
-      const attention = automations.filter(
-        (automation) => automation.status === 'failed' || automation.status === 'disabled',
-      );
+      const attention = automations.filter((automation) => automation.status === 'failed');
       const accountProblem = accounts.find((account) => account.status !== 'connected');
       if (attention.length) return { text: `${attention[0].name} needs attention. Open its stone for details.`, tone: 'warn' };
       if (accountProblem) return { text: `Publishing for @${accountProblem.handle} still needs connection attention.`, tone: 'warn' };
@@ -224,7 +265,7 @@ export default function CommandBar({
       return { text: 'Opened the system overview.', tone: 'ok' };
     }
 
-    if (/(^|\s)(queue|review|drafts?)(\s|$)/.test(t) && !/run|start/.test(t)) {
+    if (/^(?:(?:open|show|inspect|view)\s+(?:the\s+)?)?(?:queue|review queue|drafts?)$/.test(t)) {
       navigate('/queue');
       return { text: 'Opened the review queue.', tone: 'ok' };
     }
@@ -243,6 +284,100 @@ export default function CommandBar({
       return { text: 'Opened Promotion Mission. Choose the outcome and I will route the work through the right agents.', tone: 'ok' };
     }
 
+    if (/\b(draft|create|make|prepare|generate)\b/.test(t)
+      && /\b(carousel|carousels|video|videos|brief|briefs|concept|concepts|content|tiktok|post|posts)\b/.test(t)) {
+      const requestedApp = findApp(t);
+      if (!requestedApp) {
+        return { text: 'Name Cast or Deadset so I can lock the command to the correct product playbook.', tone: 'warn' };
+      }
+
+      const readiness = await api<PromotionReadiness>('/promotion/readiness');
+      const promotionApp = readiness.apps.find((candidate) => candidate.id === requestedApp.id);
+      if (!promotionApp) return { text: `${requestedApp.name} promotion is not active.`, tone: 'warn' };
+      if (!promotionApp.drafting_ready) {
+        return { text: promotionApp.blockers[0] ?? `${requestedApp.name} drafting is not ready.`, tone: 'warn' };
+      }
+
+      const count = commandCount(t);
+      const format = /\b(video|videos|clip|clips|brief|briefs|script|scripts)\b/.test(t)
+        ? 'video_brief'
+        : 'photo_carousel';
+      const library = readiness.feature_libraries[requestedApp.slug] ?? [];
+      const normalized = t.replaceAll('_', ' ').replaceAll('-', ' ');
+      const namedFeatures = library.filter((feature) => (
+        normalized.includes(feature.key.replaceAll('_', ' '))
+        || normalized.includes(feature.label.toLowerCase())
+      ));
+      const unavailable = namedFeatures.find((feature) => !feature.uploaded);
+      if (format === 'photo_carousel' && unavailable) {
+        return { text: `${unavailable.label} is not loaded yet. Open Creative Studio and add the exact current screen first.`, tone: 'warn' };
+      }
+      const readyFeatures = library.filter((feature) => feature.uploaded);
+      const featureRotation = format === 'photo_carousel'
+        ? (namedFeatures.length ? namedFeatures : readyFeatures).slice(0, Math.max(1, count)).map((feature) => feature.key)
+        : [];
+      if (format === 'photo_carousel' && featureRotation.length === 0) {
+        return { text: `No verified ${requestedApp.name} feature screen is ready. Open Creative Studio first.`, tone: 'warn' };
+      }
+
+      const goal = /\b(download|downloads|install|installs)\b/.test(t)
+        ? 'downloads'
+        : /\b(trust|credible|credibility)\b/.test(t)
+          ? 'trust'
+          : /\b(engage|engagement|comment|comments|conversation)\b/.test(t)
+            ? 'engagement'
+            : 'feature_discovery';
+      const angle = /\b(problem|solution|frustrat|pain point)\b/.test(t)
+        ? 'problem_solution'
+        : /\b(proof|demo|demonstrate)\b/.test(t)
+          ? 'proof'
+          : /\b(routine|daily|habit)\b/.test(t)
+            ? 'routine'
+            : 'relatable';
+      const audience = promotionApp.content_domain === 'fishing'
+        ? /\b(new angler|new anglers|beginner)\b/.test(t)
+          ? 'new_anglers'
+          : /\b(serious angler|serious anglers|advanced)\b/.test(t)
+            ? 'serious_anglers'
+            : /\b(crew|crews|friends|local)\b/.test(t)
+              ? 'local_crews'
+              : 'weekend_anglers'
+        : /\b(new lifter|new lifters|beginner)\b/.test(t)
+          ? 'new_lifters'
+          : /\b(serious gym|advanced lifter|advanced lifters)\b/.test(t)
+            ? 'serious_gym'
+            : /\b(general fitness|casual)\b/.test(t)
+              ? 'general_fitness'
+              : 'consistent_lifters';
+      const autoProduce = format === 'photo_carousel'
+        && promotionApp.producer_available
+        && promotionApp.photo_source_ready;
+
+      await api('/promotion/missions', {
+        method: 'POST',
+        body: JSON.stringify({
+          app_slug: requestedApp.slug,
+          account_id: null,
+          goal,
+          audience,
+          angle,
+          content_format: format,
+          draft_count: count,
+          feature_rotation: featureRotation,
+          auto_produce: autoProduce,
+        }),
+      });
+      onChanged();
+      const route = format === 'photo_carousel' ? 'carousel' : 'video brief';
+      const productionNote = format === 'photo_carousel' && !autoProduce
+        ? ' Drafting is running; final slide production will wait for its missing licensed-photo connection.'
+        : '';
+      return {
+        text: `Launched ${count} ${requestedApp.name} ${route}${count === 1 ? '' : 's'} for ${audience.replaceAll('_', ' ')}. The mission is real and will stop in owner review.${productionNote}`,
+        tone: autoProduce || format === 'video_brief' ? 'ok' : 'warn',
+      };
+    }
+
     if (/confirm (stop|pause|shutdown) (everything|all)|confirm shutdown/.test(t) && shutdownArmed) {
       await api('/kill', { method: 'POST' });
       setShutdownArmed(false);
@@ -257,7 +392,7 @@ export default function CommandBar({
 
     // Direct creation requests enter the guided mission instead of silently
     // launching an underspecified scheduled agent configuration.
-    if (/make|create|film|shoot/.test(t) && /video|clip|post|short/.test(t)) {
+    if (/film|shoot/.test(t) && /video|clip|post|short/.test(t)) {
       const app = findApp(t);
       navigate(app ? `/promote?app=${encodeURIComponent(app.slug)}` : '/promote');
       return {
@@ -410,7 +545,7 @@ export default function CommandBar({
           ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={listening ? 'Listening…' : 'Ask JARVIS for status, run an agent, or open a mission…'}
+          placeholder={listening ? 'Listening…' : 'Try: “Draft 3 Cast carousels for weekend anglers”…'}
           aria-label="Command JARVIS"
           disabled={busy}
         />
@@ -419,6 +554,7 @@ export default function CommandBar({
         </button>
       </form>
       <div className="quick-actions">
+        <button onClick={() => quick('what can you do')}>Capabilities</button>
         <button onClick={() => quick('system status')}>System status</button>
         <button onClick={() => quick('list agents')}>Agent roster</button>
         <button onClick={() => quick('what needs attention')}>Diagnose</button>
@@ -431,6 +567,12 @@ export default function CommandBar({
         >
           {shutdownArmed ? 'Confirm pause all' : 'Pause all'}
         </button>
+      </div>
+      <div className="command-contract" aria-label="Command execution contract">
+        <span><i /> REAL ACTION BUS</span>
+        <b>EXECUTE WHEN WIRED</b>
+        <b>CONFIRM EXTERNAL ACTIONS</b>
+        <b>REPORT BLOCKERS HONESTLY</b>
       </div>
     </div>
   );

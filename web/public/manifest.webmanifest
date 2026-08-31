@@ -1,0 +1,31 @@
+{
+  "name": "JARVIS Automation Command Center",
+  "short_name": "JARVIS",
+  "description": "Private command center for real automation agents, promotion missions and owner-reviewed publishing.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#010407",
+  "theme_color": "#061a21",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/arc-reactor.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/arc-reactor-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/arc-reactor-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

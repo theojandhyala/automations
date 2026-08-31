@@ -570,12 +570,19 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         serious_anglers: 'serious anglers who care about conditions, evidence and records',
         local_crews: 'local fishing friends who plan and log sessions together',
     };
-    const angleLabels = {
-        relatable: 'relatable gym thought or confession',
-        problem_solution: 'one concrete frustration followed by exact app proof',
-        proof: 'show the product resolving the hook with no unsupported claims',
-        routine: 'ordinary workout routine where the app is the natural next action',
-    } as const;
+    const angleLabels = app.content_domain === 'fishing'
+      ? {
+          relatable: 'relatable fishing thought, field decision or confession',
+          problem_solution: 'one concrete angling frustration followed by exact app proof',
+          proof: 'show the product resolving the fishing hook with no unsupported claims',
+          routine: 'ordinary fishing preparation or session where the app is the natural next action',
+        } as const
+      : {
+          relatable: 'relatable gym thought or confession',
+          problem_solution: 'one concrete training frustration followed by exact app proof',
+          proof: 'show the product resolving the training hook with no unsupported claims',
+          routine: 'ordinary workout routine where the app is the natural next action',
+        } as const;
     const extraContext = [
       `Mission goal: ${goalLabels[body.goal]}.`,
       `Audience: ${audienceLabels[body.audience] ?? body.audience}.`,

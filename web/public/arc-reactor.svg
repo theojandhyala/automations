@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="62%">
+      <stop offset="0" stop-color="#123943"/>
+      <stop offset="0.58" stop-color="#041219"/>
+      <stop offset="1" stop-color="#010407"/>
+    </radialGradient>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="207" fill="none" stroke="#2a8996" stroke-width="4" stroke-dasharray="8 18"/>
+  <circle cx="256" cy="256" r="176" fill="#061a21" stroke="#66e9f7" stroke-width="10" stroke-dasharray="22 10" filter="url(#glow)"/>
+  <g fill="#b9fbff" stroke="#4cd9e8" stroke-width="3">
+    <path d="M244 71h24l10 60h-44z"/><path d="M244 71h24l10 60h-44z" transform="rotate(30 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(60 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(90 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(120 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(150 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(180 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(210 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(240 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(270 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(300 256 256)"/><path d="M244 71h24l10 60h-44z" transform="rotate(330 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="122" fill="#06161c" stroke="#a5f9ff" stroke-width="9" filter="url(#glow)"/>
+  <path d="M256 153 358 331H154Z" fill="none" stroke="#a9fbff" stroke-width="22" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M256 194 322 309H190Z" fill="none" stroke="#50ddea" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="37" fill="#e8feff" stroke="#fff" stroke-width="9" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="10" fill="#fff"/>
+</svg>

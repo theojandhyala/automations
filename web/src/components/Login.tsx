@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import ArcReactorMark from './ArcReactorMark';
 
 /**
  * Magic-link sign in for the pre-created owner account. New account creation
@@ -34,7 +35,11 @@ export default function Login() {
   return (
     <div className="center-screen">
       <div className="login card">
-        <h1>Automations</h1>
+        <div className="login-identity">
+          <ArcReactorMark size={82} className="login-reactor" />
+          <h1>J.A.R.V.I.S.</h1>
+          <span>PRIVATE AUTOMATION CORE</span>
+        </div>
         {sent ? (
           <p>Check {email} for a sign-in link.</p>
         ) : (

@@ -32,11 +32,16 @@ export default function JarvisDeck({
   onOpenCore: () => void;
 }) {
   const running = automations.filter((automation) => automation.status === 'running').length;
-  const faults = automations.filter(
-    (automation) => automation.status === 'failed' || automation.status === 'disabled',
-  ).length;
+  const faults = automations.filter((automation) => automation.status === 'failed').length;
   const connected = accounts.filter((account) => account.status === 'connected').length;
-  const condition = faults ? 'ATTENTION REQUIRED' : running ? 'MISSION ACTIVE' : 'ALL SYSTEMS NOMINAL';
+  const accountFaults = accounts.filter((account) => account.status !== 'connected').length;
+  const condition = faults || accountFaults
+    ? 'ATTENTION REQUIRED'
+    : connected === 0
+      ? 'PUBLISHING LINK REQUIRED'
+      : running
+        ? 'MISSION ACTIVE'
+        : 'ALL SYSTEMS NOMINAL';
 
   return (
     <section className="jarvis-deck" aria-label="JARVIS agent control deck">
@@ -46,7 +51,7 @@ export default function JarvisDeck({
       <div className="deck-corner br" aria-hidden="true" />
 
       <button className="jarvis-kernel" type="button" onClick={onOpenCore} aria-label="Open the JARVIS control plane">
-        <span className="kernel-coordinate top">N 51° 30' 26.4&quot; // W 0° 07' 39.1&quot;</span>
+        <span className="kernel-coordinate top">EDGE CONTROL PLANE // OWNER AUTHORITY</span>
         <span className="kernel-coordinate side">CORE NODE // 00-A</span>
         <span className="kernel-reactor" aria-hidden="true">
           <i className="reactor-tick tick-a" />
@@ -60,7 +65,7 @@ export default function JarvisDeck({
           <i className="reactor-scan" />
         </span>
         <span className="kernel-id">J.A.R.V.I.S.</span>
-        <strong className={faults ? 'warn' : ''}>{condition}</strong>
+        <strong className={faults || accountFaults || connected === 0 ? 'warn' : ''}>{condition}</strong>
         <span className="kernel-copy">
           Natural-language command authority<br />
           {automations.length} agent protocols linked
