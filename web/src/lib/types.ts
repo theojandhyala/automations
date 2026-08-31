@@ -84,6 +84,7 @@ export interface Artifact {
       blockers: string[];
       warnings: string[];
     };
+    manual_handoff?: boolean;
   };
   error: string | null;
   scheduled_for: string | null;

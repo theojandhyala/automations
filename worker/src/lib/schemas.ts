@@ -79,6 +79,10 @@ export const manualPublishSchema = z.object({
   post: z.string().trim().min(8).max(500),
 });
 
+export const manualApproveSchema = z.object({
+  confirmed: z.literal(true),
+});
+
 export const createAccountSchema = z.object({
   handle: z
     .string()

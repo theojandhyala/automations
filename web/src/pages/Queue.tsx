@@ -36,17 +36,19 @@ export default function Queue() {
   const [recordingPost, setRecordingPost] = useState<string | null>(null);
 
   const { data, refresh } = useData(async () => {
-    const [artifacts, apps, accounts] = await Promise.all([
+    const [artifacts, apps, accounts, tiktokStatus] = await Promise.all([
       supabase.from('artifacts').select('*').eq('status', filter)
         .order('created_at', { ascending: false }).limit(60),
       supabase.from('apps').select('*'),
       supabase.from('tiktok_accounts_public').select('*'),
+      api<{ public_direct_post_ready: boolean }>('/tiktok/status'),
     ]);
     if (artifacts.error) throw artifacts.error;
     return {
       artifacts: artifacts.data as Artifact[],
       apps: (apps.data ?? []) as App[],
       accounts: (accounts.data ?? []) as Account[],
+      tiktokStatus,
     };
   }, [filter]);
 
@@ -104,12 +106,26 @@ export default function Queue() {
     }
   }
 
+  async function approveForManualPost(id: string) {
+    setError(null);
+    try {
+      await api(`/artifacts/${id}/manual-approve`, {
+        method: 'POST',
+        body: JSON.stringify({ confirmed: true }),
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function copyPostText(artifact: Artifact) {
     const tags = artifact.hashtags.map((tag) => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
     await navigator.clipboard.writeText([artifact.caption, tags].filter(Boolean).join('\n\n'));
   }
 
   if (!data) return <Empty>Loading…</Empty>;
+  const manualMode = !data.tiktokStatus.public_direct_post_ready;
 
   return (
     <>
@@ -139,11 +155,13 @@ export default function Queue() {
             ? artifact.photo_urls.length > 0
             : Boolean(artifact.video_url);
           const canApprove = mediaReady
-            && Boolean(artifact.account_id)
-            && Boolean(info)
-            && Boolean(artifact.tiktok_privacy_level)
-            && artifact.brand_organic_toggle
-            && Boolean(consent[artifact.id]);
+            && (manualMode
+              ? Boolean(artifact.asset_manifest.creative_quality?.pass) && Boolean(consent[artifact.id])
+              : Boolean(artifact.account_id)
+                && Boolean(info)
+                && Boolean(artifact.tiktok_privacy_level)
+                && artifact.brand_organic_toggle
+                && Boolean(consent[artifact.id]));
           const quality = artifact.asset_manifest.creative_quality;
 
           return (
@@ -284,7 +302,7 @@ export default function Queue() {
                     )}
                   </div>
 
-                  <div className="grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'end' }}>
+                  {!manualMode && <div className="grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'end' }}>
                     <div className="field" style={{ margin: 0 }}>
                       <label>TikTok account</label>
                       <select
@@ -311,9 +329,9 @@ export default function Queue() {
                     >
                       {loadingAccount === artifact.account_id ? 'Checking…' : 'Refresh TikTok choices'}
                     </button>
-                  </div>
+                  </div>}
 
-                  {account && info && (
+                  {!manualMode && account && info && (
                     <div className="tiktok-export">
                       <div className="row between">
                         <strong>Posting to {info.creator_nickname} (@{info.creator_username})</strong>
@@ -383,6 +401,24 @@ export default function Queue() {
                       </label>
                     </div>
                   )}
+
+                  {manualMode && (
+                    <div className="tiktok-export">
+                      <div className="row between">
+                        <strong>Manual TikTok handoff</strong>
+                        <span className="pill">available now</span>
+                      </div>
+                      <p className="muted">TikTok API review is pending. Approval unlocks the exact downloads and copy button; you remain in control of the final TikTok privacy, music and disclosure choices.</p>
+                      <label className="check-row consent-row">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(consent[artifact.id])}
+                          onChange={(event) => setConsent((current) => ({ ...current, [artifact.id]: event.target.checked }))}
+                        />
+                        I reviewed the exact media and copy, and I have the rights to post them.
+                      </label>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -391,10 +427,12 @@ export default function Queue() {
                   <button
                     className="primary"
                     disabled={!canApprove}
-                    title={!canApprove ? 'Needs final media, refreshed TikTok choices, privacy, own-brand disclosure and consent' : undefined}
-                    onClick={() => patch(artifact.id, { status: 'approved', posting_consent: true })}
+                    title={!canApprove ? manualMode ? 'Needs final media, a passing quality check and your review confirmation' : 'Needs final media, refreshed TikTok choices, privacy, own-brand disclosure and consent' : undefined}
+                    onClick={() => manualMode
+                      ? approveForManualPost(artifact.id)
+                      : patch(artifact.id, { status: 'approved', posting_consent: true })}
                   >
-                    Approve exact post
+                    {manualMode ? 'Approve for manual post' : 'Approve exact post'}
                   </button>
                 )}
                 {artifact.status === 'approved' && (

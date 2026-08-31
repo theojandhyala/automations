@@ -27,6 +27,7 @@ import {
   appStoreCustomCodePreviewSchema,
   createAccountSchema,
   createAutomationSchema,
+  manualApproveSchema,
   manualPublishSchema,
   parseBody,
   pexelsKeySchema,
@@ -911,6 +912,46 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   }
 
   // --- artifacts (the review queue) ---
+
+  const manualApproveMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/manual-approve$/);
+  if (manualApproveMatch && req.method === 'POST') {
+    const id = manualApproveMatch[1]!;
+    await parseBody(req, manualApproveSchema);
+    const artifact = await db.selectOne<Artifact>('artifacts', `id=eq.${id}&select=*`);
+    if (!artifact) return json({ error: 'not found' }, 404);
+    if (artifact.status !== 'draft') return json({ error: 'only a draft can be approved for manual posting' }, 409);
+
+    const quality = assessCreativeQuality({
+      hook: artifact.hook,
+      caption: artifact.caption,
+      hashtags: artifact.hashtags ?? [],
+      mediaType: artifact.media_type,
+      assetManifest: artifact.asset_manifest ?? {},
+      photoUrls: artifact.photo_urls,
+      videoUrl: artifact.video_url,
+    });
+    if (!quality.pass) {
+      return json({
+        error: `Creative quality gate: ${[...quality.blockers, ...quality.warnings].join(' ')}`,
+        quality,
+      }, 422);
+    }
+
+    const now = new Date().toISOString();
+    const [updated] = await db.update('artifacts', `id=eq.${id}`, {
+      status: 'approved',
+      account_id: null,
+      posting_consent_at: null,
+      asset_manifest: { ...artifact.asset_manifest, creative_quality: quality, manual_handoff: true },
+      stage: 'schedule',
+      stages: {
+        ...artifact.stages,
+        review: { state: 'done', at: now, note: 'Owner approved the exact media and copy for manual TikTok posting.' },
+        schedule: { state: 'manual', at: now, note: 'Ready for owner download and TikTok handoff.' },
+      },
+    });
+    return json(updated);
+  }
 
   const manualPublishMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/manual-publish$/);
   if (manualPublishMatch && req.method === 'POST') {

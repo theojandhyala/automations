@@ -160,6 +160,56 @@ describe('validation', () => {
 });
 
 describe('artifact transitions', () => {
+  it('approves a passing draft for manual TikTok handoff without OAuth', async () => {
+    let patch: Record<string, unknown> | null = null;
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/artifacts\?id=eq/,
+        respond: (call) => {
+          if (call.method === 'PATCH') {
+            patch = call.body as Record<string, unknown>;
+            return jsonResponse([{ id: ARTIFACT_ID, ...patch }]);
+          }
+          return jsonResponse([{
+            id: ARTIFACT_ID,
+            status: 'draft',
+            stages: { edit: { state: 'done' } },
+            media_type: 'photo',
+            photo_urls: [
+              'https://media.example.test/slide-1.jpg',
+              'https://media.example.test/slide-2.jpg',
+            ],
+            video_url: null,
+            hook: 'Would you train this again tomorrow?',
+            caption: 'The weekly set map made the answer obvious.',
+            hashtags: ['gymtok', 'lifting', 'deadset'],
+            asset_manifest: {
+              format: 'two_slide_photo_carousel',
+              slides: [{ role: 'hook' }, { role: 'feature_proof' }],
+              generated_people: false,
+              fabricated_ui: false,
+            },
+          }]);
+        },
+      },
+    ]);
+
+    const res = await call(apiRequest(`/artifacts/${ARTIFACT_ID}/manual-approve`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(patch).toMatchObject({
+      status: 'approved',
+      account_id: null,
+      posting_consent_at: null,
+      stage: 'schedule',
+      asset_manifest: { manual_handoff: true, creative_quality: { pass: true } },
+    });
+  });
+
   it('records a manually uploaded TikTok post for later analytics', async () => {
     let patch: Record<string, unknown> | null = null;
     stubFetch([
