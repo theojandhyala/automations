@@ -1,7 +1,29 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { initPhotoPublish } from '../src/lib/tiktok';
+import { authorizeUrl, initPhotoPublish, oauthScopes } from '../src/lib/tiktok';
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('TikTok OAuth scopes', () => {
+  it('requests only Login Kit identity while the app is in sandbox review', () => {
+    expect(oauthScopes('draft')).toEqual(['user.info.basic']);
+    const url = new URL(authorizeUrl({
+      TIKTOK_CLIENT_KEY: 'sandbox-key',
+      TIKTOK_REDIRECT_URI: 'https://example.test/api/tiktok/callback',
+      TIKTOK_REVIEW_STATE: 'draft',
+    } as never, 'signed-state'));
+    expect(url.searchParams.get('scope')).toBe('user.info.basic');
+  });
+
+  it('requests the complete publishing and learning loop after production approval', () => {
+    expect(oauthScopes('approved')).toEqual([
+      'user.info.basic',
+      'video.publish',
+      'video.upload',
+      'user.info.stats',
+      'video.list',
+    ]);
+  });
+});
 
 describe('TikTok photo publishing', () => {
   it('uses the native photo endpoint and carries creator-selected disclosure settings', async () => {

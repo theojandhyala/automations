@@ -4,7 +4,7 @@ import { claimOne, executeRun } from '../lib/runner';
 import { listHandlers } from '../automations/registry';
 import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
-import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, SCOPES, storeTokens } from '../lib/tiktok';
+import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, oauthScopes, storeTokens } from '../lib/tiktok';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { normalizeHashtags } from '../lib/hashtags';
 import { log, errorFields } from '../lib/log';
@@ -276,7 +276,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.TIKTOK_REDIRECT_URI,
       ),
       redirect_uri: env.TIKTOK_REDIRECT_URI ?? null,
-      scopes: SCOPES,
+      scopes: oauthScopes(reviewState),
       review_state: reviewState,
       public_direct_post_ready: reviewState === 'approved',
       owner_review_required: true,

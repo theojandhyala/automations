@@ -9,6 +9,17 @@ const AUTH = 'https://www.tiktok.com/v2/auth/authorize/';
 export const POSTING_SCOPES = ['user.info.basic', 'video.publish', 'video.upload'];
 export const ANALYTICS_SCOPES = ['user.info.stats', 'video.list'];
 export const SCOPES = [...POSTING_SCOPES, ...ANALYTICS_SCOPES];
+export const SANDBOX_SCOPES = ['user.info.basic'];
+
+/**
+ * TikTok sandbox guarantees Login Kit's baseline identity scope, while public
+ * posting remains unavailable before production review. Requesting every
+ * optional posting and analytics scope in one pre-review authorization can
+ * make TikTok reject the whole request with a generic `scope` error.
+ */
+export function oauthScopes(reviewState: string | undefined): string[] {
+  return reviewState === 'approved' ? SCOPES : SANDBOX_SCOPES;
+}
 
 export function authorizeUrl(env: Env, state: string): string {
   if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_REDIRECT_URI) {
@@ -16,7 +27,7 @@ export function authorizeUrl(env: Env, state: string): string {
   }
   const params = new URLSearchParams({
     client_key: env.TIKTOK_CLIENT_KEY,
-    scope: SCOPES.join(','),
+    scope: oauthScopes(env.TIKTOK_REVIEW_STATE).join(','),
     response_type: 'code',
     redirect_uri: env.TIKTOK_REDIRECT_URI,
     state,

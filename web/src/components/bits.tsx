@@ -16,18 +16,22 @@ export function Ago({ at }: { at: string | null }) {
 
   if (seconds < 45) return <span title={at}>{future ? 'in a moment' : 'just now'}</span>;
 
-  const units: Array<[number, string]> = [
-    [60, 's'],
-    [60, 'm'],
-    [24, 'h'],
-    [7, 'd'],
-    [Infinity, 'w'],
-  ];
   let label = 's';
-  for (const [size, next] of units) {
-    if (seconds < size) break;
-    seconds /= size;
-    label = next;
+  if (seconds >= 60) {
+    seconds /= 60;
+    label = 'm';
+  }
+  if (seconds >= 60) {
+    seconds /= 60;
+    label = 'h';
+  }
+  if (seconds >= 24) {
+    seconds /= 24;
+    label = 'd';
+  }
+  if (seconds >= 7) {
+    seconds /= 7;
+    label = 'w';
   }
   const value = Math.round(seconds);
   return <span title={at}>{future ? `in ${value}${label}` : `${value}${label} ago`}</span>;
