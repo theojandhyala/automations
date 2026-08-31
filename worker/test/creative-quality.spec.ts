@@ -38,4 +38,21 @@ describe('native creative quality gate', () => {
     expect(result.blockers.join(' ')).toMatch(/advertisement/);
     expect(result.blockers.join(' ')).toMatch(/exactly two/);
   });
+
+  it('rejects a caption that is only an app-store instruction', () => {
+    const result = assessCreativeQuality({
+      hook: 'Ever wonder what actually worked this week?',
+      caption: 'deadset on appstore',
+      hashtags: ['gymtok', 'lifting', 'deadset'],
+      mediaType: 'photo',
+      assetManifest: {
+        format: 'two_slide_photo_carousel',
+        slides: [{ role: 'hook' }, { role: 'feature_proof' }],
+      },
+      photoUrls: ['https://media.example/one.jpg', 'https://media.example/two.jpg'],
+    });
+
+    expect(result.pass).toBe(false);
+    expect(result.warnings.join(' ')).toMatch(/human observation/);
+  });
 });

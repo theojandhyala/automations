@@ -77,7 +77,12 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
     warnings.push('Keep the opening text visually quiet; use at most one emoji.');
   }
 
-  if (!caption || words(caption).length < 3) blockers.push('Caption needs one short, human sentence.');
+  const captionWords = words(caption);
+  if (!caption || captionWords.length < 3) blockers.push('Caption needs one short, human sentence.');
+  if (/\b(?:app\s*store|download|install)\b/i.test(caption) && captionWords.length < 7) {
+    score -= 30;
+    warnings.push('Add a human observation before the app mention; a bare download caption reads like an ad.');
+  }
   if (caption.length > 280) {
     score -= 10;
     warnings.push('Shorten the caption so the product proof does the selling.');

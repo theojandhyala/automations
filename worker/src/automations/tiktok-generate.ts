@@ -387,9 +387,12 @@ export const generateDrafts: Handler = {
         generated_people: false,
       };
       const decision = plan.decisions.find((candidate) => candidate.feature === feature) ?? null;
+      const finalCaption = idea.caption.toLowerCase().includes(playbook.captionSuffix)
+        ? idea.caption
+        : `${idea.caption.replace(/[.\s]+$/, '')}. ${playbook.captionSuffix}`;
       const creativeQuality = assessCreativeQuality({
         hook: idea.hook,
-        caption: idea.caption,
+        caption: finalCaption,
         hashtags: Array.isArray(idea.hashtags) ? idea.hashtags.slice(0, 5) : [],
         mediaType: isCarousel ? 'photo' : 'video',
         assetManifest: isCarousel ? { format: 'two_slide_photo_carousel', slides } : {},
@@ -423,9 +426,7 @@ export const generateDrafts: Handler = {
         stage: 'concept',
         stages,
         hook: idea.hook,
-        caption: idea.caption.toLowerCase().includes(playbook.captionSuffix)
-          ? idea.caption
-          : `${idea.caption.replace(/[.\s]+$/, '')}. ${playbook.captionSuffix}`,
+        caption: finalCaption,
         // Persisted, not just logged: these are the filming and editing
         // instructions, and the review queue is where they are actually needed.
         shot_notes: idea.shot_notes ?? null,
