@@ -814,6 +814,19 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     );
     if (!current) return json({ error: 'not found' }, 404);
 
+    let selectedAccount: TikTokAccount | null = null;
+    if (body.account_id) {
+      selectedAccount = await db.selectOne<TikTokAccount>(
+        'tiktok_accounts',
+        `id=eq.${body.account_id}&select=*`,
+      );
+      if (!selectedAccount) return json({ error: 'TikTok account not found' }, 404);
+      if (selectedAccount.status !== 'connected') return json({ error: 'That TikTok account is not connected.' }, 409);
+      if (selectedAccount.app_id && selectedAccount.app_id !== current.app_id) {
+        return json({ error: 'That TikTok account belongs to a different app workspace.' }, 400);
+      }
+    }
+
     const patch: Record<string, unknown> = {};
     for (const field of
       [
@@ -855,6 +868,16 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
         if (!mediaReady) return json({ error: `${mediaType} media is required before approval` }, 400);
         if (!accountId) return json({ error: 'choose a TikTok account before approval' }, 400);
+        const publishingAccount = selectedAccount ?? await db.selectOne<TikTokAccount>(
+          'tiktok_accounts',
+          `id=eq.${accountId}&select=*`,
+        );
+        if (!publishingAccount || publishingAccount.status !== 'connected') {
+          return json({ error: 'choose a connected TikTok account before approval' }, 400);
+        }
+        if (publishingAccount.app_id && publishingAccount.app_id !== current.app_id) {
+          return json({ error: 'The selected TikTok account belongs to a different app workspace.' }, 400);
+        }
         if (!privacy) return json({ error: 'choose a privacy level before approval' }, 400);
         if (!ownBrand) return json({ error: 'confirm that this promotes your own brand before approval' }, 400);
         if (!consented) return json({ error: 'explicit TikTok posting consent is required' }, 400);

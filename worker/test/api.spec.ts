@@ -201,6 +201,10 @@ describe('artifact transitions', () => {
           }]);
         },
       },
+      {
+        match: /\/rest\/v1\/tiktok_accounts\?id=eq/,
+        respond: () => jsonResponse([{ id: ARTIFACT_ID, status: 'connected', app_id: null }]),
+      },
     ]);
 
     const res = await call(
@@ -234,6 +238,10 @@ describe('artifact transitions', () => {
           brand_organic_toggle: true,
         }]),
       },
+      {
+        match: /\/rest\/v1\/tiktok_accounts\?id=eq/,
+        respond: () => jsonResponse([{ id: ARTIFACT_ID, status: 'connected', app_id: null }]),
+      },
     ]);
 
     const res = await call(
@@ -245,6 +253,31 @@ describe('artifact transitions', () => {
 
     expect(res.status).toBe(400);
     expect((await res.json() as { error: string }).error).toMatch(/consent/);
+  });
+
+  it('refuses to route an artifact through another app account', async () => {
+    const otherAccount = '33333333-3333-4333-8333-333333333333';
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/artifacts\?id=eq/,
+        respond: () => jsonResponse([{ status: 'draft', app_id: 'deadset-app', stages: {} }]),
+      },
+      {
+        match: /\/rest\/v1\/tiktok_accounts\?id=eq/,
+        respond: () => jsonResponse([{ id: otherAccount, status: 'connected', app_id: 'cast-app' }]),
+      },
+    ]);
+
+    const res = await call(
+      apiRequest(`/artifacts/${ARTIFACT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ account_id: otherAccount }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: string }).error).toMatch(/different app workspace/);
   });
 });
 

@@ -138,7 +138,7 @@ export default function Queue() {
                 <div className="creative-plan">
                   {artifact.asset_manifest.slides.map((slide, index) => (
                     <div key={`${artifact.id}-slide-${index}`}>
-                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? 'Deadset proof' : 'real-photo hook'}</strong>
+                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? `${app?.name ?? 'App'} proof` : 'real-photo hook'}</strong>
                       <p>“{slide.overlay}”</p>
                       <span>{slide.asset_query ?? slide.app_asset_key}</span>
                     </div>
@@ -268,7 +268,9 @@ export default function Queue() {
                         }}
                       >
                         <option value="">— pick one —</option>
-                        {data.accounts.map((item) => <option key={item.id} value={item.id}>@{item.handle}</option>)}
+                        {data.accounts
+                          .filter((item) => item.status === 'connected' && (!item.app_id || item.app_id === artifact.app_id))
+                          .map((item) => <option key={item.id} value={item.id}>@{item.handle}</option>)}
                       </select>
                     </div>
                     <button
