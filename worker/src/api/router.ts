@@ -20,6 +20,7 @@ import {
 } from '../lib/app-store';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { produceOne } from '../automations/tiktok-produce';
+import { browserCapacity } from '../lib/slide-renderer';
 import { featureSpecs, getCreativePlaybook } from '../lib/creative-playbooks';
 import {
   ValidationError,
@@ -199,18 +200,45 @@ async function promotionReadiness(db: Db, env: Env) {
   };
 }
 
-async function promotionOutputState(db: Db, draftRunId: string, expected: number) {
-  const artifacts = await db.select<Pick<Artifact, 'id' | 'photo_urls' | 'error'>>(
-    'artifacts',
-    `run_id=eq.${draftRunId}&media_type=eq.photo&select=id,photo_urls,error&order=created_at.asc`,
+/**
+ * Rendering can take several minutes, so it must run from the cron invocation
+ * (15 minute wall-time) rather than an HTTP waitUntil task (30 seconds after
+ * the response). Moving next_run_at to now makes the one-minute dispatcher
+ * pick the producer up without coupling it to the browser request.
+ */
+async function queuePromotionProduction(
+  db: Db,
+  missionId: string,
+  producerId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await Promise.all([
+    db.update('promotion_missions', `id=eq.${missionId}`, {
+      status: 'producing',
+      error: null,
+      completed_at: null,
+    }),
+    db.update('automations', `id=eq.${producerId}`, { next_run_at: now }),
+  ]);
+}
+
+async function reconcilePromotionMissionForDraftRun(db: Db, draftRunId: string): Promise<void> {
+  const mission = await db.selectOne<PromotionMission>(
+    'promotion_missions',
+    `draft_run_id=eq.${encodeURIComponent(draftRunId)}&select=*&order=created_at.desc`,
   );
-  const rendered = artifacts.filter((artifact) => artifact.photo_urls.length >= 2).length;
-  return {
-    rendered,
-    expected,
-    complete: rendered >= expected,
-    last_error: artifacts.find((artifact) => artifact.error)?.error ?? null,
-  };
+  if (!mission) return;
+  const artifacts = await db.select<Pick<Artifact, 'photo_urls'>>(
+    'artifacts',
+    `run_id=eq.${encodeURIComponent(draftRunId)}&media_type=eq.photo&select=photo_urls`,
+  );
+  const rendered = artifacts.filter((item) => item.photo_urls.length >= 2).length;
+  if (rendered < mission.draft_count) return;
+  await db.update('promotion_missions', `id=eq.${mission.id}`, {
+    status: 'awaiting_review',
+    error: null,
+    completed_at: new Date().toISOString(),
+  });
 }
 
 async function loadAppStoreCredentials(db: Db, env: Env): Promise<AppStoreCredentials | null> {
@@ -296,10 +324,11 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     if (!playbook) return json({ error: 'That app does not have an active creative playbook.' }, 404);
     const app = await db.selectOne<PromotionApp>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id,slug,name,tagline,accent,promotion_enabled`);
     if (!app?.promotion_enabled) return json({ error: 'Promotion is paused for that app.' }, 409);
-    const [secret, assets, producer] = await Promise.all([
+    const [secret, assets, producer, renderer] = await Promise.all([
       db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
       db.select<Record<string, unknown>>('creative_assets', `app_slug=eq.${encodeURIComponent(appSlug)}&select=*&order=asset_key.asc`),
       db.selectOne<Automation>('automations', `app_id=eq.${app.id}&handler_key=eq.tiktok.produce&select=*`),
+      browserCapacity(env),
     ]);
     return json({
       app: { id: app.id, slug: app.slug, name: app.name, accent: app.accent },
@@ -310,6 +339,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         caption_suffix: playbook.captionSuffix,
       },
       pexels: { configured: Boolean(secret) },
+      renderer,
       producer: producer ? {
         id: producer.id,
         status: producer.status,
@@ -563,71 +593,49 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
     const readiness = await promotionReadiness(db, env);
     const app = readiness.apps.find((candidate) => candidate.id === mission.app_id);
-    if (!app?.producer_agent_id || !app.production_ready) {
-      return json({ error: app?.blockers[0] ?? 'Carousel production is not ready.' }, 409);
+    if (!app?.producer_agent_id || !app.producer_available) {
+      return json({ error: 'Carousel production agent is not available.' }, 409);
+    }
+    if (!app.photo_source_ready) {
+      return json({ error: 'Connect the licensed photo source before rendering.' }, 409);
+    }
+    const missingSelectedFeature = mission.feature_rotation.find(
+      (feature) => !app.uploaded_feature_keys.includes(feature),
+    );
+    if (missingSelectedFeature) {
+      return json({ error: `Upload the selected “${missingSelectedFeature}” screen before rendering.` }, 409);
     }
     let producer = await db.selectOne<Automation>('automations', `id=eq.${app.producer_agent_id}&select=*`);
     if (!producer) return json({ error: 'Carousel production agent not found.' }, 404);
 
-    // A Worker eviction can leave a production run claimed. Only release it
-    // after a clear quiet period; a fresh run is never interrupted.
+    // Older versions ran the renderer inside an HTTP waitUntil task. Recover
+    // only those known-short HTTP-triggered runs; a cron producer is allowed
+    // to keep its full scheduled-event execution window.
     const staleAt = Date.now() - 90_000;
     if (producer.status === 'running' && producer.running_since && Date.parse(producer.running_since) < staleAt) {
       if (producer.last_run_at) {
-        const openRun = await db.selectOne<{ id: string }>(
+        const openRun = await db.selectOne<{ id: string; trigger: string }>(
           'runs',
-          `automation_id=eq.${producer.id}&status=eq.running&order=started_at.desc&limit=1&select=id`,
+          `automation_id=eq.${producer.id}&status=eq.running&order=started_at.desc&limit=1&select=id,trigger`,
         );
-        if (openRun) {
+        if (openRun && openRun.trigger !== 'cron') {
           await db.update('runs', `id=eq.${openRun.id}`, {
             status: 'failed',
-            error: 'Recovered after the previous production execution window ended.',
+            error: 'Recovered after the previous HTTP production window ended.',
             finished_at: new Date().toISOString(),
           });
+          await db.update('automations', `id=eq.${producer.id}`, {
+            status: 'idle',
+            running_since: null,
+            current_task: null,
+          });
+          producer = { ...producer, status: 'idle', running_since: null, current_task: null };
         }
       }
-      await db.update('automations', `id=eq.${producer.id}`, {
-        status: 'idle',
-        running_since: null,
-        current_task: null,
-      });
-      producer = { ...producer, status: 'idle', running_since: null, current_task: null };
     }
 
-    const claimed = await claimOne(env, producer.id);
-    if (!claimed) return json({ error: 'The production agent is still working. Try again shortly.' }, 409);
-    await db.update('promotion_missions', `id=eq.${mission.id}`, { status: 'producing', error: null });
-    ctx.waitUntil((async () => {
-      try {
-        const producerRun = await executeRun(env, {
-          ...claimed,
-          config: validateConfig('tiktok.produce', {
-            ...claimed.config,
-            app_slug: app.slug,
-            max_per_run: Math.min(mission.draft_count, 6),
-            source_run_id: draftRunId,
-          }),
-        }, 'manual');
-        const output = await promotionOutputState(db, draftRunId, mission.draft_count);
-        const complete = producerRun.status === 'succeeded' && output.complete;
-        await db.update('promotion_missions', `id=eq.${mission.id}`, {
-          producer_run_id: producerRun.runId,
-          status: complete ? 'awaiting_review' : 'failed',
-          error: complete
-            ? null
-            : output.last_error ?? `${output.rendered}/${output.expected} carousels rendered. Retry the exact outputs to continue.`,
-          completed_at: new Date().toISOString(),
-        });
-      } catch (error) {
-        log.error('promotion production recovery failed', { mission_id: mission.id, ...errorFields(error) });
-        await db.update('promotion_missions', `id=eq.${mission.id}`, {
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-          completed_at: new Date().toISOString(),
-        }).catch(() => undefined);
-      }
-    })());
-    return json({ ok: true, mission_id: mission.id }, 202);
+    await queuePromotionProduction(db, mission.id, producer.id);
+    return json({ ok: true, queued: true, mission_id: mission.id }, 202);
   }
 
   if (path === '/promotion/missions' && req.method === 'POST') {
@@ -768,30 +776,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
           && selectedProductionReady
           && app.producer_agent_id;
         if (shouldProduce) {
-          const producer = await claimOne(env, app.producer_agent_id!);
-          if (producer) {
-            await db.update('promotion_missions', `id=eq.${mission.id}`, { status: 'producing' });
-            const producerRun = await executeRun(env, {
-              ...producer,
-              config: validateConfig('tiktok.produce', {
-                ...producer.config,
-                app_slug: app.slug,
-                max_per_run: Math.min(body.draft_count, 6),
-                source_run_id: draftRun.runId,
-              }),
-            }, 'chain');
-            const output = await promotionOutputState(db, draftRun.runId, body.draft_count);
-            const complete = producerRun.status === 'succeeded' && output.complete;
-            await db.update('promotion_missions', `id=eq.${mission.id}`, {
-              producer_run_id: producerRun.runId,
-              status: complete ? 'awaiting_review' : 'failed',
-              error: complete
-                ? null
-                : output.last_error ?? `${output.rendered}/${output.expected} carousels rendered. Retry the exact outputs to continue.`,
-              completed_at: new Date().toISOString(),
-            });
-            return;
-          }
+          await queuePromotionProduction(db, mission.id, app.producer_agent_id!);
+          return;
         }
         await db.update('promotion_missions', `id=eq.${mission.id}`, {
           status: 'awaiting_review',
@@ -841,6 +827,14 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     // Manual trigger. The claim is atomic, so a manual run racing the cron
     // dispatcher loses cleanly rather than both executing.
     if (automationMatch[2] && req.method === 'POST') {
+      if (automation.handler_key === 'tiktok.produce') {
+        if (!automation.enabled || automation.status === 'disabled') {
+          return json({ error: 'Enable the production agent before running it.' }, 409);
+        }
+        await db.update('automations', `id=eq.${id}`, { next_run_at: new Date().toISOString() });
+        return json({ ok: true, queued: true, automation_id: id }, 202);
+      }
+
       const claimed = await claimOne(env, id);
       if (!claimed) return json({ error: 'already running' }, 409);
 
@@ -1017,6 +1011,84 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         }),
     );
     return json({ ok: true, artifact_id: id }, 202);
+  }
+
+  const renderedSlidesMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/rendered-slides$/);
+  if (renderedSlidesMatch && req.method === 'POST') {
+    const id = renderedSlidesMatch[1]!;
+    const artifact = await db.selectOne<Artifact>('artifacts', `id=eq.${id}&select=*`);
+    if (!artifact) return json({ error: 'not found' }, 404);
+    if (artifact.status !== 'draft' || artifact.media_type !== 'photo') {
+      return json({ error: 'only draft photo carousels can receive rendered slides' }, 409);
+    }
+
+    const form = await req.formData();
+    const slides = form.getAll('slides');
+    if (slides.length !== 2 || slides.some((slide) => !(slide instanceof File))) {
+      return json({ error: 'upload exactly two rendered slides in posting order' }, 400);
+    }
+    const files = slides as File[];
+    const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (files.some((file) => !allowed.has(file.type))) {
+      return json({ error: 'rendered slides must be PNG, JPEG or WebP' }, 400);
+    }
+    if (files.some((file) => file.size <= 0 || file.size > 12 * 1024 * 1024)) {
+      return json({ error: 'each rendered slide must be 12 MB or smaller' }, 400);
+    }
+
+    const nonce = crypto.randomUUID();
+    const paths = files.map((file, index) => {
+      const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      return `outputs/${id}/slide-${index + 1}-${nonce}.${extension}`;
+    });
+    await Promise.all(files.map(async (file, index) =>
+      uploadMedia(env, paths[index]!, await file.arrayBuffer(), file.type),
+    ));
+
+    const now = new Date().toISOString();
+    const photoUrls = paths.map((storagePath) => publicMediaUrl(env, storagePath));
+    const sourceUrl = String(form.get('source_url') ?? '').trim();
+    const photographer = String(form.get('photographer') ?? '').trim();
+    const quality = assessCreativeQuality({
+      hook: artifact.hook,
+      caption: artifact.caption,
+      hashtags: artifact.hashtags ?? [],
+      mediaType: artifact.media_type,
+      assetManifest: artifact.asset_manifest ?? {},
+      photoUrls,
+      videoUrl: artifact.video_url,
+    });
+    const previousProduction = artifact.asset_manifest.production as { stock?: unknown } | undefined;
+    const [updated] = await db.update<Artifact>('artifacts', `id=eq.${id}`, {
+      photo_urls: photoUrls,
+      thumbnail_url: photoUrls[0],
+      error: null,
+      stage: 'review',
+      stages: {
+        ...artifact.stages,
+        assets: { state: 'done', at: now, note: 'Licensed stock photo and owner-verified app proof loaded.' },
+        edit: { state: 'done', at: now, note: 'Two exact 1080×1920 slides rendered without paid API credits.' },
+        review: { state: 'pending' },
+      },
+      asset_manifest: {
+        ...artifact.asset_manifest,
+        creative_quality: quality,
+        production: {
+          rendered_at: now,
+          dimensions: { width: 1080, height: 1920 },
+          output_format: files[0]!.type,
+          renderer: 'owner_device_zero_credit_fallback',
+          stock: sourceUrl ? {
+            provider: 'pexels',
+            source_url: sourceUrl,
+            photographer: photographer || null,
+            licence_url: 'https://www.pexels.com/license/',
+          } : previousProduction?.stock ?? null,
+        },
+      },
+    });
+    if (artifact.run_id) await reconcilePromotionMissionForDraftRun(db, artifact.run_id);
+    return json(updated, 201);
   }
 
   if (artifactMatch && !artifactMatch[2] && req.method === 'PATCH') {

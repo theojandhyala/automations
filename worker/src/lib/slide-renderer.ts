@@ -44,6 +44,53 @@ body{font-family:Arial,Helvetica,sans-serif;color:#fff}
 type BrowserEndpoint = Parameters<typeof puppeteer.launch>[0];
 type CloudflareBrowser = Awaited<ReturnType<typeof puppeteer.launch>>;
 
+export interface BrowserCapacity {
+  available: boolean;
+  active_sessions: number;
+  idle_sessions: number;
+  allowed_browser_acquisitions: number;
+  retry_after_ms: number;
+  message: string;
+}
+
+const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+export async function browserCapacity(env: Env): Promise<BrowserCapacity> {
+  const endpoint = env.BROWSER as unknown as BrowserEndpoint;
+  try {
+    const [limits, sessions] = await Promise.all([
+      puppeteer.limits(endpoint),
+      puppeteer.sessions(endpoint),
+    ]);
+    const idleSessions = sessions.filter((session) => !session.connectionId).length;
+    const retryAfter = Math.max(0, limits.timeUntilNextAllowedBrowserAcquisition || 0);
+    const available = idleSessions > 0 || limits.allowedBrowserAcquisitions > 0;
+    return {
+      available,
+      active_sessions: limits.activeSessions.length,
+      idle_sessions: idleSessions,
+      allowed_browser_acquisitions: limits.allowedBrowserAcquisitions,
+      retry_after_ms: retryAfter,
+      message: available
+        ? idleSessions > 0
+          ? 'Reusable renderer ready.'
+          : 'Renderer slot ready; the daily free allowance is checked when rendering starts.'
+        : retryAfter > 0
+          ? `Renderer capacity resets in about ${Math.max(1, Math.ceil(retryAfter / 60_000))} minute(s).`
+          : 'The free renderer allowance is currently exhausted.',
+    };
+  } catch (error) {
+    return {
+      available: false,
+      active_sessions: 0,
+      idle_sessions: 0,
+      allowed_browser_acquisitions: 0,
+      retry_after_ms: 0,
+      message: error instanceof Error ? error.message : 'Renderer capacity could not be checked.',
+    };
+  }
+}
+
 async function acquireBrowser(endpoint: BrowserEndpoint): Promise<CloudflareBrowser> {
   const sessions = await puppeteer.sessions(endpoint);
   for (const session of sessions) {
@@ -52,6 +99,23 @@ async function acquireBrowser(endpoint: BrowserEndpoint): Promise<CloudflareBrow
       return await puppeteer.connect(endpoint, session.sessionId);
     } catch {
       // Another request may have claimed it between listing and connecting.
+    }
+  }
+
+  // Browser Run allows one new browser acquisition every 20 seconds on the
+  // free plan. A scheduled Worker has enough wall time to absorb that small
+  // cooldown instead of failing a perfectly good draft and waiting a minute
+  // for the next dispatcher pass.
+  const limits = await puppeteer.limits(endpoint);
+  if (limits.allowedBrowserAcquisitions === 0) {
+    const retryAfter = Math.max(0, limits.timeUntilNextAllowedBrowserAcquisition || 0);
+    if (retryAfter > 0 && retryAfter <= 25_000) {
+      await wait(retryAfter + 250);
+    } else {
+      const minutes = retryAfter > 0 ? Math.max(1, Math.ceil(retryAfter / 60_000)) : null;
+      throw new Error(minutes
+        ? `The free slide renderer allowance resets in about ${minutes} minute(s). This exact draft will retry automatically.`
+        : 'The free slide renderer allowance is exhausted. This exact draft will retry automatically.');
     }
   }
   return puppeteer.launch(endpoint);
@@ -93,6 +157,10 @@ export async function renderCarouselSlides(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (/allowance (?:resets|is exhausted)/i.test(message)) throw error;
+    if (/browser time limit exceeded for today/i.test(message)) {
+      throw new Error('Cloudflare’s free 10-minute slide-rendering allowance is used for today. This exact draft will retry after the daily reset.');
+    }
     if (message.includes('429') || /rate limit/i.test(message)) {
       throw new Error('The free slide renderer is busy. This exact draft is safe and will retry automatically.');
     }

@@ -66,6 +66,32 @@ describe('auth', () => {
     expect(res.status).toBe(401);
     expect(claims).toBe(0);
   });
+
+  it('queues media production for the scheduled runner instead of a short HTTP background task', async () => {
+    let queuedAt: unknown = null;
+    let claims = 0;
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/automations\?id=eq/,
+        respond: (call) => {
+          if (call.method === 'PATCH') {
+            const patch = call.body as Record<string, unknown>;
+            queuedAt = patch.next_run_at;
+            return jsonResponse([automationRow({ handler_key: 'tiktok.produce', ...patch })]);
+          }
+          return jsonResponse([automationRow({ handler_key: 'tiktok.produce' })]);
+        },
+      },
+      { match: /\/rpc\/claim_automation/, respond: () => { claims++; return jsonResponse([]); } },
+    ]);
+
+    const res = await call(apiRequest(`/automations/${AUTOMATION_ID}/run`, { method: 'POST' }));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ ok: true, queued: true, automation_id: AUTOMATION_ID });
+    expect(queuedAt).toEqual(expect.any(String));
+    expect(claims).toBe(0);
+  });
 });
 
 describe('validation', () => {
@@ -493,6 +519,72 @@ describe('promotion missions', () => {
     expect((await res.json() as { error: string }).error).toMatch(/not a verified Cast feature/);
     expect(claims).toBe(0);
     expect(missions).toBe(0);
+  });
+
+  it('retries a mission when its selected screens are ready even if unrelated app screens are missing', async () => {
+    const producerId = '66666666-6666-4666-8666-666666666666';
+    const draftRunId = '55555555-5555-4555-8555-555555555555';
+    let missionPatch: Record<string, unknown> | null = null;
+    let producerPatch: Record<string, unknown> | null = null;
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/promotion_missions\?id=eq/,
+        respond: (call) => {
+          if (call.method === 'PATCH') {
+            missionPatch = call.body as Record<string, unknown>;
+            return jsonResponse([{ id: ARTIFACT_ID, ...missionPatch }]);
+          }
+          return jsonResponse([{
+            id: ARTIFACT_ID,
+            app_id: appId,
+            draft_run_id: draftRunId,
+            draft_count: 3,
+            content_format: 'photo_carousel',
+            feature_rotation: ['muscle_diagram', 'progression_board', 'workout_plan'],
+            status: 'failed',
+          }]);
+        },
+      },
+      {
+        match: /\/rest\/v1\/apps\?promotion_enabled=eq\.true/,
+        respond: () => jsonResponse([{ id: appId, slug: 'deadset', name: 'Deadset', tagline: 'Train', accent: '#ff4438', promotion_enabled: true }]),
+      },
+      { match: /\/rest\/v1\/tiktok_accounts\?select=/, respond: () => jsonResponse([]) },
+      {
+        match: /\/rest\/v1\/automations\?handler_key=in/,
+        respond: () => jsonResponse([
+          automationRow({ id: AUTOMATION_ID, app_id: appId, handler_key: 'tiktok.generate' }),
+          automationRow({ id: producerId, app_id: appId, handler_key: 'tiktok.produce' }),
+        ]),
+      },
+      { match: /integration_secrets\?provider=eq\.pexels/, respond: () => jsonResponse([{ provider: 'pexels' }]) },
+      {
+        match: /creative_assets\?app_slug=in\.\(deadset,cast\)/,
+        respond: () => jsonResponse([
+          { app_slug: 'deadset', asset_key: 'muscle_diagram', mime_type: 'image/png' },
+          { app_slug: 'deadset', asset_key: 'progression_board', mime_type: 'image/png' },
+          { app_slug: 'deadset', asset_key: 'workout_plan', mime_type: 'image/png' },
+        ]),
+      },
+      { match: /artifacts\?status=eq\.draft/, respond: () => jsonResponse([]) },
+      {
+        match: new RegExp(`/rest/v1/automations\\?id=eq\\.${producerId}`),
+        respond: (call) => {
+          if (call.method === 'PATCH') {
+            producerPatch = call.body as Record<string, unknown>;
+            return jsonResponse([automationRow({ id: producerId, handler_key: 'tiktok.produce', ...producerPatch })]);
+          }
+          return jsonResponse([automationRow({ id: producerId, app_id: appId, handler_key: 'tiktok.produce' })]);
+        },
+      },
+    ]);
+
+    const res = await call(apiRequest(`/promotion/missions/${ARTIFACT_ID}/retry-production`, { method: 'POST' }));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ ok: true, queued: true, mission_id: ARTIFACT_ID });
+    expect(missionPatch).toMatchObject({ status: 'producing', error: null, completed_at: null });
+    expect(producerPatch).toMatchObject({ next_run_at: expect.any(String) });
   });
 });
 

@@ -17,21 +17,18 @@ export function Ago({ at }: { at: string | null }) {
   if (seconds < 45) return <span title={at}>{future ? 'in a moment' : 'just now'}</span>;
 
   let label = 's';
-  if (seconds >= 60) {
+  if (seconds >= 7 * 24 * 60 * 60) {
+    seconds /= 7 * 24 * 60 * 60;
+    label = 'w';
+  } else if (seconds >= 24 * 60 * 60) {
+    seconds /= 24 * 60 * 60;
+    label = 'd';
+  } else if (seconds >= 60 * 60) {
+    seconds /= 60 * 60;
+    label = 'h';
+  } else if (seconds >= 60) {
     seconds /= 60;
     label = 'm';
-  }
-  if (seconds >= 60) {
-    seconds /= 60;
-    label = 'h';
-  }
-  if (seconds >= 24) {
-    seconds /= 24;
-    label = 'd';
-  }
-  if (seconds >= 7) {
-    seconds /= 7;
-    label = 'w';
   }
   const value = Math.round(seconds);
   return <span title={at}>{future ? `in ${value}${label}` : `${value}${label} ago`}</span>;

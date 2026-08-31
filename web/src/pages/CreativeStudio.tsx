@@ -6,10 +6,19 @@ import { Empty } from '../components/bits';
 interface FeatureSpec { key: string; label: string; truth: string; stockDirection: string }
 interface CreativeAsset { id: string; asset_key: string; label: string; public_url: string; updated_at: string }
 interface ProducerAutomation { id: string; status: string; enabled: boolean; last_run_at: string | null; current_task: string | null }
+interface RendererCapacity {
+  available: boolean;
+  active_sessions: number;
+  idle_sessions: number;
+  allowed_browser_acquisitions: number;
+  retry_after_ms: number;
+  message: string;
+}
 interface StudioState {
   app: { id: string; slug: string; name: string; accent: string };
   playbook: { version: string; positioning: string; claims_to_avoid: string[]; caption_suffix: string };
   pexels: { configured: boolean };
+  renderer: RendererCapacity;
   required_features: FeatureSpec[];
   features: CreativeAsset[];
   producer: ProducerAutomation | null;
@@ -122,7 +131,7 @@ export default function CreativeStudio() {
       </div>
 
       <section className="card production-console">
-        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders hosted 1080×1920 JPEG slides in one reusable free Browser Run session, records source provenance and stops at owner review.</p></div>
+        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders hosted 1080×1920 JPEG slides in one reusable free Browser Run session, records source provenance and stops at owner review.</p><span className={`provider-status ${data.renderer.available ? 'connected' : ''}`}>{data.renderer.message}</span></div>
         <button className="primary" onClick={runProducer} disabled={!data.producer || data.producer.status === 'running' || busy === 'producer'}>{data.producer?.status === 'running' || busy === 'producer' ? 'Building…' : `Build waiting ${data.app.name} drafts`}</button>
       </section>
     </div>

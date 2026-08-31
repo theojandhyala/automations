@@ -77,7 +77,11 @@ async function providerKey(env: Env, db: Db): Promise<string | null> {
   return secret ? decrypt(secret.secret_enc, env.TOKEN_ENCRYPTION_KEY) : null;
 }
 
-async function syncMissionOutput(db: Db, mission: PromotionMissionLink): Promise<void> {
+async function syncMissionOutput(
+  db: Db,
+  mission: PromotionMissionLink,
+  producerRunId: string,
+): Promise<void> {
   const artifacts = await db.select<Pick<Artifact, 'photo_urls' | 'error'>>(
     'artifacts',
     `run_id=eq.${mission.draft_run_id}&media_type=eq.photo&select=photo_urls,error`,
@@ -85,6 +89,7 @@ async function syncMissionOutput(db: Db, mission: PromotionMissionLink): Promise
   const rendered = artifacts.filter((artifact) => artifact.photo_urls.length >= 2).length;
   const complete = rendered >= mission.draft_count;
   await db.update('promotion_missions', `id=eq.${mission.id}`, {
+    producer_run_id: producerRunId,
     status: complete ? 'awaiting_review' : 'failed',
     error: complete
       ? null
@@ -274,7 +279,7 @@ export const produceCarousels: Handler = {
     );
     const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0).slice(0, maxPerRun);
     if (pending.length === 0) {
-      if (activeMission) await syncMissionOutput(ctx.db, activeMission);
+      if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
       return { produced: 0, blocked: 0, message: 'No unrendered photo drafts.' };
     }
 
@@ -326,7 +331,7 @@ export const produceCarousels: Handler = {
         });
       }
     }
-    if (activeMission) await syncMissionOutput(ctx.db, activeMission);
+    if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
     return { produced, blocked: blocked.length, blockers: blocked };
   },
 };

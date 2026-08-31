@@ -33,6 +33,8 @@ export default function Queue() {
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [producing, setProducing] = useState<string | null>(null);
+  const [uploadingSlides, setUploadingSlides] = useState<string | null>(null);
+  const [renderSource, setRenderSource] = useState<Record<string, { url: string; photographer: string }>>({});
   const [manualPost, setManualPost] = useState<Record<string, string>>({});
   const [recordingPost, setRecordingPost] = useState<string | null>(null);
 
@@ -88,6 +90,29 @@ export default function Queue() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setProducing(null);
+    }
+  }
+
+  async function uploadRenderedSlides(artifact: Artifact, files: FileList | null) {
+    if (!files || files.length !== 2) {
+      setError('Choose exactly two rendered slides in posting order.');
+      return;
+    }
+    setError(null);
+    setUploadingSlides(artifact.id);
+    try {
+      const form = new FormData();
+      form.append('slides', files[0]!);
+      form.append('slides', files[1]!);
+      const source = renderSource[artifact.id];
+      if (source?.url) form.set('source_url', source.url);
+      if (source?.photographer) form.set('photographer', source.photographer);
+      await api(`/artifacts/${artifact.id}/rendered-slides`, { method: 'POST', body: form });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploadingSlides(null);
     }
   }
 
@@ -217,14 +242,46 @@ export default function Queue() {
               </div>
 
               {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
-                <button
-                  className="primary"
-                  onClick={() => produce(artifact.id)}
-                  disabled={producing === artifact.id}
-                  style={{ marginBottom: 14 }}
-                >
-                  {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
-                </button>
+                <div className="row" style={{ marginBottom: 14 }}>
+                  <button
+                    className="primary"
+                    onClick={() => produce(artifact.id)}
+                    disabled={producing === artifact.id}
+                  >
+                    {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
+                  </button>
+                  <label className="upload-button">
+                    {uploadingSlides === artifact.id ? 'Uploading slides…' : 'Use device renderer'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple
+                      aria-label={`Upload locally rendered slides for ${artifact.hook ?? 'draft'}`}
+                      disabled={uploadingSlides === artifact.id}
+                      onChange={(event) => uploadRenderedSlides(artifact, event.target.files)}
+                    />
+                  </label>
+                  {!mediaReady && <>
+                    <input
+                      aria-label={`Licensed source URL for ${artifact.hook ?? 'draft'}`}
+                      placeholder="Licensed source URL"
+                      value={renderSource[artifact.id]?.url ?? ''}
+                      onChange={(event) => setRenderSource((current) => ({
+                        ...current,
+                        [artifact.id]: { url: event.target.value, photographer: current[artifact.id]?.photographer ?? '' },
+                      }))}
+                    />
+                    <input
+                      aria-label={`Photographer for ${artifact.hook ?? 'draft'}`}
+                      placeholder="Photographer"
+                      value={renderSource[artifact.id]?.photographer ?? ''}
+                      onChange={(event) => setRenderSource((current) => ({
+                        ...current,
+                        [artifact.id]: { url: current[artifact.id]?.url ?? '', photographer: event.target.value },
+                      }))}
+                    />
+                  </>}
+                </div>
               )}
 
               {isEditable && (
