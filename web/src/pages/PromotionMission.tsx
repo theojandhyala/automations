@@ -17,6 +17,7 @@ interface PromotionApp {
   uploaded_feature_keys: string[]; uploaded_feature_count: number; feature_count: number;
   photo_source_ready: boolean; producer_available: boolean; renderer_available: boolean;
   renderer_mode: 'browser_free_reused_session'; intelligence_mode: 'performance_learning_with_verified_fallbacks';
+  manual_post_ready: boolean; tiktok_review_state: string;
 }
 interface Readiness {
   free_ai: boolean; review_required: true; feature_libraries: Record<string, FeatureReadiness[]>;
@@ -237,9 +238,9 @@ export default function PromotionMission() {
         <aside className="mission-sidebar">
           <section className="mission-status-card">
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
-            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `Learns from results · rotates fresh proof · verified fallback · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `${selectedApp.tiktok_review_state === 'approved' ? 'Learns from live results' : 'Learning framework ready; live metrics begin after TikTok approval'} · rotates fresh proof · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
             <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
-            <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Publishing agent and account ready' : 'Drafting still works; connect an account later'}</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Public Direct Post and account ready' : selectedApp?.manual_post_ready ? 'Manual-post handoff works now; API delivery awaits TikTok review' : 'Drafting still works; finish production setup'}</small></div></div>
             <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
             <div className="mission-shortcuts"><Link to={`/studio?app=${appSlug}`}>OPEN STUDIO</Link><Link to={`/accounts?app=${appSlug}`}>OPEN ACCOUNTS</Link></div>

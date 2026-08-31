@@ -6,6 +6,7 @@ import {
   type CreativeArtifactSignal,
   type CreativeMetricSignal,
 } from '../lib/creative-intelligence';
+import { assessCreativeQuality } from '../lib/creative-quality';
 import type { Handler } from './registry';
 
 interface App {
@@ -296,9 +297,17 @@ export const generateDrafts: Handler = {
       const combined = `${idea.hook ?? ''} ${idea.caption ?? ''} ${idea.single_promise ?? ''}`;
       const forbidden = containsForbiddenClaim(combined, playbook.claimsToAvoid);
       let reason: string | null = null;
+      const quality = assessCreativeQuality({
+        hook: idea.hook ?? null,
+        caption: idea.caption ?? null,
+        hashtags: Array.isArray(idea.hashtags) ? idea.hashtags : [],
+        mediaType: isCarousel ? 'photo' : 'video',
+        assetManifest: isCarousel ? { format: 'two_slide_photo_carousel', slides: idea.slides ?? [] } : {},
+      });
       if (!idea.hook?.trim() || idea.hook.trim().length > 120 || !hasMeaningfulHook(idea.hook)) {
         reason = 'hook is missing, meaningless or too long';
       }
+      else if (!quality.pass) reason = `native quality gate: ${[...quality.blockers, ...quality.warnings].join(' ')}`;
       else if (!idea.caption?.trim()) reason = 'caption is missing';
       else if (!Array.isArray(idea.hashtags) || idea.hashtags.length < 3) reason = 'fewer than three hashtags';
       else if (forbidden) reason = `forbidden claim: ${forbidden}`;
@@ -378,6 +387,13 @@ export const generateDrafts: Handler = {
         generated_people: false,
       };
       const decision = plan.decisions.find((candidate) => candidate.feature === feature) ?? null;
+      const creativeQuality = assessCreativeQuality({
+        hook: idea.hook,
+        caption: idea.caption,
+        hashtags: Array.isArray(idea.hashtags) ? idea.hashtags.slice(0, 5) : [],
+        mediaType: isCarousel ? 'photo' : 'video',
+        assetManifest: isCarousel ? { format: 'two_slide_photo_carousel', slides } : {},
+      });
       const stages = {
         research: {
           state: 'done',
@@ -433,6 +449,7 @@ export const generateDrafts: Handler = {
                 analysis_window: plan.analysis_window,
                 feature_decision: decision,
               },
+              creative_quality: creativeQuality,
               source_policy: 'licensed_real_only',
               licence_note:
                 'Pinterest is reference-only. Use creator-owned or explicitly licensed stock and record the original source.',
@@ -456,6 +473,7 @@ export const generateDrafts: Handler = {
               app_slug: playbook.appSlug,
               format: 'shoot_ready_video_brief',
               creative_brief: creativeBrief,
+              creative_quality: creativeQuality,
               quality_gate: {
                 classification: 'shoot_ready_brief',
                 publishable: false,

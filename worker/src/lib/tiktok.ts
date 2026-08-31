@@ -5,8 +5,10 @@ import type { Env, TikTokAccount } from '../types';
 const API = 'https://open.tiktokapis.com/v2';
 const AUTH = 'https://www.tiktok.com/v2/auth/authorize/';
 
-/** Scopes the dashboard needs: read the creator's posting options, then post. */
-export const SCOPES = ['user.info.basic', 'video.publish', 'video.upload'];
+/** Scopes used by the reviewed publishing and performance-learning loop. */
+export const POSTING_SCOPES = ['user.info.basic', 'video.publish', 'video.upload'];
+export const ANALYTICS_SCOPES = ['user.info.stats', 'video.list'];
+export const SCOPES = [...POSTING_SCOPES, ...ANALYTICS_SCOPES];
 
 export function authorizeUrl(env: Env, state: string): string {
   if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_REDIRECT_URI) {

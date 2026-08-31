@@ -15,7 +15,7 @@ export default function Accounts() {
     const [accounts, apps, status, readiness] = await Promise.all([
       supabase.from('tiktok_accounts_public').select('*').order('handle'),
       supabase.from('apps').select('*').eq('promotion_enabled', true).order('name'),
-      api<{ developer_app_configured: boolean; redirect_uri: string | null; scopes: string[]; owner_review_required: boolean }>('/tiktok/status'),
+      api<{ developer_app_configured: boolean; redirect_uri: string | null; scopes: string[]; review_state: string; public_direct_post_ready: boolean; owner_review_required: boolean }>('/tiktok/status'),
       api<{ apps: Array<{ id: string; slug: string; uploaded_feature_count: number; feature_count: number; photo_source_ready: boolean; drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean; renderer_available: boolean }> }>('/promotion/readiness'),
     ]);
     return {
@@ -67,6 +67,7 @@ export default function Accounts() {
     { label: 'Product proof', detail: `${castReadiness?.uploaded_feature_count ?? 0}/${castReadiness?.feature_count ?? 6} exact Cast screens`, ready: Boolean(castReadiness && castReadiness.uploaded_feature_count === castReadiness.feature_count) },
     { label: 'Photo source', detail: 'Licensed lifestyle image feed', ready: Boolean(castReadiness?.photo_source_ready) },
     { label: 'Slide renderer', detail: castReadiness?.renderer_available ? 'Reusable 1080×1920 JPEG session online' : 'Renderer unavailable', ready: Boolean(castReadiness?.production_ready) },
+    { label: 'TikTok review', detail: data.status.public_direct_post_ready ? 'Production Direct Post approved' : 'Products and scopes configured; demo and review remain', ready: data.status.public_direct_post_ready },
     { label: 'TikTok channel', detail: castAccount ? `@${castAccount.handle} · ${castAccount.status}` : 'Add the Cast handle below', ready: castAccount?.status === 'connected' },
   ];
 
@@ -89,19 +90,19 @@ export default function Accounts() {
         <footer>
           <p>Cast can draft complete, truth-locked carousels now. One reusable Cloudflare browser session renders both final slides inside the included free allowance. TikTok still requires your consent before delivery.</p>
           {castAccount
-            ? <button className="primary" disabled={!data.status.developer_app_configured} onClick={() => connect(castAccount.id)}>{castAccount.status === 'connected' ? 'REAUTHORIZE CAST' : 'CONNECT CAST TO TIKTOK'}</button>
+            ? <button className="primary" disabled={!data.status.developer_app_configured || !data.status.public_direct_post_ready} onClick={() => connect(castAccount.id)}>{!data.status.public_direct_post_ready ? 'WAITING FOR TIKTOK REVIEW' : castAccount.status === 'connected' ? 'REAUTHORIZE CAST' : 'CONNECT CAST TO TIKTOK'}</button>
             : <button type="button" onClick={() => { if (castApp) setAppId(castApp.id); document.getElementById('account-handle')?.focus(); }}>ADD CAST CHANNEL</button>}
           <Link to="/promote?app=cast">OPEN CAST MISSION →</Link>
         </footer>
       </section>
 
       <section className="account-link-core">
-        <div className={data.status.developer_app_configured ? 'online' : ''}><span>DEVELOPER BRIDGE</span><b>{data.status.developer_app_configured ? 'ONLINE' : 'SETUP REQUIRED'}</b><small>{data.status.scopes.join(' · ')}</small></div>
+        <div className={data.status.public_direct_post_ready ? 'online' : ''}><span>DEVELOPER BRIDGE</span><b>{data.status.public_direct_post_ready ? 'APPROVED' : data.status.developer_app_configured ? `TIKTOK ${data.status.review_state.toUpperCase()}` : 'SETUP REQUIRED'}</b><small>{data.status.scopes.join(' · ')}</small></div>
         {data.apps.map((app) => {
           const account = data.accounts.find((item) => item.app_id === app.id);
           return <article key={app.id}><i className={account?.status === 'connected' ? 'ready' : ''} /><div><span>{app.name.toUpperCase()} CHANNEL</span><b>{account ? `@${account.handle}` : 'NO ACCOUNT ADDED'}</b><small>{account?.status === 'connected' ? 'OAuth publishing link verified' : 'Add the account below, then complete TikTok consent'}</small></div></article>;
         })}
-        <p>Every account authorizes separately. Drafts cannot publish until you approve the exact media, caption, privacy and disclosure.</p>
+        <p>{data.status.public_direct_post_ready ? 'Every account authorizes separately. Drafts cannot publish until you approve the exact media, caption, privacy and disclosure.' : 'Login Kit, Direct Post and analytics scopes are configured. TikTok review and the demo video are still required for public API posting; the review queue provides a manual-post handoff meanwhile.'}</p>
       </section>
 
       {error && <div className="card" style={{ color: 'var(--bad)', marginBottom: 14 }}>{error}</div>}
@@ -124,8 +125,8 @@ export default function Accounts() {
                   </td>
                   <td>{a.daily_post_limit}/day</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button disabled={!data.status.developer_app_configured} onClick={() => connect(a.id)}>
-                      {a.status === 'connected' ? 'Reconnect' : 'Connect'}
+                    <button disabled={!data.status.developer_app_configured || !data.status.public_direct_post_ready} onClick={() => connect(a.id)}>
+                      {!data.status.public_direct_post_ready ? 'Awaiting review' : a.status === 'connected' ? 'Reconnect' : 'Connect'}
                     </button>
                   </td>
                 </tr>

@@ -32,6 +32,8 @@ export default function Queue() {
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [producing, setProducing] = useState<string | null>(null);
+  const [manualPost, setManualPost] = useState<Record<string, string>>({});
+  const [recordingPost, setRecordingPost] = useState<string | null>(null);
 
   const { data, refresh } = useData(async () => {
     const [artifacts, apps, accounts] = await Promise.all([
@@ -86,6 +88,27 @@ export default function Queue() {
     }
   }
 
+  async function recordManualPost(id: string) {
+    const post = manualPost[id]?.trim();
+    if (!post) return;
+    setError(null);
+    setRecordingPost(id);
+    try {
+      await api(`/artifacts/${id}/manual-publish`, { method: 'POST', body: JSON.stringify({ post }) });
+      setManualPost((current) => ({ ...current, [id]: '' }));
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRecordingPost(null);
+    }
+  }
+
+  async function copyPostText(artifact: Artifact) {
+    const tags = artifact.hashtags.map((tag) => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
+    await navigator.clipboard.writeText([artifact.caption, tags].filter(Boolean).join('\n\n'));
+  }
+
   if (!data) return <Empty>Loading…</Empty>;
 
   return (
@@ -121,6 +144,7 @@ export default function Queue() {
             && Boolean(artifact.tiktok_privacy_level)
             && artifact.brand_organic_toggle
             && Boolean(consent[artifact.id]);
+          const quality = artifact.asset_manifest.creative_quality;
 
           return (
             <article className="card" key={artifact.id}>
@@ -164,6 +188,14 @@ export default function Queue() {
               )}
 
               {artifact.error && <p className="mono" style={{ color: 'var(--bad)' }}>{artifact.error}</p>}
+
+              <div className={`creative-score ${quality?.pass ? 'pass' : quality ? 'fail' : 'pending'}`}>
+                <div><span>NATIVE QUALITY GATE</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
+                <p>{quality
+                  ? quality.pass ? 'Specific, readable and native enough to continue to owner review.' : [...quality.blockers, ...quality.warnings].join(' ')
+                  : 'This older draft will be scored when you edit it or try to approve it.'}</p>
+                {isEditable && <button type="button" onClick={() => patch(artifact.id, { hook: artifact.hook })}>Recheck quality</button>}
+              </div>
 
               {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
                 <button
@@ -375,6 +407,22 @@ export default function Queue() {
                   <button onClick={() => patch(artifact.id, { status: 'draft' })}>Back to draft</button>
                 )}
               </div>
+
+              {artifact.status === 'approved' && mediaReady && (
+                <div className="manual-post-handoff">
+                  <div><span>POST NOW // TIKTOK REVIEW FALLBACK</span><b>Download the exact media, copy the caption, then record the live post.</b><small>This keeps the mission usable while TikTok reviews Direct Post. Recording the post links later metrics to this creative.</small></div>
+                  <div className="row">
+                    {artifact.media_type === 'photo'
+                      ? artifact.photo_urls.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer">OPEN SLIDE {index + 1}</a>)
+                      : artifact.video_url && <a href={artifact.video_url} target="_blank" rel="noreferrer">OPEN VIDEO</a>}
+                    <button type="button" onClick={() => copyPostText(artifact)}>COPY CAPTION + TAGS</button>
+                  </div>
+                  <div className="row">
+                    <input value={manualPost[artifact.id] ?? ''} onChange={(event) => setManualPost((current) => ({ ...current, [artifact.id]: event.target.value }))} placeholder="Paste TikTok post URL after posting" />
+                    <button className="primary" type="button" disabled={!manualPost[artifact.id]?.trim() || recordingPost === artifact.id} onClick={() => recordManualPost(artifact.id)}>{recordingPost === artifact.id ? 'RECORDING…' : 'MARK LIVE'}</button>
+                  </div>
+                </div>
+              )}
             </article>
           );
         })}

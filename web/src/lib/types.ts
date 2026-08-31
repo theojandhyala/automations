@@ -76,6 +76,14 @@ export interface Artifact {
     }>;
     source_policy?: string;
     licence_note?: string;
+    creative_quality?: {
+      version: string;
+      score: number;
+      pass: boolean;
+      hook_word_count: number;
+      blockers: string[];
+      warnings: string[];
+    };
   };
   error: string | null;
   scheduled_for: string | null;

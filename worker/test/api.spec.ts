@@ -160,6 +160,35 @@ describe('validation', () => {
 });
 
 describe('artifact transitions', () => {
+  it('records a manually uploaded TikTok post for later analytics', async () => {
+    let patch: Record<string, unknown> | null = null;
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/artifacts\?id=eq/,
+        respond: (call) => {
+          if (call.method === 'PATCH') {
+            patch = call.body as Record<string, unknown>;
+            return jsonResponse([{ id: ARTIFACT_ID, ...patch }]);
+          }
+          return jsonResponse([{ status: 'approved', stages: { review: { state: 'done' } } }]);
+        },
+      },
+    ]);
+
+    const res = await call(apiRequest(`/artifacts/${ARTIFACT_ID}/manual-publish`, {
+      method: 'POST',
+      body: JSON.stringify({ post: 'https://www.tiktok.com/@cast/video/1234567890123456789' }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(patch).toMatchObject({
+      status: 'published',
+      tiktok_post_id: '1234567890123456789',
+      stage: 'analytics',
+    });
+  });
+
   it('refuses a move the state machine does not allow', async () => {
     stubFetch([
       authRoute,
@@ -194,6 +223,15 @@ describe('artifact transitions', () => {
               'https://media.example.test/slide-1.jpg',
               'https://media.example.test/slide-2.jpg',
             ],
+            hook: 'Would you fish this window or wait?',
+            caption: 'I check the conditions before choosing a mark.',
+            hashtags: ['fishing', 'angling', 'cast'],
+            asset_manifest: {
+              format: 'two_slide_photo_carousel',
+              slides: [{ role: 'hook' }, { role: 'feature_proof' }],
+              generated_people: false,
+              fabricated_ui: false,
+            },
             video_url: null,
             account_id: ARTIFACT_ID,
             tiktok_privacy_level: 'SELF_ONLY',
@@ -345,7 +383,8 @@ describe('promotion missions', () => {
     const text = await res.text();
     expect(res.status).toBe(200);
     expect(text).toContain('"review_required":true');
-    expect(text).toContain('"publishing_ready":true');
+    expect(text).toContain('"publishing_ready":false');
+    expect(text).toContain('"tiktok_review_state":"draft"');
     expect(text).not.toContain('MUST-NOT-LEAK');
     expect(text).not.toContain('secret_enc');
     expect(text).not.toContain('access_token_enc');

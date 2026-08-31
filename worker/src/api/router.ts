@@ -4,7 +4,8 @@ import { claimOne, executeRun } from '../lib/runner';
 import { listHandlers } from '../automations/registry';
 import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
-import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, storeTokens } from '../lib/tiktok';
+import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, SCOPES, storeTokens } from '../lib/tiktok';
+import { assessCreativeQuality } from '../lib/creative-quality';
 import { log, errorFields } from '../lib/log';
 import { decrypt, encrypt } from '../lib/crypto';
 import {
@@ -26,6 +27,7 @@ import {
   appStoreCustomCodePreviewSchema,
   createAccountSchema,
   createAutomationSchema,
+  manualPublishSchema,
   parseBody,
   pexelsKeySchema,
   promotionMissionSchema,
@@ -116,6 +118,8 @@ async function promotionReadiness(db: Db, env: Env) {
     db.select<{ app_id: string | null }>('artifacts', 'status=eq.draft&select=app_id&limit=500'),
   ]);
   const publishAgent = automations.find((automation) => automation.handler_key === 'tiktok.publish');
+  const tiktokReviewState = env.TIKTOK_REVIEW_STATE || 'draft';
+  const developerAppApproved = tiktokReviewState === 'approved';
   return {
     free_ai: Boolean(env.AI),
     review_required: true,
@@ -165,6 +169,7 @@ async function promotionReadiness(db: Db, env: Env) {
         blockers.push(`Upload ${requiredCount - uploadedKeys.size} remaining exact ${app.name} screen(s).`);
       }
       if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
+      if (!developerAppApproved) blockers.push('TikTok developer review is not approved yet; use the manual-post handoff meanwhile.');
       return {
         ...app,
         draft_agent_id: draftAgent?.id ?? null,
@@ -182,7 +187,9 @@ async function promotionReadiness(db: Db, env: Env) {
         intelligence_mode: 'performance_learning_with_verified_fallbacks',
         drafting_ready: draftAvailable,
         production_ready: productionReady,
-        publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount),
+        publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount && developerAppApproved),
+        manual_post_ready: productionReady,
+        tiktok_review_state: tiktokReviewState,
         pending_drafts: drafts.filter((draft) => draft.app_id === app.id).length,
         blockers,
       };
@@ -261,12 +268,15 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   }
 
   if (path === '/tiktok/status' && req.method === 'GET') {
+    const reviewState = env.TIKTOK_REVIEW_STATE || 'draft';
     return json({
       developer_app_configured: Boolean(
         env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.TIKTOK_REDIRECT_URI,
       ),
       redirect_uri: env.TIKTOK_REDIRECT_URI ?? null,
-      scopes: ['user.info.basic', 'video.publish', 'video.upload'],
+      scopes: SCOPES,
+      review_state: reviewState,
+      public_direct_post_ready: reviewState === 'approved',
       owner_review_required: true,
     });
   }
@@ -902,6 +912,34 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
   // --- artifacts (the review queue) ---
 
+  const manualPublishMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/manual-publish$/);
+  if (manualPublishMatch && req.method === 'POST') {
+    const id = manualPublishMatch[1]!;
+    const body = await parseBody(req, manualPublishSchema);
+    const artifact = await db.selectOne<Artifact>('artifacts', `id=eq.${id}&select=*`);
+    if (!artifact) return json({ error: 'not found' }, 404);
+    if (artifact.status !== 'approved') {
+      return json({ error: 'approve the exact post before recording a manual TikTok publish' }, 409);
+    }
+    const postId = body.post.match(/\/(?:video|photo)\/(\d{8,30})/)?.[1]
+      ?? body.post.match(/^\d{8,30}$/)?.[0];
+    if (!postId) return json({ error: 'paste a TikTok video/photo URL or numeric post ID' }, 400);
+    const now = new Date().toISOString();
+    const [updated] = await db.update('artifacts', `id=eq.${id}`, {
+      status: 'published',
+      tiktok_post_id: postId,
+      published_at: now,
+      stage: 'analytics',
+      error: null,
+      stages: {
+        ...artifact.stages,
+        publish: { state: 'done', at: now, note: 'Owner posted through TikTok and recorded the public post ID.' },
+        analytics: { state: 'pending', at: now, note: 'Waiting for the next TikTok analytics sync.' },
+      },
+    });
+    return json(updated);
+  }
+
   const artifactMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})(\/produce)?$/);
   if (artifactMatch?.[2] && req.method === 'POST') {
     const id = artifactMatch[1]!;
@@ -972,6 +1010,23 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       if (field in body) patch[field] = body[field];
     }
 
+    const qualityFieldsChanged = ['hook', 'caption', 'hashtags', 'media_type', 'asset_manifest', 'photo_urls', 'video_url']
+      .some((field) => field in body);
+    const targetManifest = body.asset_manifest ?? current.asset_manifest ?? {};
+    const targetMediaType = body.media_type ?? current.media_type;
+    const quality = assessCreativeQuality({
+      hook: body.hook === undefined ? current.hook : body.hook,
+      caption: body.caption === undefined ? current.caption : body.caption,
+      hashtags: body.hashtags ?? current.hashtags ?? [],
+      mediaType: targetMediaType,
+      assetManifest: targetManifest,
+      photoUrls: body.status === 'approved' ? (body.photo_urls ?? current.photo_urls) : undefined,
+      videoUrl: body.status === 'approved' ? (body.video_url === undefined ? current.video_url : body.video_url) : undefined,
+    });
+    if (qualityFieldsChanged) {
+      patch.asset_manifest = { ...targetManifest, creative_quality: quality };
+    }
+
     if ('posting_consent' in body) {
       patch.posting_consent_at = body.posting_consent ? new Date().toISOString() : null;
     }
@@ -1016,6 +1071,12 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         if (!privacy) return json({ error: 'choose a privacy level before approval' }, 400);
         if (!ownBrand) return json({ error: 'confirm that this promotes your own brand before approval' }, 400);
         if (!consented) return json({ error: 'explicit TikTok posting consent is required' }, 400);
+        if (!quality.pass) {
+          return json({
+            error: `Creative quality gate: ${[...quality.blockers, ...quality.warnings].join(' ')}`,
+            quality,
+          }, 422);
+        }
 
         patch.posting_consent_at = new Date().toISOString();
         patch.stage = 'schedule';

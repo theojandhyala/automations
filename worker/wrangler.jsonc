@@ -44,6 +44,7 @@
   "vars": {
     "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",
     "PUBLIC_BASE_URL": "https://automations.theojandhyala.workers.dev",
+    "TIKTOK_REVIEW_STATE": "draft",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3bWd2dWpscXZkY3R6cnlmYmlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMTM3ODMsImV4cCI6MjEwMzY4OTc4M30.sQBCfLDKp6u2ER7ANxnt_stCkbx6qXPWt2UcXo0bw_U",
     "OWNER_EMAIL": "theojandhyala@icloud.com"
   }

@@ -14,6 +14,7 @@ import CreativeStudio from './pages/CreativeStudio';
 import RemoteOperations from './pages/RemoteOperations';
 import PromotionMission from './pages/PromotionMission';
 import ArcReactorMark from './components/ArcReactorMark';
+import Legal from './pages/Legal';
 
 /**
  * The command center is the landing page and gets the full viewport with no
@@ -79,6 +80,9 @@ export default function App() {
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('hud-preview')) {
     return <HudPreview />;
   }
+
+  if (location.pathname === '/privacy') return <Legal kind="privacy" />;
+  if (location.pathname === '/terms') return <Legal kind="terms" />;
 
   if (!ready) return null;
   if (!session) return <Login />;
