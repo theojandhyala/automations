@@ -56,6 +56,12 @@ function stateLabel(state: Mission['status']) {
   return state === 'awaiting_review' ? 'READY FOR YOUR REVIEW' : state.replace('_', ' ').toUpperCase();
 }
 
+function preferredFeatures(library: FeatureReadiness[], count: number) {
+  return [...library.filter((feature) => feature.uploaded), ...library.filter((feature) => !feature.uploaded)]
+    .slice(0, count)
+    .map((feature) => feature.key);
+}
+
 export default function PromotionMission() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedApp = searchParams.get('app');
@@ -80,8 +86,8 @@ export default function PromotionMission() {
     ]);
     setReadiness(nextReadiness);
     setMissions(missionData.missions);
-    setFeatures((current) => current.length ? current : (nextReadiness.feature_libraries.deadset ?? []).slice(0, 3).map((item) => item.key));
-  }, []);
+    setFeatures((current) => current.length ? current : preferredFeatures(nextReadiness.feature_libraries[appSlug] ?? [], count));
+  }, [appSlug, count]);
 
   useEffect(() => {
     refresh().catch((error) => setMessage({ tone: 'bad', text: error.message }));
@@ -103,7 +109,7 @@ export default function PromotionMission() {
     setAppSlug(slug);
     setSearchParams({ app: slug }, { replace: true });
     setAccountId('');
-    setFeatures((readiness?.feature_libraries[slug] ?? []).slice(0, count).map((item) => item.key));
+    setFeatures(preferredFeatures(readiness?.feature_libraries[slug] ?? [], count));
     setAudience(slug === 'cast' ? 'weekend_anglers' : 'consistent_lifters');
     setFormat('photo_carousel');
     setAutoProduce(true);
