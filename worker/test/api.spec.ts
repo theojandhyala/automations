@@ -282,19 +282,19 @@ describe('artifact transitions', () => {
 });
 
 describe('pipeline honesty', () => {
-  it('reports unbuilt stages as not_built, never as ready', async () => {
+  it('reports automated intelligence and reusable rendering as genuinely ready', async () => {
     stubFetch([authRoute]);
     const res = await call(apiRequest('/pipeline'));
     const { stages } = (await res.json()) as {
-      stages: Array<{ key: string; state: string; blocker: string | null }>;
+      stages: Array<{ key: string; state: string; blocker: string | null; description: string }>;
     };
 
     const byKey = Object.fromEntries(stages.map((s) => [s.key, s]));
-    // These have no handler at all and must say so.
-    for (const key of ['research', 'script']) {
-      expect(byKey[key]!.state).toBe('not_built');
-      expect(byKey[key]!.blocker).toBeTruthy();
+    for (const key of ['research', 'concept', 'script', 'assets', 'edit']) {
+      expect(byKey[key]!.state).toBe('ready');
+      expect(byKey[key]!.blocker).toBeNull();
     }
+    expect(byKey.edit!.description).toMatch(/reusable free Browser Run session/);
     // These are wired and configured in the test env.
     expect(byKey['concept']!.state).toBe('ready');
     expect(byKey['assets']!.state).toBe('ready');

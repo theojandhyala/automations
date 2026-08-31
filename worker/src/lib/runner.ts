@@ -168,28 +168,33 @@ export async function executeRun(
 }
 
 /**
- * Cron entrypoint: claim everything due and run it. Runs proceed concurrently
- * but each is independently guarded.
+ * Cron entrypoint: claim everything due and run it. Ordinary runs proceed
+ * concurrently; media producers serialize so they can reuse one browser.
  */
 export async function dispatchDue(env: Env): Promise<{ started: number }> {
   const claimed = await claimDue(env);
   if (claimed.length === 0) return { started: 0 };
 
-  await Promise.all(
-    claimed.map((a) =>
-      executeRun(env, a, 'cron').catch((err) => {
-        log.error('dispatch failed', { automation: a.handler_key, ...errorFields(err) });
-        // The claim would otherwise stay held until it went stale.
-        return new Db(env)
-          .update('automations', `id=eq.${a.id}`, {
-            status: 'failed',
-            running_since: null,
-            current_task: null,
-          })
-          .catch(() => undefined);
-      }),
-    ),
-  );
+  const runClaimed = (automation: Automation) =>
+    executeRun(env, automation, 'cron').catch((err) => {
+      log.error('dispatch failed', { automation: automation.handler_key, ...errorFields(err) });
+      // The claim would otherwise stay held until it went stale.
+      return new Db(env)
+        .update('automations', `id=eq.${automation.id}`, {
+          status: 'failed',
+          running_since: null,
+          current_task: null,
+        })
+        .catch(() => undefined);
+    });
+
+  const producers = claimed.filter((automation) => automation.handler_key === 'tiktok.produce');
+  const other = claimed.filter((automation) => automation.handler_key !== 'tiktok.produce');
+  await Promise.all(other.map(runClaimed));
+  // Browser Run's free plan starts at most one new browser every 20 seconds.
+  // Production runs are serialized so Cast can reuse Deadset's idle session
+  // (or vice versa) rather than racing to launch another browser.
+  for (const producer of producers) await runClaimed(producer);
 
   return { started: claimed.length };
 }

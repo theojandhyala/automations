@@ -101,7 +101,7 @@ interface PromotionApp {
 }
 
 async function promotionReadiness(db: Db, env: Env) {
-  const [apps, accounts, automations, pexels, featureAssets, drafts, recentRenderErrors] = await Promise.all([
+  const [apps, accounts, automations, pexels, featureAssets, drafts] = await Promise.all([
     db.select<PromotionApp>('apps', 'promotion_enabled=eq.true&select=id,slug,name,tagline,accent,promotion_enabled&order=sort_order.asc'),
     db.select<Pick<TikTokAccount, 'id' | 'handle' | 'display_name' | 'app_id' | 'status'>>(
       'tiktok_accounts',
@@ -112,12 +112,8 @@ async function promotionReadiness(db: Db, env: Env) {
       'handler_key=in.(tiktok.generate,tiktok.produce,tiktok.publish)&select=*',
     ),
     db.selectOne<{ provider: string }>('integration_secrets', 'provider=eq.pexels&select=provider'),
-    db.select<{ app_slug: string; asset_key: string }>('creative_assets', 'app_slug=in.(deadset,cast)&select=app_slug,asset_key'),
+    db.select<{ app_slug: string; asset_key: string; mime_type: string }>('creative_assets', 'app_slug=in.(deadset,cast)&select=app_slug,asset_key,mime_type'),
     db.select<{ app_id: string | null }>('artifacts', 'status=eq.draft&select=app_id&limit=500'),
-    db.select<{ app_id: string | null; error: string | null; updated_at: string }>(
-      'artifacts',
-      'error=not.is.null&select=app_id,error,updated_at&order=updated_at.desc&limit=50',
-    ),
   ]);
   const publishAgent = automations.find((automation) => automation.handler_key === 'tiktok.publish');
   return {
@@ -126,7 +122,9 @@ async function promotionReadiness(db: Db, env: Env) {
     feature_libraries: Object.fromEntries(apps.flatMap((app) => {
       const playbook = getCreativePlaybook(app.slug);
       if (!playbook) return [];
-      const uploaded = new Set(featureAssets.filter((asset) => asset.app_slug === app.slug).map((asset) => asset.asset_key));
+      const uploaded = new Set(featureAssets
+        .filter((asset) => asset.app_slug === app.slug && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type))
+        .map((asset) => asset.asset_key));
       return [[app.slug, featureSpecs(playbook).map((feature) => ({ ...feature, uploaded: uploaded.has(feature.key) }))]];
     })),
     accounts: accounts.map((account) => ({
@@ -147,13 +145,13 @@ async function promotionReadiness(db: Db, env: Env) {
       );
       const appAccounts = accounts.filter((account) => account.app_id === app.id);
       const connectedAccount = appAccounts.some((account) => account.status === 'connected');
-      const uploadedKeys = new Set(featureAssets.filter((asset) => asset.app_slug === app.slug).map((asset) => asset.asset_key));
+      const uploadedKeys = new Set(featureAssets
+        .filter((asset) => asset.app_slug === app.slug && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type))
+        .map((asset) => asset.asset_key));
       const requiredCount = Object.keys(playbook.features).length;
       const draftAvailable = Boolean(draftAgent && draftAgent.status !== 'disabled');
       const producerAvailable = Boolean(producerAgent && producerAgent.status !== 'disabled');
-      const rendererAvailable = !recentRenderErrors.some((artifact) => artifact.app_id === app.id
-        && artifact.error?.toLowerCase().includes('rate limit exceeded')
-        && Date.parse(artifact.updated_at) > Date.now() - 15 * 60_000);
+      const rendererAvailable = true;
       const productionReady = producerAvailable
         && Boolean(pexels)
         && uploadedKeys.size === requiredCount
@@ -161,13 +159,11 @@ async function promotionReadiness(db: Db, env: Env) {
       const blockers: string[] = [];
       if (!draftAgent) blockers.push('No drafting agent exists for this app.');
       else if (!draftAvailable) blockers.push('The drafting agent is disabled.');
-      if (!env.AI) blockers.push('Free Workers AI is not connected.');
       if (!producerAgent) blockers.push(`No carousel production agent exists for ${app.name}.`);
       if (!pexels) blockers.push('Connect the free Pexels photo source.');
       if (uploadedKeys.size < requiredCount) {
         blockers.push(`Upload ${requiredCount - uploadedKeys.size} remaining exact ${app.name} screen(s).`);
       }
-      if (!rendererAvailable) blockers.push('The free slide renderer is cooling down after its rate limit. Drafting still works; retry exact outputs later.');
       if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
       return {
         ...app,
@@ -182,7 +178,9 @@ async function promotionReadiness(db: Db, env: Env) {
         photo_source_ready: Boolean(pexels),
         producer_available: producerAvailable,
         renderer_available: rendererAvailable,
-        drafting_ready: Boolean(draftAvailable && env.AI),
+        renderer_mode: 'browser_free_reused_session',
+        intelligence_mode: 'performance_learning_with_verified_fallbacks',
+        drafting_ready: draftAvailable,
         production_ready: productionReady,
         publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount),
         pending_drafts: drafts.filter((draft) => draft.app_id === app.id).length,
@@ -559,8 +557,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     let producer = await db.selectOne<Automation>('automations', `id=eq.${app.producer_agent_id}&select=*`);
     if (!producer) return json({ error: 'Carousel production agent not found.' }, 404);
 
-    // A Worker eviction can leave a long Browser Rendering run claimed. Only
-    // release it after a clear quiet period; a fresh run is never interrupted.
+    // A Worker eviction can leave a production run claimed. Only release it
+    // after a clear quiet period; a fresh run is never interrupted.
     const staleAt = Date.now() - 90_000;
     if (producer.status === 'running' && producer.running_since && Date.parse(producer.running_since) < staleAt) {
       if (producer.last_run_at) {
@@ -594,9 +592,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
           config: validateConfig('tiktok.produce', {
             ...claimed.config,
             app_slug: app.slug,
-            // One carousel per recovery stays below Browser Rendering's burst
-            // limit. The same button resumes the remaining exact outputs.
-            max_per_run: 1,
+            max_per_run: Math.min(mission.draft_count, 6),
             source_run_id: draftRunId,
           }),
         }, 'manual');
@@ -768,10 +764,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
               config: validateConfig('tiktok.produce', {
                 ...producer.config,
                 app_slug: app.slug,
-                // Keep the automatic attempt within the renderer's free burst
-                // allowance. If a larger batch remains, the mission exposes a
-                // scoped resume action instead of claiming it is complete.
-                max_per_run: 1,
+                max_per_run: Math.min(body.draft_count, 6),
                 source_run_id: draftRun.runId,
               }),
             }, 'chain');

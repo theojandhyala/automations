@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getCreativePlaybook, photoSystem, productTruth } from '../src/lib/creative-playbooks';
 import { buildCarouselFallbacks } from '../src/automations/tiktok-generate';
+import { planCreativeFeatures } from '../src/lib/creative-intelligence';
 
 describe('verified creative playbooks', () => {
   it('locks Cast carousels to six real product features', () => {
@@ -46,5 +47,27 @@ describe('verified creative playbooks', () => {
     expect(fallbacks.every((idea) => idea.slides?.length === 2)).toBe(true);
     expect(fallbacks.every((idea) => idea.hashtags.length >= 3)).toBe(true);
     expect(fallbacks.map((idea) => idea.hook)).not.toContain(cast.features.bite_forecast!.fallbackHook);
+  });
+
+  it('uses measured performance without starving untested verified features', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const published = {
+      id: 'published-1', hook: 'old hook', status: 'published', published_at: '2026-08-30T10:00:00Z',
+      asset_manifest: { feature: 'progression_board' },
+    };
+    const plan = planCreativeFeatures(
+      deadset,
+      ['progression_board', 'live_logger', 'workout_plan'],
+      [published],
+      [{ artifact_id: 'published-1', captured_at: '2026-08-31T10:00:00Z', views: 12_000, likes: 800, comments: 90, shares: 140 }],
+      3,
+    );
+
+    expect(plan.mode).toBe('performance_informed');
+    expect(plan.measured_posts).toBe(1);
+    expect(plan.decisions.map((decision) => decision.feature)).toEqual(expect.arrayContaining([
+      'progression_board', 'live_logger', 'workout_plan',
+    ]));
+    expect(plan.decisions.find((decision) => decision.feature === 'progression_board')?.latest_views).toBe(12_000);
   });
 });

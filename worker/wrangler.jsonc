@@ -33,8 +33,9 @@
     "remote": true
   },
 
-  // Low-volume Quick Actions slide rendering stays within Browser Run's
-  // included free-plan allowance and needs no provider API token.
+  // One session renders both carousel slides and is then left available for
+  // the next Cast/Deadset job. This stays inside Browser Run's free allowance
+  // and avoids Quick Action request bursts.
   "browser": {
     "binding": "BROWSER"
   },

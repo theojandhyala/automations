@@ -165,14 +165,14 @@ export default function Queue() {
 
               {artifact.error && <p className="mono" style={{ color: 'var(--bad)' }}>{artifact.error}</p>}
 
-              {artifact.status === 'draft' && artifact.media_type === 'photo' && !mediaReady && (
+              {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
                 <button
                   className="primary"
                   onClick={() => produce(artifact.id)}
                   disabled={producing === artifact.id}
                   style={{ marginBottom: 14 }}
                 >
-                  {producing === artifact.id ? 'Starting production…' : 'Build final slides'}
+                  {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
                 </button>
               )}
 

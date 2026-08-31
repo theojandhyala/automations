@@ -62,4 +62,3 @@ export async function streamMedia(env: Env, path: string, req: Request): Promise
 export function publicMediaUrl(env: Env, path: string): string {
   return `${env.PUBLIC_BASE_URL.replace(/\/$/, '')}/media/${path}`;
 }
-

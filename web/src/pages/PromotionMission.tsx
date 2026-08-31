@@ -16,6 +16,7 @@ interface PromotionApp {
   pending_drafts: number; blockers: string[]; playbook_version: string; content_domain: 'fitness' | 'fishing';
   uploaded_feature_keys: string[]; uploaded_feature_count: number; feature_count: number;
   photo_source_ready: boolean; producer_available: boolean; renderer_available: boolean;
+  renderer_mode: 'browser_free_reused_session'; intelligence_mode: 'performance_learning_with_verified_fallbacks';
 }
 interface Readiness {
   free_ai: boolean; review_required: true; feature_libraries: Record<string, FeatureReadiness[]>;
@@ -107,13 +108,11 @@ export default function PromotionMission() {
   const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady && selectedApp.renderer_available);
   const productionStatus = !selectedApp?.producer_available
     ? 'Production agent needs attention'
-    : !selectedApp.renderer_available
-      ? 'Free slide renderer is cooling down; retry exact outputs later'
     : !selectedAssetsReady
       ? 'Finish the selected screens in Creative Studio'
       : !selectedApp.photo_source_ready
         ? 'Connect the free Pexels source in Creative Studio'
-        : 'Licensed source + selected exact screens ready';
+        : 'Local renderer + licensed source + exact screens ready';
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
 
@@ -238,7 +237,7 @@ export default function PromotionMission() {
         <aside className="mission-sidebar">
           <section className="mission-status-card">
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
-            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `Truth-locked playbook ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `Learns from results · rotates fresh proof · verified fallback · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
             <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Publishing agent and account ready' : 'Drafting still works; connect an account later'}</small></div></div>
             <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>

@@ -2,6 +2,7 @@ import { decrypt } from '../lib/crypto';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
+import { renderCarouselSlides } from '../lib/slide-renderer';
 import type { Db } from '../lib/db';
 import type { Artifact, Env } from '../types';
 import type { Handler } from './registry';
@@ -44,62 +45,28 @@ export interface ProductionResult {
   photo_urls?: string[];
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function slideHtml(imageUrl: string, overlay: string, role: 'hook' | 'feature'): string {
-  const fontSize = role === 'hook'
-    ? overlay.length > 80 ? 68 : overlay.length > 52 ? 78 : 90
-    : overlay.length > 60 ? 54 : 64;
-  const imageFit = role === 'hook' ? 'cover' : 'contain';
-  const position = role === 'hook' ? 'center 43%' : 'center center';
-  const overlayPosition = role === 'hook'
-    ? 'top: 27%; left: 70px; right: 70px;'
-    : 'bottom: 150px; left: 64px; right: 64px;';
-  const shade = role === 'hook'
-    ? '<div class="shade"></div>'
-    : '<div class="feature-shade"></div>';
-
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><style>
-*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#06070a}
-body{font-family:Arial,Helvetica,sans-serif;color:#fff}
-.photo{position:absolute;inset:0;width:100%;height:100%;object-fit:${imageFit};object-position:${position};background:#06070a}
-.shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.05) 46%,rgba(0,0,0,.24))}
-.feature-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 66%,rgba(0,0,0,.35))}
-.copy{position:absolute;${overlayPosition}text-align:center;font-size:${fontSize}px;font-weight:900;line-height:1.08;letter-spacing:-2px;color:#fff;
- text-shadow:-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000,4px 4px 0 #000,0 6px 12px rgba(0,0,0,.55);overflow-wrap:anywhere}
-</style></head><body><img class="photo" src="${escapeHtml(imageUrl)}">${shade}<div class="copy">${escapeHtml(overlay)}</div></body></html>`;
-}
-
-async function renderSlide(
-  env: Env,
-  imageUrl: string,
-  overlay: string,
-  role: 'hook' | 'feature',
-): Promise<Uint8Array> {
-  const response = await env.BROWSER.quickAction('screenshot', {
-    html: slideHtml(imageUrl, overlay, role),
-    viewport: { width: 1080, height: 1920, deviceScaleFactor: 1 },
-    screenshotOptions: { type: 'jpeg', quality: 92 },
-    gotoOptions: { waitUntil: 'networkidle0', timeout: 30_000 },
-  });
-  if (!response.ok) {
-    throw new Error(`Cloudflare slide render failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
-  }
-  return new Uint8Array(await response.arrayBuffer());
-}
-
-function choosePhoto(photos: PexelsPhoto[], artifactId: string): PexelsPhoto | null {
+function choosePhoto(photos: PexelsPhoto[], artifactId: string, category: 'fitness' | 'fishing'): PexelsPhoto | null {
   if (photos.length === 0) return null;
+  const categoryTerms = category === 'fitness'
+    ? ['gym', 'fitness', 'workout', 'weight', 'barbell', 'lifter', 'athlete', 'exercise', 'training']
+    : ['fish', 'fishing', 'angler', 'lake', 'river', 'sea', 'coast', 'rod', 'catch'];
+  const relevant = photos.filter((photo) => {
+    const alt = photo.alt.toLowerCase();
+    return categoryTerms.some((term) => alt.includes(term));
+  });
+  // Pexels orders by relevance. Prefer results whose alt text confirms the app
+  // category, then vary only among the first six strong matches.
+  const pool = (relevant.length ? relevant : photos).slice(0, 6);
   const seed = [...artifactId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return photos[seed % photos.length] ?? null;
+  return pool[seed % pool.length] ?? null;
+}
+
+function renderedHook(artifactHook: string | null, plannedOverlay: string | undefined): string {
+  const preferred = artifactHook?.trim() ?? '';
+  const words = preferred.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return preferred.length >= 8 && words.length >= 2
+    ? preferred
+    : plannedOverlay?.trim() || 'One detail I check before the next session';
 }
 
 async function providerKey(env: Env, db: Db): Promise<string | null> {
@@ -136,13 +103,16 @@ async function preflightArtifact(env: Env, db: Db, artifact: Artifact, appSlug: 
   const featureKey = featureSlide?.app_asset_key ?? (typeof manifest.feature === 'string' ? manifest.feature : null);
   if (!featureKey || !(featureKey in playbook.features)) return `Draft does not name a verified ${playbook.appName} feature screen.`;
   const [feature, key] = await Promise.all([
-    db.selectOne<{ id: string }>(
+    db.selectOne<{ id: string; mime_type: string }>(
       'creative_assets',
-      `app_slug=eq.${encodeURIComponent(appSlug)}&asset_key=eq.${encodeURIComponent(featureKey)}&select=id`,
+      `app_slug=eq.${encodeURIComponent(appSlug)}&asset_key=eq.${encodeURIComponent(featureKey)}&select=id,mime_type`,
     ),
     providerKey(env, db),
   ]);
   if (!feature) return `Upload the exact ${playbook.appName} “${featureKey}” screen in Creative studio.`;
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(feature.mime_type)) {
+    return `Replace the ${playbook.appName} “${featureKey}” screen with PNG, JPEG or WebP.`;
+  }
   if (!key) return 'Connect a free Pexels API key in Creative studio.';
   return null;
 }
@@ -173,17 +143,36 @@ export async function produceArtifact(
   if (!feature) {
     return { state: 'blocked', reason: `Upload the exact ${playbook.appName} “${featureKey}” screen in Creative studio.` };
   }
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(feature.mime_type)) {
+    return { state: 'blocked', reason: `Replace the ${playbook.appName} “${featureKey}” screen with PNG, JPEG or WebP.` };
+  }
 
   const key = await providerKey(env, db);
   if (!key) return { state: 'blocked', reason: 'Connect a free Pexels API key in Creative studio.' };
 
-  const query = hookSlide.asset_query?.trim() || playbook.features[featureKey]!.stockDirection;
-  const stock = choosePhoto(await searchPexels(key, query), artifact.id);
+  // The verified feature playbook owns the visual search. Model-authored asset
+  // queries remain in old manifests for traceability but cannot steer sourcing.
+  const query = playbook.features[featureKey]!.stockDirection;
+  const stock = choosePhoto(await searchPexels(key, query), artifact.id, playbook.category);
   if (!stock) return { state: 'blocked', reason: `No licensed portrait photo found for “${query}”.` };
+  const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
+  const featureOverlay = playbook.features[featureKey]!.fallbackProofOverlay;
 
-  const hookBytes = await renderSlide(env, stock.src.original, hookSlide.overlay ?? artifact.hook ?? '', 'hook');
-  const featureUrl = publicMediaUrl(env, feature.storage_path);
-  const featureBytes = await renderSlide(env, featureUrl, featureSlide.overlay ?? '', 'feature');
+  const [hookBytes, featureBytes] = await renderCarouselSlides(
+    env,
+    {
+      imageUrl: stock.src.portrait,
+      overlay: hookOverlay,
+      role: 'hook',
+    },
+    {
+      imageUrl: publicMediaUrl(env, feature.storage_path),
+      // Re-apply the current verified payoff at render time so older queued
+      // drafts also benefit from updated truth and legibility rules.
+      overlay: featureOverlay,
+      role: 'feature',
+    },
+  );
   const nonce = crypto.randomUUID();
   const hookPath = `outputs/${artifact.id}/slide-1-${nonce}.jpg`;
   const featurePath = `outputs/${artifact.id}/slide-2-${nonce}.jpg`;
@@ -195,20 +184,27 @@ export async function produceArtifact(
   const now = new Date().toISOString();
   const photoUrls = [publicMediaUrl(env, hookPath), publicMediaUrl(env, featurePath)];
   await db.update('artifacts', `id=eq.${artifact.id}`, {
+    hook: hookOverlay,
     photo_urls: photoUrls,
+    error: null,
     stage: 'review',
     stages: {
       ...artifact.stages,
       assets: { state: 'done', at: now, note: `Licensed Pexels photo ${stock.id} + owner-uploaded ${featureKey}` },
-      edit: { state: 'done', at: now, note: 'Rendered as two 1080×1920 JPEG slides' },
+      edit: { state: 'done', at: now, note: 'Rendered in one reusable session as two 1080×1920 JPEG slides' },
       review: { state: 'pending' },
     },
     asset_manifest: {
       ...manifest,
+      slides: [
+        { ...hookSlide, overlay: hookOverlay, asset_query: query },
+        { ...featureSlide, overlay: featureOverlay, app_asset_key: featureKey },
+      ],
       production: {
         rendered_at: now,
         dimensions: { width: 1080, height: 1920 },
         output_format: 'image/jpeg',
+        renderer: 'cloudflare_browser_reused_session',
         stock: {
           provider: 'pexels',
           id: stock.id,
@@ -252,9 +248,7 @@ export const produceCarousels: Handler = {
     const appSlug = config.app_slug ?? 'deadset';
     const playbook = getCreativePlaybook(appSlug);
     if (!playbook) throw new Error(`no verified production playbook for "${appSlug}"`);
-    // One artifact per run avoids Browser Rendering burst limits. Scheduled
-    // runs keep advancing the most recent incomplete mission safely.
-    const maxPerRun = 1;
+    const maxPerRun = Math.min(Math.max(config.max_per_run ?? 3, 1), 6);
     const app = await ctx.db.selectOne<{ id: string }>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
 
@@ -304,37 +298,33 @@ export const produceCarousels: Handler = {
     }
     if (ready.length === 0) return { produced, blocked: blocked.length, blockers: blocked };
 
-    // Browser Rendering is I/O-bound. Three artifacts at a time stays inside
-    // the free-plan browser concurrency while preventing a normal mission from
-    // outliving the Worker's waitUntil window.
-    for (let start = 0; start < ready.length; start += 3) {
-      const batch = ready.slice(start, start + 3);
-      await Promise.all(batch.map(async (artifact) => {
-        try {
-          const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
-          if (result.state === 'produced') {
-            produced += 1;
-            ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
-          } else {
-            blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
-            ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
-            await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-              error: result.reason,
-              stage: 'assets',
-              stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
-            });
-          }
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : String(error);
-          blocked.push({ id: artifact.id, reason });
-          ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
+    // Sequential artifacts reconnect to the same idle browser session, avoiding
+    // the free plan's one-new-browser-per-20-seconds burst limit.
+    for (const artifact of ready) {
+      try {
+        const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
+        if (result.state === 'produced') {
+          produced += 1;
+          ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
+        } else {
+          blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
+          ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-            error: reason,
+            error: result.reason,
             stage: 'assets',
-            stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
+            stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
           });
         }
-      }));
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        blocked.push({ id: artifact.id, reason });
+        ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
+        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+          error: reason,
+          stage: 'assets',
+          stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
+        });
+      }
     }
     if (activeMission) await syncMissionOutput(ctx.db, activeMission);
     return { produced, blocked: blocked.length, blockers: blocked };

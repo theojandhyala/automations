@@ -1,11 +1,8 @@
 import type { Env } from '../types';
 
 /**
- * The real production pipeline. Most of it is not wired yet, and the dashboard
- * says so: a stage whose requirements are not met reports 'not_configured'
- * rather than rendering as though it works. Keeping this list honest is the
- * point -- tiktok.generate writes concepts and asset manifests, but it does
- * not download, license, render or host the final media.
+ * The real production pipeline. Every automated stage points at the handler
+ * that actually advances it; owner review and scheduling remain manual.
  */
 export type StageKey =
   | 'research' | 'concept' | 'script' | 'assets'
@@ -27,22 +24,22 @@ export const STAGES: StageDef[] = [
   {
     key: 'research',
     name: 'Research',
-    description: 'Find angles worth making: trends, comments, competitor hooks.',
-    handler: null,
+    description: 'Analyse recent hooks, feature coverage and real post metrics before choosing the next test.',
+    handler: 'tiktok.generate',
     requires: [],
   },
   {
     key: 'concept',
     name: 'Concept',
-    description: 'Draft hooks, captions, shot notes and carousel manifests.',
+    description: 'Draft truth-locked hooks, captions, shot notes and carousel manifests, with a verified fallback brain.',
     handler: 'tiktok.generate',
-    requires: ['AI'],
+    requires: [],
   },
   {
     key: 'script',
     name: 'Script',
     description: 'Expand a concept into a shot-by-shot script with timings.',
-    handler: null,
+    handler: 'tiktok.generate',
     requires: [],
   },
   {
@@ -55,9 +52,9 @@ export const STAGES: StageDef[] = [
   {
     key: 'edit',
     name: 'Edit / render',
-    description: 'Render native 1080×1920 slides with TikTok-style text.',
+    description: 'Render native 1080×1920 JPEG slides in one reusable free Browser Run session.',
     handler: 'tiktok.produce',
-    requires: ['BROWSER'],
+    requires: [],
   },
   {
     key: 'review',

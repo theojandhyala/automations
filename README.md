@@ -68,11 +68,11 @@ The Deadset photo workflow now runs from concept through final hosted media.
 
 | Stage | State |
 | --- | --- |
-| Research | Not built |
-| Concept | Automated (`tiktok.generate`) |
-| Script | Not built |
+| Research | Automated from recent hooks, feature coverage and post metrics (`tiktok.generate`) |
+| Concept | Automated with Workers AI plus verified deterministic fallbacks (`tiktok.generate`) |
+| Script | Automated for video briefs and two-slide carousel sequences (`tiktok.generate`) |
 | Assets / footage | Automated (`tiktok.produce`) with Pexels + the exact-screen library |
-| Edit / render | Automated (`tiktok.produce`) with Cloudflare Browser Run Quick Actions |
+| Edit / render | Automated (`tiktok.produce`) with one reusable free Browser Run session |
 | Review | You do this, in the queue |
 | Schedule | You do this |
 | Publish | Automated (`tiktok.publish`) |
@@ -81,9 +81,16 @@ The Deadset photo workflow now runs from concept through final hosted media.
 The Creative studio is the anywhere-control surface. Add a free Pexels API key
 there (encrypted at rest), upload the six exact current Deadset feature screens,
 and the production agent will find a licensed portrait photo, record its source,
-render two 1080×1920 JPEG slides, store them privately and expose stable Worker
-media URLs. It runs every 15 minutes or on demand. Approval still rejects
+render two 1080×1920 JPEG slides in one reusable Cloudflare Browser Run session, store them privately and expose stable Worker
+media URLs. It runs every 15 minutes or on demand and stays within Cloudflare's included free allowance. Approval still rejects
 anything without final ordered photo URLs.
+
+Before each carousel batch, the content brain analyses recent hooks, verified
+feature coverage and the latest per-post TikTok metrics. It balances proven
+features with under-tested ones, records the decision in each artifact, and
+continues from a truth-locked fallback library when the free Workers AI daily
+allowance is unavailable. It never invents capabilities or approves its own
+output.
 
 Two more things are deliberately unconfigured:
 
@@ -152,13 +159,14 @@ tokens at rest, so a database dump on its own does not hand over posting access.
 Concept generation uses the Worker-native `AI` binding with
 `@cf/meta/llama-3.1-8b-instruct-fp8-fast`; it needs no OpenAI or Anthropic API
 key. On Cloudflare's Free plan, inference stops when the daily free allocation
-is exhausted instead of incurring paid overage. The generator also caps each
+is exhausted instead of incurring paid overage. Carousel missions then continue
+through the verified deterministic creative fallback rather than failing. The generator also caps each
 brand at four runs per UTC day to prevent accidental manual-trigger loops.
 
-Carousel rendering uses Cloudflare Browser Run Quick Actions. The production
-volume is designed to fit inside the Free plan's included browser allowance;
-it does not use OpenAI or Anthropic credits. Pexels also has a free API: enter
-that key in Creative studio rather than adding it to source or Wrangler vars.
+Carousel rendering uses one reusable Browser Run session for both slides, so it
+avoids the Quick Action burst that previously caused 429s and stays within
+Cloudflare's included free allowance. It does not use OpenAI or Anthropic credits. Pexels also has a free API:
+enter that key in Creative studio rather than adding it to source or Wrangler vars.
 
 ### 3. Deploy
 

@@ -122,7 +122,7 @@ export default function CreativeStudio() {
       </div>
 
       <section className="card production-console">
-        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders two hosted 1080×1920 slides, records source provenance and stops at owner review.</p></div>
+        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders hosted 1080×1920 JPEG slides in one reusable free Browser Run session, records source provenance and stops at owner review.</p></div>
         <button className="primary" onClick={runProducer} disabled={!data.producer || data.producer.status === 'running' || busy === 'producer'}>{data.producer?.status === 'running' || busy === 'producer' ? 'Building…' : `Build waiting ${data.app.name} drafts`}</button>
       </section>
     </div>

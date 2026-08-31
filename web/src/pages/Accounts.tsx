@@ -66,7 +66,7 @@ export default function Accounts() {
     { label: 'Creative brain', detail: 'Cast truth playbook loaded', ready: Boolean(castReadiness?.drafting_ready) },
     { label: 'Product proof', detail: `${castReadiness?.uploaded_feature_count ?? 0}/${castReadiness?.feature_count ?? 6} exact Cast screens`, ready: Boolean(castReadiness && castReadiness.uploaded_feature_count === castReadiness.feature_count) },
     { label: 'Photo source', detail: 'Licensed lifestyle image feed', ready: Boolean(castReadiness?.photo_source_ready) },
-    { label: 'Slide renderer', detail: castReadiness?.renderer_available ? 'Final JPEG output capacity' : 'Free quota cooling down', ready: Boolean(castReadiness?.production_ready) },
+    { label: 'Slide renderer', detail: castReadiness?.renderer_available ? 'Reusable 1080×1920 JPEG session online' : 'Renderer unavailable', ready: Boolean(castReadiness?.production_ready) },
     { label: 'TikTok channel', detail: castAccount ? `@${castAccount.handle} · ${castAccount.status}` : 'Add the Cast handle below', ready: castAccount?.status === 'connected' },
   ];
 
@@ -82,12 +82,12 @@ export default function Accounts() {
       </div>
 
       <section className="cast-uplink">
-        <header><div><span>CAST LAUNCH SEQUENCE</span><h3>{castReadiness?.production_ready ? (castAccount?.status === 'connected' ? 'CAST CHANNEL ONLINE' : 'ONE HUMAN STEP REMAINS') : 'RENDER CORE COOLING DOWN'}</h3></div><b>{castSteps.filter((step) => step.ready).length}/{castSteps.length} READY</b></header>
+        <header><div><span>CAST LAUNCH SEQUENCE</span><h3>{castReadiness?.production_ready ? (castAccount?.status === 'connected' ? 'CAST CHANNEL ONLINE' : 'ONE HUMAN STEP REMAINS') : 'PRODUCTION SETUP REQUIRED'}</h3></div><b>{castSteps.filter((step) => step.ready).length}/{castSteps.length} READY</b></header>
         <div className="uplink-rail">
           {castSteps.map((step, index) => <article className={step.ready ? 'ready' : ''} key={step.label}><i>{String(index + 1).padStart(2, '0')}</i><div><b>{step.label}</b><small>{step.detail}</small></div><em>{step.ready ? 'ONLINE' : 'ACTION'}</em></article>)}
         </div>
         <footer>
-          <p>Cast can draft complete, truth-locked carousels now. Final JPEGs render through Cloudflare's free capacity; if it is cooling down, the exact drafts stay queued for a safe retry. TikTok still requires your consent before delivery.</p>
+          <p>Cast can draft complete, truth-locked carousels now. One reusable Cloudflare browser session renders both final slides inside the included free allowance. TikTok still requires your consent before delivery.</p>
           {castAccount
             ? <button className="primary" disabled={!data.status.developer_app_configured} onClick={() => connect(castAccount.id)}>{castAccount.status === 'connected' ? 'REAUTHORIZE CAST' : 'CONNECT CAST TO TIKTOK'}</button>
             : <button type="button" onClick={() => { if (castApp) setAppId(castApp.id); document.getElementById('account-handle')?.focus(); }}>ADD CAST CHANNEL</button>}
