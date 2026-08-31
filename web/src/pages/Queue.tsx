@@ -3,6 +3,7 @@ import { api, supabase } from '../lib/supabase';
 import { useData } from '../lib/useData';
 import { Ago, Dot, Empty } from '../components/bits';
 import type { Account, App, Artifact, TikTokPrivacyLevel } from '../lib/types';
+import { formatHashtags, normalizeHashtags } from '../lib/hashtags';
 
 const FILTERS = ['draft', 'approved', 'publishing', 'published', 'failed', 'rejected'] as const;
 
@@ -120,7 +121,7 @@ export default function Queue() {
   }
 
   async function copyPostText(artifact: Artifact) {
-    const tags = artifact.hashtags.map((tag) => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
+    const tags = formatHashtags(artifact.hashtags);
     await navigator.clipboard.writeText([artifact.caption, tags].filter(Boolean).join('\n\n'));
   }
 
@@ -251,14 +252,16 @@ export default function Queue() {
                     />
                   </div>
                   <div className="field">
-                    <label>Editable hashtags (space separated)</label>
+                    <label>Real TikTok hashtags (kept separate automatically)</label>
                     <input
-                      defaultValue={artifact.hashtags.map((tag) => tag.startsWith('#') ? tag : `#${tag}`).join(' ')}
+                      defaultValue={formatHashtags(artifact.hashtags)}
                       onBlur={(event) => {
-                        const tags = event.target.value.split(/\s+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean);
+                        const tags = normalizeHashtags([event.target.value]);
+                        event.target.value = formatHashtags(tags);
                         if (JSON.stringify(tags) !== JSON.stringify(artifact.hashtags)) patch(artifact.id, { hashtags: tags });
                       }}
                     />
+                    <small className="muted">TikTok receives: {formatHashtags(artifact.hashtags) || 'add 3–5 hashtags'}</small>
                   </div>
 
                   <div className="grid" style={{ gridTemplateColumns: '170px 1fr' }}>

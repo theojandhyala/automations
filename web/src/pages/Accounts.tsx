@@ -57,6 +57,21 @@ export default function Accounts() {
     window.location.href = url;
   }
 
+  async function updateHandle(id: string, currentHandle: string, nextValue: string) {
+    const nextHandle = nextValue.trim().replace(/^@/, '');
+    if (!nextHandle || nextHandle === currentHandle) return;
+    setError(null);
+    try {
+      await api(`/tiktok/accounts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ handle: nextHandle }),
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   if (!data) return <Empty>Loading…</Empty>;
 
   const castApp = data.apps.find((app) => app.slug === 'cast');
@@ -116,7 +131,18 @@ export default function Accounts() {
             <tbody>
               {data.accounts.map((a) => (
                 <tr key={a.id}>
-                  <td><div className="row"><Dot status={a.status} /> @{a.handle}</div></td>
+                  <td>
+                    <div className="row">
+                      <Dot status={a.status} />
+                      <input
+                        aria-label={`TikTok handle for ${data.apps.find((x) => x.id === a.app_id)?.name ?? 'account'}`}
+                        className="mono"
+                        defaultValue={`@${a.handle}`}
+                        onBlur={(event) => updateHandle(a.id, a.handle, event.target.value)}
+                        style={{ minWidth: 150 }}
+                      />
+                    </div>
+                  </td>
                   <td className="muted">{data.apps.find((x) => x.id === a.app_id)?.name ?? '—'}</td>
                   <td>
                     {a.status === 'connected'

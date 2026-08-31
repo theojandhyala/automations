@@ -1,9 +1,10 @@
 import { accessTokenFor, creatorInfo, initPhotoPublish, initVideoPublish } from '../lib/tiktok';
+import { formatHashtags } from '../lib/hashtags';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
-function captionFor(artifact: Artifact): string {
-  const tags = artifact.hashtags.map((t) => (t.startsWith('#') ? t : `#${t}`)).join(' ');
+export function captionFor(artifact: Artifact): string {
+  const tags = formatHashtags(artifact.hashtags);
   return [artifact.caption ?? artifact.hook ?? '', tags].filter(Boolean).join('\n\n').slice(0, 2200);
 }
 

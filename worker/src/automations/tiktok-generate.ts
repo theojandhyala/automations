@@ -7,6 +7,7 @@ import {
   type CreativeMetricSignal,
 } from '../lib/creative-intelligence';
 import { assessCreativeQuality } from '../lib/creative-quality';
+import { normalizeHashtags } from '../lib/hashtags';
 import type { Handler } from './registry';
 
 interface App {
@@ -283,6 +284,7 @@ export const generateDrafts: Handler = {
       const hook = idea.hook?.trim() ?? '';
       return {
         ...idea,
+        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
         // Product-proof routing is campaign configuration, not a creative
         // model decision. The model is told the assignment, while the stored
         // key is always taken from the verified server-side rotation.
@@ -393,7 +395,7 @@ export const generateDrafts: Handler = {
       const creativeQuality = assessCreativeQuality({
         hook: idea.hook,
         caption: finalCaption,
-        hashtags: Array.isArray(idea.hashtags) ? idea.hashtags.slice(0, 5) : [],
+        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
         mediaType: isCarousel ? 'photo' : 'video',
         assetManifest: isCarousel ? { format: 'two_slide_photo_carousel', slides } : {},
       });
@@ -431,7 +433,7 @@ export const generateDrafts: Handler = {
         // instructions, and the review queue is where they are actually needed.
         shot_notes: idea.shot_notes ?? null,
         script: idea.script ?? null,
-        hashtags: Array.isArray(idea.hashtags) ? idea.hashtags.slice(0, 5) : [],
+        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
         media_type: isCarousel ? 'photo' : 'video',
         asset_manifest: isCarousel
           ? {

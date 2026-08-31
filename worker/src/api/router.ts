@@ -6,6 +6,7 @@ import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
 import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, SCOPES, storeTokens } from '../lib/tiktok';
 import { assessCreativeQuality } from '../lib/creative-quality';
+import { normalizeHashtags } from '../lib/hashtags';
 import { log, errorFields } from '../lib/log';
 import { decrypt, encrypt } from '../lib/crypto';
 import {
@@ -1050,6 +1051,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       ] as const) {
       if (field in body) patch[field] = body[field];
     }
+    const targetHashtags = normalizeHashtags(body.hashtags ?? current.hashtags ?? []);
+    if ('hashtags' in body) patch.hashtags = targetHashtags;
 
     const qualityFieldsChanged = ['hook', 'caption', 'hashtags', 'media_type', 'asset_manifest', 'photo_urls', 'video_url']
       .some((field) => field in body);
@@ -1058,7 +1061,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const quality = assessCreativeQuality({
       hook: body.hook === undefined ? current.hook : body.hook,
       caption: body.caption === undefined ? current.caption : body.caption,
-      hashtags: body.hashtags ?? current.hashtags ?? [],
+      hashtags: targetHashtags,
       mediaType: targetMediaType,
       assetManifest: targetManifest,
       photoUrls: body.status === 'approved' ? (body.photo_urls ?? current.photo_urls) : undefined,

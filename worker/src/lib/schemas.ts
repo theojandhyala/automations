@@ -22,6 +22,13 @@ const tiktokPrivacy = z.enum([
   'MUTUAL_FOLLOW_FRIENDS',
   'SELF_ONLY',
 ]);
+const tiktokHandle = z
+  .string()
+  .trim()
+  .min(2)
+  .max(30)
+  .transform((value) => value.replace(/^@/, ''))
+  .refine((value) => /^[A-Za-z0-9._]+$/.test(value), 'handle may only contain letters, numbers, dots and underscores');
 
 export const createAutomationSchema = z.object({
   handler_key: z.string().min(1),
@@ -84,19 +91,14 @@ export const manualApproveSchema = z.object({
 });
 
 export const createAccountSchema = z.object({
-  handle: z
-    .string()
-    .trim()
-    .min(2)
-    .max(30)
-    .transform((v) => v.replace(/^@/, ''))
-    .refine((v) => /^[A-Za-z0-9._]+$/.test(v), 'handle may only contain letters, numbers, dots and underscores'),
+  handle: tiktokHandle,
   app_id: uuid.nullish(),
   daily_post_limit: z.number().int().min(1).max(10).default(2),
 });
 
 export const updateAccountSchema = z
   .object({
+    handle: tiktokHandle,
     display_name: z.string().max(120).nullable(),
     app_id: uuid.nullable(),
     daily_post_limit: z.number().int().min(1).max(10),

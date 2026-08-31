@@ -1,3 +1,5 @@
+import { normalizeHashtags } from './hashtags';
+
 export interface CreativeQualityInput {
   hook: string | null;
   caption: string | null;
@@ -87,7 +89,12 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
     score -= 10;
     warnings.push('Shorten the caption so the product proof does the selling.');
   }
-  const hashtags = input.hashtags ?? [];
+  const rawHashtags = input.hashtags ?? [];
+  const hashtags = normalizeHashtags(rawHashtags);
+  const joinedHashtags = rawHashtags.some((tag) => (tag.match(/#/g) ?? []).length > 1);
+  if (joinedHashtags) {
+    blockers.push('Hashtags must be separate tokens, for example #gymtok #gymprogress.');
+  }
   if (hashtags.length < 3 || hashtags.length > 5) {
     score -= 10;
     warnings.push('Use three to five relevant hashtags.');
