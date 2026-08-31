@@ -129,6 +129,11 @@ export const generateDrafts: Handler = {
     const allowedFeatures = (config.feature_rotation?.length ? config.feature_rotation : featureKeys)
       .filter((key) => key in playbook.features);
     if (isCarousel && allowedFeatures.length === 0) throw new Error('no verified feature keys are enabled for this carousel');
+    // Ask for spare candidates because the deterministic truth gate may reject
+    // a structurally valid model response. This is especially important for a
+    // one-concept mission, where one wrong free-form feature key previously
+    // caused the entire run to fail without a second chance.
+    const candidateCount = isCarousel ? Math.min(Math.max(count * 3, count), 10) : count;
     const { ideas } = await completeJson<{ ideas: DraftIdea[] }>(ctx.env, {
       system: isCarousel ? photoSystem(playbook) : `${SYSTEM}\n\n${productTruth(playbook)}`,
       maxTokens: isCarousel ? 2800 : 2600,
@@ -138,10 +143,15 @@ export const generateDrafts: Handler = {
         isCarousel
           ? `Allowed feature rotation: ${allowedFeatures.join(', ')}`
           : null,
+        isCarousel && allowedFeatures.length === 1
+          ? `Every candidate MUST use this exact feature key: ${allowedFeatures[0]}. Its hook and proof must directly resolve through that feature.`
+          : null,
         config.extra_context ? `Context: ${config.extra_context}` : null,
         config.creative_brief ? `Creative brief: ${JSON.stringify(config.creative_brief)}` : null,
         recentHooks.length ? `Already used, do not repeat:\n- ${recentHooks.join('\n- ')}` : null,
-        `Write ${count} new ideas.`,
+        isCarousel
+          ? `Write ${candidateCount} distinct candidate ideas. The system will keep the best ${count} that pass its truth checks.`
+          : `Write ${count} new ideas.`,
       ]
         .filter(Boolean)
         .join('\n'),

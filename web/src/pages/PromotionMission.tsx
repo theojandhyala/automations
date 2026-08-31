@@ -31,7 +31,7 @@ const GOALS: Array<{ value: Goal; title: string; copy: string }> = [
   { value: 'downloads', title: 'More downloads', copy: 'Earn qualified App Store visits without sounding like an ad.' },
   { value: 'feature_discovery', title: 'Show a feature', copy: 'Make one useful app capability memorable.' },
   { value: 'trust', title: 'Build trust', copy: 'Use specific, supportable product proof.' },
-  { value: 'engagement', title: 'Start conversation', copy: 'Lead with a relatable gym thought people can answer.' },
+  { value: 'engagement', title: 'Start conversation', copy: 'Lead with a relatable thought people can answer.' },
 ];
 const FITNESS_AUDIENCES: Array<{ value: Audience; title: string }> = [
   { value: 'new_lifters', title: 'New lifters' },
@@ -46,7 +46,7 @@ const FISHING_AUDIENCES: Array<{ value: Audience; title: string }> = [
   { value: 'local_crews', title: 'Local crews' },
 ];
 const ANGLES: Array<{ value: Angle; title: string; copy: string }> = [
-  { value: 'relatable', title: 'Relatable', copy: 'A gym thought, confession or question.' },
+  { value: 'relatable', title: 'Relatable', copy: 'A native thought, confession or question.' },
   { value: 'problem_solution', title: 'Problem → proof', copy: 'A real frustration resolved by the product.' },
   { value: 'proof', title: 'Product proof', copy: 'Lead with the capability itself.' },
   { value: 'routine', title: 'Daily routine', copy: 'The app appears as the natural next action.' },
@@ -70,7 +70,7 @@ export default function PromotionMission() {
   const [appSlug, setAppSlug] = useState(requestedApp === 'cast' ? 'cast' : 'deadset');
   const [accountId, setAccountId] = useState('');
   const [goal, setGoal] = useState<Goal>('downloads');
-  const [audience, setAudience] = useState<Audience>('consistent_lifters');
+  const [audience, setAudience] = useState<Audience>(requestedApp === 'cast' ? 'weekend_anglers' : 'consistent_lifters');
   const [angle, setAngle] = useState<Angle>('relatable');
   const [format, setFormat] = useState<ContentFormat>('photo_carousel');
   const [count, setCount] = useState(3);
