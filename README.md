@@ -47,12 +47,27 @@ a manually selected privacy level, commercial-content disclosure and explicit
 posting consent in the review queue.
 
 Deadset's scheduled generator uses a native two-slide grammar three times a
-week: a relatable real-photo gym/lifestyle hook followed by an exact current
-Deadset feature screen. Pinterest can guide the visual mood but is never treated
-as a licence. Drafts require creator-owned or explicitly licensed stock imagery,
-store a source/licence note, prohibit generated people and prohibit rebuilt app
-UI. The current feature rotation is muscle targeting, training heatmap, PR wall,
-progression board, workout plan and live logger.
+day. Slide one is locked to `deadset-casual-car-walk-v1`: a candid, low-light
+phone-style image of one person walking toward any parked car, with normal
+TikTok Classic-style bold white text and a clean black outline. Slide two is an
+exact current Deadset feature screen. Pinterest can guide the visual mood but
+is never treated as a licence. Production uses creator-owned or explicitly
+licensed stock imagery, records the source/licence, rejects generated people,
+and rejects rebuilt app UI. The current feature rotation is muscle targeting,
+training heatmap, PR wall, progression board, workout plan and live logger.
+
+Cast uses the stronger `cast-fishing-decision-v2` grammar. Slide one is a
+licensed real photograph of an angler casting, waiting, checking a rod or
+looking across visible water at the moment they decide whether it is worth
+fishing. It keeps the same unposed phone-picture feel and TikTok Classic-style
+semi-bold white text with a clean black outline. Posed trophy shots, fish
+close-ups, empty landscapes, catalogue-style walking shots and glossy outdoor
+adverts fail production. Slide two visibly resolves the hook using
+owner-verified promotional artwork built around the exact current Cast UI. For
+bite-forecast posts it leads with a clear benefit and shows the live water,
+fishing score, recommended window, target species and tide. A raw dashboard
+with no benefit framing, the Safety Brief, settings or a generic screen cannot
+be used as the payoff.
 
 Claiming is atomic. The dispatcher calls `claim_due_automations()`, which flips
 rows to `running` in the same statement that selects them, under
@@ -72,7 +87,7 @@ The Deadset photo workflow now runs from concept through final hosted media.
 | Concept | Automated with Workers AI plus verified deterministic fallbacks (`tiktok.generate`) |
 | Script | Automated for video briefs and two-slide carousel sequences (`tiktok.generate`) |
 | Assets / footage | Automated (`tiktok.produce`) with Pexels + the exact-screen library |
-| Edit / render | Automated (`tiktok.produce`) with one reusable free Browser Run session |
+| Edit / render | Automated (`tiktok.produce`) with a bounded paid Browser Run session |
 | Review | You do this, in the queue |
 | Schedule | You do this |
 | Publish | Automated (`tiktok.publish`) |
@@ -81,8 +96,8 @@ The Deadset photo workflow now runs from concept through final hosted media.
 The Creative studio is the anywhere-control surface. Add a free Pexels API key
 there (encrypted at rest), upload the six exact current Deadset feature screens,
 and the production agent will find a licensed portrait photo, record its source,
-render two 1080×1920 JPEG slides in one reusable Cloudflare Browser Run session, store them privately and expose stable Worker
-media URLs. It runs every 15 minutes or on demand and stays within Cloudflare's included free allowance. Approval still rejects
+render two 1080×1920 JPEG slides in a bounded Cloudflare Browser Run session, store them privately and expose stable Worker
+media URLs. It runs every 15 minutes or on demand and closes every session explicitly. Approval still rejects
 anything without final ordered photo URLs.
 
 Before each carousel batch, the content brain analyses recent hooks, verified
@@ -161,11 +176,11 @@ Concept generation uses the Worker-native `AI` binding with
 key. On Cloudflare's Free plan, inference stops when the daily free allocation
 is exhausted instead of incurring paid overage. Carousel missions then continue
 through the verified deterministic creative fallback rather than failing. The generator also caps each
-brand at four runs per UTC day to prevent accidental manual-trigger loops.
+brand at twelve runs per UTC day to prevent accidental manual-trigger loops.
 
-Carousel rendering uses one reusable Browser Run session for both slides, so it
-avoids the Quick Action burst that previously caused 429s and stays within
-Cloudflare's included free allowance. It does not use OpenAI or Anthropic credits. Pexels also has a free API:
+Carousel rendering uses one bounded paid Browser Run session for both slides,
+then closes it explicitly so idle browser time cannot accumulate. It does not
+use OpenAI or Anthropic credits. Pexels also has a free API:
 enter that key in Creative studio rather than adding it to source or Wrangler vars.
 
 ### 3. Deploy

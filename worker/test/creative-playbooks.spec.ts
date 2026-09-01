@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { getCreativePlaybook, photoSystem, productTruth } from '../src/lib/creative-playbooks';
+import { getCreativePlaybook, normalizeCaption, photoSystem, productTruth } from '../src/lib/creative-playbooks';
 import { buildCarouselFallbacks } from '../src/automations/tiktok-generate';
 import { planCreativeFeatures } from '../src/lib/creative-intelligence';
 
 describe('verified creative playbooks', () => {
+  it('keeps Deadset fitness and Cast fishing content completely separate', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const cast = getCreativePlaybook('cast')!;
+    expect(deadset.category).toBe('fitness');
+    expect(cast.category).toBe('fishing');
+    expect(deadset.defaultHashtags).toEqual(expect.arrayContaining(['gymtok', 'workoutapp']));
+    expect(deadset.defaultHashtags).not.toEqual(expect.arrayContaining(['fishingtok', 'angling']));
+    expect(cast.defaultHashtags).toEqual(expect.arrayContaining(['fishingtok', 'angling']));
+    expect(cast.defaultHashtags).not.toEqual(expect.arrayContaining(['gymtok', 'workoutapp']));
+  });
+
   it('locks Cast carousels to six real product features', () => {
     const cast = getCreativePlaybook('cast')!;
     expect(Object.keys(cast.features)).toEqual([
@@ -14,10 +25,21 @@ describe('verified creative playbooks', () => {
   });
 
   it('puts Cast claim restrictions and exact-screen instructions into every carousel prompt', () => {
-    const prompt = photoSystem(getCreativePlaybook('cast')!);
+    const cast = getCreativePlaybook('cast')!;
+    const prompt = photoSystem(cast);
     expect(prompt).toContain('guaranteed catch');
     expect(prompt).toContain('exact current Cast screenshot');
-    expect(prompt).toContain('cast on appstore');
+    expect(prompt).toContain('Cast on the App Store.');
+    expect(cast.hookVisualTemplate?.id).toBe('cast-fishing-decision-v2');
+    expect(cast.hookVisualTemplate?.direction).toMatch(/fishing decision moment beside visible water/i);
+    expect(cast.hookVisualTemplate?.captionStyle).toBe(getCreativePlaybook('deadset')!.hookVisualTemplate?.captionStyle);
+    expect(prompt).toContain('required for every Cast photo carousel');
+    expect(prompt).toContain('Reject posed trophy shots');
+    expect(prompt).toContain('catalogue-style walking shots');
+    expect(prompt).not.toContain('image without both a person and a car');
+
+    const fallback = buildCarouselFallbacks(cast, ['bite_forecast'], 1)[0]!;
+    expect(fallback.slides?.[0]?.asset_query).toBe(cast.hookVisualTemplate?.searchQuery);
   });
 
   it('keeps the approved Deadset video grammar in the model context', () => {
@@ -27,8 +49,38 @@ describe('verified creative playbooks', () => {
     expect(truth).toContain('Return to the lifter');
   });
 
+  it('locks every Deadset carousel to the saved casual car-walk template', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const prompt = photoSystem(deadset);
+    const fallback = buildCarouselFallbacks(deadset, ['workout_plan'], 1)[0]!;
+
+    expect(deadset.hookVisualTemplate?.id).toBe('deadset-casual-car-walk-v1');
+    expect(deadset.hookVisualTemplate?.direction).toMatch(/mid-step toward any parked car/i);
+    expect(deadset.hookVisualTemplate?.captionStyle).toMatch(/TikTok Classic-style semi-bold white/i);
+    expect(prompt).toContain('required for every Deadset photo carousel');
+    expect(prompt).toContain('Reject key close-ups');
+    expect(fallback.slides?.[0]?.asset_query).toBe(deadset.hookVisualTemplate?.searchQuery);
+  });
+
   it('does not activate an unverified LifeScore promotion model', () => {
     expect(getCreativePlaybook('lifescore')).toBeNull();
+  });
+
+  it('normalizes legacy captions without duplicating the App Store sign-off', () => {
+    expect(normalizeCaption(
+      "'When I measured it. cast on appstore",
+      'Cast on the App Store.',
+    )).toBe('When I measured it. Cast on the App Store.');
+
+    expect(normalizeCaption(
+      'One less thing to guess. Deadset on the App Store.',
+      'Deadset on the App Store.',
+    )).toBe('One less thing to guess. Deadset on the App Store.');
+
+    expect(normalizeCaption(
+      "Who's up for a fishing trip? Cast on the App Store.",
+      'Cast on the App Store.',
+    )).toBe("Who's up for a fishing trip? Cast on the App Store.");
   });
 
   it('recovers a Cast batch with distinct, verified two-slide concepts', () => {

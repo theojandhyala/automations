@@ -114,7 +114,7 @@ create table public.tiktok_accounts (
   token_expires_at  timestamptz,
   status            public.account_status not null default 'error',
   -- posts per day ceiling enforced by the publish automation
-  daily_post_limit  int not null default 2,
+  daily_post_limit  int not null default 4,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );

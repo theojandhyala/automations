@@ -16,15 +16,19 @@ export default function AgentBrain({
   apps,
   onClose,
   onChanged,
+  onEdit,
+  onClone,
 }: {
   automation: Automation;
   apps: App[];
   onClose: () => void;
   onChanged: () => void;
+  onEdit: () => void;
+  onClone: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [configDraft, setConfigDraft] = useState<string | null>(null);
+  const [runArmed, setRunArmed] = useState(false);
 
   // Escape closes the drawer, as a drawer should.
   useEffect(() => {
@@ -34,6 +38,12 @@ export default function AgentBrain({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!runArmed) return undefined;
+    const timeout = window.setTimeout(() => setRunArmed(false), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [runArmed]);
 
   const { data } = useData(async () => {
     const [runs, outputs] = await Promise.all([
@@ -56,6 +66,7 @@ export default function AgentBrain({
 
   const app = apps.find((p) => p.id === automation.app_id);
   const accent = automation.accent ?? app?.accent ?? '#6ea8fe';
+  const releaseLocked = app?.promotion_enabled === false;
 
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -70,23 +81,20 @@ export default function AgentBrain({
     }
   }
 
-  const saveConfig = () =>
-    act(async () => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(configDraft ?? '{}');
-      } catch {
-        throw new Error('Config must be valid JSON');
-      }
-      await api(`/automations/${automation.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ config: parsed }),
-      });
-      setConfigDraft(null);
-    });
+  function runNow() {
+    if (automation.handler_key === 'tiktok.publish' && !runArmed) {
+      setRunArmed(true);
+      return;
+    }
+    setRunArmed(false);
+    void act(() => api(`/automations/${automation.id}/run`, { method: 'POST' }));
+  }
 
   const runs = data?.runs ?? [];
   const succeeded = runs.filter((r) => r.status === 'succeeded').length;
+  const featureRotation = Array.isArray(automation.config.feature_rotation)
+    ? automation.config.feature_rotation.map(String)
+    : [];
 
   return (
     <>
@@ -98,7 +106,7 @@ export default function AgentBrain({
               <span style={{ color: accent, display: 'inline-flex' }}>
                 <AgentIcon name={automation.icon} size={22} />
               </span>
-              {automation.name}
+              {app?.name ?? 'App'} mission
             </h3>
             <button onClick={onClose} aria-label="Close">✕</button>
           </div>
@@ -107,23 +115,23 @@ export default function AgentBrain({
               {app ? app.name : 'System'}
             </span>
             <span className="pill">{automation.status}</span>
-            <span className="mono muted" style={{ fontSize: 11 }}>{automation.handler_key}</span>
+            <span className="pill">POSTING INTELLIGENCE</span>
           </div>
         </header>
 
         <div className="brain-body">
           {error && <div className="brain-section" style={{ color: 'var(--bad)' }}>{error}</div>}
 
-          <div className="row">
+          <div className="row agent-authority-actions">
             <button
-              className="primary"
-              disabled={busy || automation.status === 'running'}
-              onClick={() => act(() => api(`/automations/${automation.id}/run`, { method: 'POST' }))}
+              className={`primary ${runArmed ? 'armed' : ''}`}
+              disabled={busy || automation.status === 'running' || releaseLocked}
+              onClick={runNow}
             >
-              Run now
+              {runArmed ? 'Confirm external launch' : 'Run now'}
             </button>
             <button
-              disabled={busy}
+              disabled={busy || releaseLocked}
               onClick={() =>
                 act(() =>
                   api(`/automations/${automation.id}`, {
@@ -133,17 +141,17 @@ export default function AgentBrain({
                 )
               }
             >
-              {automation.enabled ? 'Pause' : 'Enable'}
+              {releaseLocked ? 'Release locked' : automation.enabled ? 'Pause' : 'Enable'}
             </button>
-            <Link to={`/automations/${automation.id}`} onClick={onClose}>
-              <button>Full history</button>
-            </Link>
+            <button disabled={busy} onClick={onEdit}>Recalibrate</button>
+            <button disabled={busy} onClick={onClone}>Clone</button>
           </div>
+          {runArmed ? <div className="brain-authority-warning" role="status">Publishing leaves the system. Confirm within 10 seconds to launch this protocol with owner authority.</div> : null}
 
           <section className="brain-section agent-mission">
             <h4>JARVIS mission file</h4>
-            <p>{automation.description ?? 'No mission description has been configured for this agent.'}</p>
-            <span className="mono">Try: “JARVIS, run {automation.name}”</span>
+            <p>Create native TikTok posts for {app?.name ?? 'this app'} using real licensed imagery, exact product proof, performance learning and automated truth and quality gates.</p>
+            <span className="mono">Try: “JARVIS, draft 3 {app?.name ?? 'app'} carousels”</span>
           </section>
 
           <section className="brain-section">
@@ -191,18 +199,15 @@ export default function AgentBrain({
           </section>
 
           <section className="brain-section">
-            <h4>Configuration</h4>
-            <textarea
-              className="mono"
-              value={configDraft ?? JSON.stringify(automation.config, null, 2)}
-              onChange={(e) => setConfigDraft(e.target.value)}
-            />
-            {configDraft !== null && (
-              <div className="row" style={{ marginTop: 8 }}>
-                <button className="primary" disabled={busy} onClick={saveConfig}>Save</button>
-                <button onClick={() => setConfigDraft(null)}>Cancel</button>
-              </div>
-            )}
+            <h4>Intelligence profile</h4>
+            <dl className="kv">
+              <dt>Daily creative batch</dt><dd>{Number(automation.config.count ?? 3)} posts</dd>
+              <dt>Image policy</dt><dd>Licensed real photography</dd>
+              <dt>Product proof</dt><dd>Exact current app captures</dd>
+              <dt>Learning mode</dt><dd>Recent-hook and post-signal aware</dd>
+              <dt>Release gate</dt><dd>Autonomous after TikTok Business approval</dd>
+            </dl>
+            {featureRotation.length > 0 ? <p className="mono muted">FEATURE ROTATION // {featureRotation.join(' · ').toUpperCase()}</p> : null}
           </section>
 
           <section className="brain-section">

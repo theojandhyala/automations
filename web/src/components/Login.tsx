@@ -33,12 +33,16 @@ export default function Login() {
   }
 
   return (
-    <div className="center-screen">
+    <div className="center-screen jarvis-login">
+      <div className="login-grid" aria-hidden="true" />
+      <div className="login-scan" aria-hidden="true" />
       <div className="login card">
+        <span className="login-corner corner-a" aria-hidden="true" />
+        <span className="login-corner corner-b" aria-hidden="true" />
         <div className="login-identity">
           <ArcReactorMark size={82} className="login-reactor" />
           <h1>J.A.R.V.I.S.</h1>
-          <span>PRIVATE AUTOMATION CORE</span>
+          <span>MARK VII // PRIVATE AUTOMATION CORE</span>
         </div>
         {sent ? (
           <p>Check {email} for a sign-in link.</p>

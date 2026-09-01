@@ -4,62 +4,106 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import CommandCenter from './pages/CommandCenter';
-import Overview from './pages/Overview';
-import AutomationDetail from './pages/AutomationDetail';
 import Queue from './pages/Queue';
 import Accounts from './pages/Accounts';
-import Reports from './pages/Reports';
 import HudPreview from './pages/HudPreview';
 import CreativeStudio from './pages/CreativeStudio';
-import RemoteOperations from './pages/RemoteOperations';
 import PromotionMission from './pages/PromotionMission';
 import ArcReactorMark from './components/ArcReactorMark';
 import Legal from './pages/Legal';
+
+const WORKSPACE_ROUTES = [
+  { to: '/', index: '00', label: 'Command center', short: 'Core', detail: 'Live mission overview', end: true },
+  { to: '/promote', index: '01', label: 'App missions', short: 'Missions', detail: 'Create the next batch' },
+  { to: '/queue', index: '02', label: 'Review queue', short: 'Review', detail: 'Inspect and authorise' },
+  { to: '/studio', index: '03', label: 'Feature proof', short: 'Proof', detail: 'Exact screens and assets' },
+  { to: '/accounts', index: '04', label: 'TikTok links', short: 'Uplinks', detail: 'Account connections' },
+] as const;
+
+const WORKSPACE_META: Record<string, { code: string; title: string; detail: string }> = {
+  '/promote': { code: '01', title: 'Mission composer', detail: 'Turn an outcome into three native, proof-led posts' },
+  '/queue': { code: '02', title: 'Review bay', detail: 'Inspect the exact media, copy and destination' },
+  '/studio': { code: '03', title: 'Proof foundry', detail: 'Maintain the verified product-screen library' },
+  '/accounts': { code: '04', title: 'Channel uplink', detail: 'Connect each app to its correct TikTok identity' },
+};
 
 /**
  * The command center is the landing page and gets the full viewport with no
  * chrome around it. Every other page keeps the sidebar shell.
  */
 function Shell({ session }: { session: Session }) {
+  const location = useLocation();
+  const meta = WORKSPACE_META[location.pathname] ?? WORKSPACE_META['/promote']!;
+
   return (
-    <div className="shell">
+    <div className="shell jarvis-shell">
+      <div className="shell-grid" aria-hidden="true" />
+      <div className="shell-scan" aria-hidden="true" />
+      <div className="shell-vignette" aria-hidden="true" />
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <ArcReactorMark size={38} />
+          <span className="sidebar-reactor"><ArcReactorMark size={52} /></span>
           <div className="sidebar-brand-copy">
             <strong>J.A.R.V.I.S.</strong>
-            <small>Automation core</small>
+            <small>MARK VII // AUTOMATION CORE</small>
           </div>
         </div>
+        <div className="sidebar-core-state">
+          <span><i /> SYSTEM ONLINE</span>
+          <b>3 MISSION CHANNELS</b>
+          <small>Deadset · Cast · LifeScore standby</small>
+        </div>
         <nav>
-          <NavLink to="/" end>Command center</NavLink>
-          <NavLink to="/overview">Overview</NavLink>
-          <NavLink to="/operations">Remote operations</NavLink>
-          <NavLink to="/promote">Promote an app</NavLink>
-          <NavLink to="/queue">Review queue</NavLink>
-          <NavLink to="/studio">Creative studio</NavLink>
-          <NavLink to="/reports">Reports</NavLink>
-          <NavLink to="/accounts">Accounts</NavLink>
+          {WORKSPACE_ROUTES.map((item) => (
+            <NavLink to={item.to} end={item.to === '/'} key={item.to}>
+              <i>{item.index}</i>
+              <span><b>{item.label}</b><small>{item.detail}</small></span>
+              <em>›</em>
+            </NavLink>
+          ))}
         </nav>
+        <div className="sidebar-channels" aria-label="Mission channel state">
+          <article className="online"><i /><span><b>DEADSET</b><small>3/day · channel linked</small></span></article>
+          <article className="attention"><i /><span><b>CAST</b><small>3/day · uplink action</small></span></article>
+          <article className="locked"><i /><span><b>LIFESCORE</b><small>release lock engaged</small></span></article>
+        </div>
         <div className="foot">
-          <div style={{ marginBottom: 8, wordBreak: 'break-all' }}>{session.user.email}</div>
-          <button onClick={() => supabase.auth.signOut()}>Sign out</button>
+          <div><span>OWNER SESSION</span><b>{session.user.email}</b></div>
+          <button onClick={() => supabase.auth.signOut()} aria-label="Sign out of JARVIS">EXIT</button>
         </div>
       </aside>
-      <main>
-        <Routes>
-          <Route path="/overview" element={<Overview />} />
-          <Route path="/operations" element={<RemoteOperations />} />
-          <Route path="/promote" element={<PromotionMission />} />
-          <Route path="/automations/:id" element={<AutomationDetail />} />
-          <Route path="/queue" element={<Queue />} />
-          <Route path="/studio" element={<CreativeStudio />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/accounts" element={<Accounts />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      <section className="jarvis-workspace">
+        <header className="workspace-bar">
+          <div className="workspace-identity"><i>{meta.code}</i><span><small>J.A.R.V.I.S. WORKSPACE</small><b>{meta.title}</b><em>{meta.detail}</em></span></div>
+          <div className="workspace-telemetry">
+            <span><i /> SECURE</span>
+            <span>POST WINDOWS <b>12 · 15 · 18</b></span>
+            <span>UK TIME</span>
+          </div>
+        </header>
+        <main>
+          <Routes>
+            <Route path="/promote" element={<PromotionMission />} />
+            <Route path="/queue" element={<Queue />} />
+            <Route path="/studio" element={<CreativeStudio />} />
+            <Route path="/accounts" element={<Accounts />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <span className="workspace-corner corner-a" aria-hidden="true" />
+        <span className="workspace-corner corner-b" aria-hidden="true" />
+      </section>
     </div>
+  );
+}
+
+function CommandDock() {
+  return (
+    <nav className="command-dock" aria-label="JARVIS workspaces">
+      {WORKSPACE_ROUTES.slice(1).map((item) => (
+        <NavLink to={item.to} key={item.to}><i>{item.index}</i><span>{item.short}</span></NavLink>
+      ))}
+    </nav>
   );
 }
 
@@ -91,8 +135,7 @@ export default function App() {
     return (
       <>
         <CommandCenter />
-        <NavLink to="/operations" className="remote-ops-hatch">Remote ops ◈</NavLink>
-        <NavLink to="/overview" className="escape-hatch">Tables →</NavLink>
+        <CommandDock />
       </>
     );
   }

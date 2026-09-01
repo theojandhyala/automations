@@ -1,5 +1,5 @@
 import { accessTokenFor } from '../lib/tiktok';
-import { accountStats, recentVideos } from '../lib/tiktok-metrics';
+import { accountStatsFor, recentVideosFor } from '../lib/tiktok-metrics';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
@@ -40,8 +40,10 @@ export const analyticsSync: Handler = {
       try {
         const token = await accessTokenFor(ctx.env, ctx.db, account);
 
-        const stats = await accountStats(token);
-        const videos = stats.scopeMissing ? { videos: [], scopeMissing: true } : await recentVideos(token, lookback);
+        const stats = await accountStatsFor(ctx.env, token, account);
+        const videos = stats.scopeMissing
+          ? { videos: [], scopeMissing: true }
+          : await recentVideosFor(ctx.env, token, account, lookback);
 
         const quality = stats.scopeMissing || videos.scopeMissing ? 'partial' : 'ok';
         if (quality === 'partial') partial++;

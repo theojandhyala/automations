@@ -22,27 +22,29 @@ function escapeHtml(value: string): string {
 function slideHtml({ imageUrl, overlay, role }: SlideInput): string {
   const hook = role === 'hook';
   const fontSize = hook
-    ? overlay.length > 80 ? 68 : overlay.length > 52 ? 78 : 90
-    : overlay.length > 60 ? 54 : 64;
+    ? overlay.length > 80 ? 62 : overlay.length > 52 ? 66 : 72
+    : overlay.length > 60 ? 52 : 60;
   const imageFit = hook ? 'cover' : 'contain';
   const position = hook ? 'center 43%' : 'center center';
   const overlayPosition = hook
-    ? 'top:27%;left:70px;right:70px;'
-    : 'bottom:150px;left:64px;right:64px;';
+    ? 'top:22%;left:74px;right:74px;'
+    : 'bottom:190px;left:70px;right:70px;';
   const shadeClass = hook ? 'shade' : 'feature-shade';
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:InterTikTok;font-style:normal;font-weight:600;font-display:block;src:url('https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=4.1') format('woff2')}
 *{box-sizing:border-box}html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:#06070a}
-body{font-family:Arial,Helvetica,sans-serif;color:#fff}
+body{font-family:InterTikTok,"Avenir Next","Helvetica Neue",Arial,sans-serif;color:#fff}
 .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:${imageFit};object-position:${position};background:#06070a}
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.05) 46%,rgba(0,0,0,.24))}
 .feature-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 66%,rgba(0,0,0,.35))}
-.copy{position:absolute;${overlayPosition}text-align:center;font-size:${fontSize}px;font-weight:900;line-height:1.08;letter-spacing:-2px;color:#fff;text-shadow:-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000,4px 4px 0 #000,0 6px 12px rgba(0,0,0,.55);overflow-wrap:anywhere}
+.copy{position:absolute;${overlayPosition}text-align:center;font-size:${fontSize}px;font-weight:600;line-height:1.12;letter-spacing:-.5px;color:#fff;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 2px 5px rgba(0,0,0,.28);overflow-wrap:anywhere}
 </style></head><body><img class="photo" src="${escapeHtml(imageUrl)}"><div class="${shadeClass}"></div><div class="copy">${escapeHtml(overlay)}</div></body></html>`;
 }
 
 type BrowserEndpoint = Parameters<typeof puppeteer.launch>[0];
 type CloudflareBrowser = Awaited<ReturnType<typeof puppeteer.launch>>;
+export type SlideRendererSession = CloudflareBrowser;
 
 export interface BrowserCapacity {
   available: boolean;
@@ -52,8 +54,6 @@ export interface BrowserCapacity {
   retry_after_ms: number;
   message: string;
 }
-
-const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export async function browserCapacity(env: Env): Promise<BrowserCapacity> {
   const endpoint = env.BROWSER as unknown as BrowserEndpoint;
@@ -73,11 +73,11 @@ export async function browserCapacity(env: Env): Promise<BrowserCapacity> {
       retry_after_ms: retryAfter,
       message: available
         ? idleSessions > 0
-          ? 'Reusable renderer ready.'
-          : 'Renderer slot ready; the daily free allowance is checked when rendering starts.'
+          ? 'Paid renderer ready; an idle session is available.'
+          : 'Paid renderer ready.'
         : retryAfter > 0
           ? `Renderer capacity resets in about ${Math.max(1, Math.ceil(retryAfter / 60_000))} minute(s).`
-          : 'The free renderer allowance is currently exhausted.',
+          : 'Renderer capacity is currently unavailable.',
     };
   } catch (error) {
     return {
@@ -92,60 +92,46 @@ export async function browserCapacity(env: Env): Promise<BrowserCapacity> {
 }
 
 async function acquireBrowser(endpoint: BrowserEndpoint): Promise<CloudflareBrowser> {
-  const sessions = await puppeteer.sessions(endpoint);
-  for (const session of sessions) {
-    if (session.connectionId) continue;
-    try {
-      return await puppeteer.connect(endpoint, session.sessionId);
-    } catch {
-      // Another request may have claimed it between listing and connecting.
-    }
-  }
-
-  // Browser Run allows one new browser acquisition every 20 seconds on the
-  // free plan. A scheduled Worker has enough wall time to absorb that small
-  // cooldown instead of failing a perfectly good draft and waiting a minute
-  // for the next dispatcher pass.
-  const limits = await puppeteer.limits(endpoint);
-  if (limits.allowedBrowserAcquisitions === 0) {
-    const retryAfter = Math.max(0, limits.timeUntilNextAllowedBrowserAcquisition || 0);
-    if (retryAfter > 0 && retryAfter <= 25_000) {
-      await wait(retryAfter + 250);
-    } else {
-      const minutes = retryAfter > 0 ? Math.max(1, Math.ceil(retryAfter / 60_000)) : null;
-      throw new Error(minutes
-        ? `The free slide renderer allowance resets in about ${minutes} minute(s). This exact draft will retry automatically.`
-        : 'The free slide renderer allowance is exhausted. This exact draft will retry automatically.');
-    }
-  }
   return puppeteer.launch(endpoint);
+}
+
+export function openSlideRenderer(env: Env): Promise<SlideRendererSession> {
+  return acquireBrowser(env.BROWSER as unknown as BrowserEndpoint);
+}
+
+export async function closeSlideRenderer(browser: SlideRendererSession): Promise<void> {
+  await browser.close().catch(() => undefined);
 }
 
 async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>>, input: SlideInput): Promise<Uint8Array> {
   await page.setContent(slideHtml(input), { waitUntil: 'networkidle0', timeout: 30_000 });
+  await page.evaluate('document.fonts.ready');
   await page.waitForFunction(
     'Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0)',
     { timeout: 20_000 },
   );
   const bytes = await page.screenshot({
     type: 'jpeg',
-    quality: 92,
+    // TikTok recompresses uploads. This keeps 1080×1920 text and app proof
+    // crisp while making the five-account daily volume storage-safe.
+    quality: 88,
     clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
     captureBeyondViewport: false,
   });
   return new Uint8Array(bytes);
 }
 
-/** Renders both TikTok slides inside one reusable Browser Run session. */
+/** Renders both TikTok slides inside one bounded Browser Run session. */
 export async function renderCarouselSlides(
   env: Env,
   hook: SlideInput,
   feature: SlideInput,
+  session?: SlideRendererSession,
 ): Promise<[Uint8Array, Uint8Array]> {
-  let browser: CloudflareBrowser | null = null;
+  let browser: CloudflareBrowser | null = session ?? null;
+  const ownsBrowser = !session;
   try {
-    const endpoint = env.BROWSER as unknown as BrowserEndpoint;
-    browser = await acquireBrowser(endpoint);
+    browser ??= await openSlideRenderer(env);
     const page = await browser.newPage();
     try {
       await page.setViewport({ width: WIDTH, height: HEIGHT, deviceScaleFactor: 1 });
@@ -159,15 +145,13 @@ export async function renderCarouselSlides(
     const message = error instanceof Error ? error.message : String(error);
     if (/allowance (?:resets|is exhausted)/i.test(message)) throw error;
     if (/browser time limit exceeded for today/i.test(message)) {
-      throw new Error('Cloudflare’s free 10-minute slide-rendering allowance is used for today. This exact draft will retry after the daily reset.');
+      throw new Error('Cloudflare has not attached this Worker to the paid Browser Run allowance yet. This exact draft will retry automatically.');
     }
     if (message.includes('429') || /rate limit/i.test(message)) {
-      throw new Error('The free slide renderer is busy. This exact draft is safe and will retry automatically.');
+      throw new Error('The paid slide renderer is temporarily busy. This exact draft is safe and will retry automatically.');
     }
     throw error;
   } finally {
-    // Disconnect rather than closing so the next Cast/Deadset run can reuse the
-    // same free-plan session instead of hitting the new-browser burst limit.
-    browser?.disconnect();
+    if (ownsBrowser && browser) await closeSlideRenderer(browser);
   }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, supabase } from '../lib/supabase';
 import { useData } from '../lib/useData';
 import { Ago, Dot, Empty } from '../components/bits';
@@ -23,10 +24,11 @@ function urlsFromTextarea(value: string): string[] {
 }
 
 /**
- * The review queue is also the required TikTok export screen: it previews the
- * exact media, fetches current creator choices, and records explicit consent.
+ * Owner-visible audit and intervention surface. Before Business Accounts
+ * approval it also provides the manual handoff path.
  */
 export default function Queue() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('draft');
   const [error, setError] = useState<string | null>(null);
   const [creatorInfo, setCreatorInfo] = useState<Record<string, CreatorInfo>>({});
@@ -44,7 +46,16 @@ export default function Queue() {
         .order('created_at', { ascending: false }).limit(60),
       supabase.from('apps').select('*'),
       supabase.from('tiktok_accounts_public').select('*'),
-      api<{ public_direct_post_ready: boolean }>('/tiktok/status'),
+      api<{
+        provider: 'content_posting' | 'business_accounts';
+        direct_post_test_ready: boolean;
+        sandbox_private_only: boolean;
+        public_direct_post_ready: boolean;
+        autonomous_public_post_ready: boolean;
+        owner_review_required: boolean;
+        review_state: string;
+        scopes: string[];
+      }>('/tiktok/status'),
     ]);
     if (artifacts.error) throw artifacts.error;
     return {
@@ -151,28 +162,76 @@ export default function Queue() {
   }
 
   if (!data) return <Empty>Loading…</Empty>;
-  const manualMode = !data.tiktokStatus.public_direct_post_ready;
+  const requestedApp = searchParams.get('app');
+  const selectedApp = data.apps.find((app) => app.slug === requestedApp) ?? null;
+  const visibleArtifacts = selectedApp
+    ? data.artifacts.filter((artifact) => artifact.app_id === selectedApp.id)
+    : data.artifacts;
+  const apiDeliveryReady = data.tiktokStatus.public_direct_post_ready
+    || data.tiktokStatus.autonomous_public_post_ready;
+  const manualMode = !apiDeliveryReady;
+  const sandboxMode = data.tiktokStatus.sandbox_private_only;
 
   return (
-    <>
-      <div className="page-head">
+    <div className="queue-page jarvis-route">
+      <div className="route-grid-plane" aria-hidden="true" />
+      <div className="page-head queue-head">
         <div>
+          <p className="ops-eyebrow"><i /> J.A.R.V.I.S. // POST REVIEW BAY</p>
           <h2>Review queue</h2>
-          <p>Preview every slide, choose the live TikTok settings, then explicitly approve the post.</p>
+          <p>{data.tiktokStatus.owner_review_required
+            ? 'Inspect the hook, exact media, caption and destination while TikTok production approval is pending.'
+            : 'Monitor every hook, media choice, caption, destination and delivery result. Quality-passed posts release automatically.'}</p>
         </div>
-        <div className="row">
+        <div className="queue-head-status">
+          <span><small>CURRENT VIEW</small><b>{filter.toUpperCase()}</b></span>
+          <span><small>LOADED</small><b>{visibleArtifacts.length}</b></span>
+          <span className={manualMode || sandboxMode ? 'attention' : 'online'}><small>DELIVERY</small><b>{manualMode ? 'MANUAL' : sandboxMode ? 'PRIVATE TEST' : 'DIRECT'}</b></span>
+        </div>
+      </div>
+
+      <div className="queue-command-strip">
+        <div><span>POSTING WINDOWS // UK</span><b>12:00</b><i /><b>15:00</b><i /><b>18:00</b></div>
+        <div className="queue-filters" role="tablist" aria-label="Review status">
           {FILTERS.map((f) => (
-            <button key={f} className={f === filter ? 'primary' : ''} onClick={() => setFilter(f)}>
-              {f}
+            <button key={f} role="tab" aria-selected={f === filter} className={f === filter ? 'primary' : ''} onClick={() => setFilter(f)}>
+              <i />{f}
             </button>
           ))}
         </div>
       </div>
 
-      {error && <div className="card" style={{ color: 'var(--bad)', marginBottom: 14 }}>{error}</div>}
+      <div className="queue-app-filters" role="group" aria-label="App channel">
+        <button className={!selectedApp ? 'primary' : ''} onClick={() => setSearchParams({})}>ALL CHANNELS</button>
+        {data.apps.filter((app) => ['deadset', 'cast'].includes(app.slug)).map((app) => (
+          <button
+            key={app.id}
+            className={selectedApp?.id === app.id ? 'primary' : ''}
+            onClick={() => setSearchParams({ app: app.slug })}
+          >
+            {app.name.toUpperCase()} · {data.artifacts.filter((artifact) => artifact.app_id === app.id).length}
+          </button>
+        ))}
+      </div>
 
-      <div className="grid">
-        {data.artifacts.map((artifact) => {
+      {sandboxMode ? (
+        <aside className="delivery-blocker sandbox" role="status">
+          <div><span>CONSUMER SANDBOX // TEST ONLY</span><strong>Real Deadset and Cast accounts stay public.</strong></div>
+          <p>TikTok blocks public posts from this unaudited consumer client. JARVIS will not ask you to make either account private; production is moving through TikTok's Business Accounts API.</p>
+          <Link to="/accounts?app=deadset">OPEN PUBLIC UPLINK →</Link>
+        </aside>
+      ) : manualMode && (
+        <aside className="delivery-blocker" role="status">
+          <div><span>WHY NOTHING HAS POSTED</span><strong>TikTok production access is still awaiting review.</strong></div>
+          <p>The agents have generated {visibleArtifacts.length} {filter} item{visibleArtifacts.length === 1 ? '' : 's'}, but TikTok has not approved the Business Accounts publishing integration. JARVIS will not pretend a draft is live.</p>
+          <Link to="/accounts">COMPLETE PUBLISHING UPLINK →</Link>
+        </aside>
+      )}
+
+      {error && <div className="card jarvis-alert error">{error}</div>}
+
+      <div className="grid queue-grid">
+        {visibleArtifacts.map((artifact, artifactIndex) => {
           const app = data.apps.find((item) => item.id === artifact.app_id);
           const account = data.accounts.find((item) => item.id === artifact.account_id);
           const info = artifact.account_id ? creatorInfo[artifact.account_id] : undefined;
@@ -191,15 +250,14 @@ export default function Queue() {
           const quality = artifact.asset_manifest.creative_quality;
 
           return (
-            <article className="card" key={artifact.id}>
-              <div className="row between" style={{ marginBottom: 10 }}>
+            <article className={`card queue-card status-${artifact.status}`} key={artifact.id}>
+              <span className="queue-card-index" aria-hidden="true">{String(artifactIndex + 1).padStart(2, '0')}</span>
+              <div className="row between queue-card-head">
                 <div className="row">
                   <Dot status={artifact.status} />
-                  <strong>{artifact.hook ?? 'Untitled'}</strong>
-                  {app && <span className="pill">{app.name}</span>}
-                  <span className="pill">{artifact.media_type === 'photo' ? 'Photo carousel' : 'Video'}</span>
+                  <span className="queue-title"><small>HOOK SIGNAL</small><strong>{artifact.hook ?? 'Untitled'}</strong></span>
                 </div>
-                <span className="muted"><Ago at={artifact.created_at} /></span>
+                <div className="queue-card-meta">{app && <span className="pill">{app.name}</span>}<span className="pill">{artifact.media_type === 'photo' ? '2-SLIDE CAROUSEL' : 'VIDEO'}</span><span className="muted"><Ago at={artifact.created_at} /></span></div>
               </div>
 
               {artifact.asset_manifest.slides?.length ? (
@@ -236,7 +294,11 @@ export default function Queue() {
               <div className={`creative-score ${quality?.pass ? 'pass' : quality ? 'fail' : 'pending'}`}>
                 <div><span>NATIVE QUALITY GATE</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
                 <p>{quality
-                  ? quality.pass ? 'Specific, readable and native enough to continue to owner review.' : [...quality.blockers, ...quality.warnings].join(' ')
+                  ? quality.pass
+                    ? data.tiktokStatus.owner_review_required
+                      ? 'Specific, readable and native enough to continue while TikTok production approval is pending.'
+                      : 'Specific, readable and native enough to enter the autonomous release gate.'
+                    : [...quality.blockers, ...quality.warnings].join(' ')
                   : 'This older draft will be scored when you edit it or try to approve it.'}</p>
                 {isEditable && <button type="button" onClick={() => patch(artifact.id, { hook: artifact.hook })}>Recheck quality</button>}
               </div>
@@ -524,8 +586,8 @@ export default function Queue() {
             </article>
           );
         })}
-        {data.artifacts.length === 0 && <div className="card"><Empty>Nothing {filter}.</Empty></div>}
+        {visibleArtifacts.length === 0 && <div className="card queue-empty"><Empty>Nothing {filter} for {selectedApp?.name ?? 'these channels'}. JARVIS is standing by.</Empty></div>}
       </div>
-    </>
+    </div>
   );
 }

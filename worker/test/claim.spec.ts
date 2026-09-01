@@ -14,7 +14,7 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** Routes covering the writes a heartbeat run performs after being claimed. */
+/** Routes covering the writes an empty reconciliation run performs after being claimed. */
 const runWriteRoutes = [
   {
     match: /\/rest\/v1\/runs\?/,
@@ -25,13 +25,16 @@ const runWriteRoutes = [
     respond: () => jsonResponse([{ id: '99999999-9999-4999-8999-999999999999' }]),
   },
   { match: /\/rest\/v1\/run_events/, respond: () => jsonResponse([]) },
+  { match: /\/rest\/v1\/artifacts/, respond: () => jsonResponse([]) },
   { match: /\/rest\/v1\/automations\?/, respond: () => jsonResponse([]) },
 ];
+
+const postingAutomation = () => automationRow({ handler_key: 'tiktok.reconcile', name: 'Reconcile in-flight posts' });
 
 describe('atomic claim', () => {
   it('claims through the RPC, not a select-then-update', async () => {
     const { calls } = stubFetch([
-      { match: /\/rpc\/claim_due_automations/, respond: () => jsonResponse([automationRow()]) },
+      { match: /\/rpc\/claim_due_automations/, respond: () => jsonResponse([postingAutomation()]) },
     ]);
 
     const claimed = await claimDue(testEnv);
@@ -63,7 +66,7 @@ describe('atomic claim', () => {
     stubFetch([
       {
         match: /\/rpc\/claim_due_automations/,
-        respond: () => jsonResponse(served++ === 0 ? [automationRow()] : []),
+        respond: () => jsonResponse(served++ === 0 ? [postingAutomation()] : []),
       },
       ...runWriteRoutes,
     ]);
@@ -84,7 +87,7 @@ describe('atomic claim', () => {
       authRoute,
       {
         match: /\/rest\/v1\/automations\?id=eq/,
-        respond: () => jsonResponse([automationRow({ status: 'running' })]),
+        respond: () => jsonResponse([{ ...postingAutomation(), status: 'running' }]),
       },
       // The claim fails because the row is held.
       { match: /\/rpc\/claim_automation/, respond: () => jsonResponse([]) },
@@ -110,11 +113,11 @@ describe('atomic claim', () => {
       authRoute,
       {
         match: /\/rest\/v1\/automations\?id=eq/,
-        respond: () => jsonResponse([automationRow()]),
+        respond: () => jsonResponse([postingAutomation()]),
       },
       {
         match: /\/rpc\/claim_automation/,
-        respond: () => jsonResponse(claims++ === 0 ? [automationRow()] : []),
+        respond: () => jsonResponse(claims++ === 0 ? [postingAutomation()] : []),
       },
       {
         match: /\/rest\/v1\/runs$/,
@@ -125,6 +128,7 @@ describe('atomic claim', () => {
       },
       { match: /\/rest\/v1\/runs\?/, respond: () => jsonResponse([]) },
       { match: /\/rest\/v1\/run_events/, respond: () => jsonResponse([]) },
+      { match: /\/rest\/v1\/artifacts/, respond: () => jsonResponse([]) },
       { match: /\/rest\/v1\/automations\?/, respond: () => jsonResponse([]) },
     ]);
 

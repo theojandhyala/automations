@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/supabase';
 import type { Account, App, Automation } from '../lib/types';
@@ -79,6 +80,8 @@ export default function CommandBar({
   accounts,
   drafts,
   onOpenAgent,
+  onOpenForge,
+  onSetMode,
   onChanged,
 }: {
   automations: Automation[];
@@ -86,6 +89,8 @@ export default function CommandBar({
   accounts: Account[];
   drafts: number;
   onOpenAgent: (automation: Automation) => void;
+  onOpenForge: () => void;
+  onSetMode: (mode: 'missions' | 'protocols' | 'signals' | 'operations') => void;
   onChanged: () => void;
 }) {
   const [value, setValue] = useState('');
@@ -95,6 +100,7 @@ export default function CommandBar({
   const [shutdownArmed, setShutdownArmed] = useState(false);
   const [publishArmed, setPublishArmed] = useState<string | null>(null);
   const [voiceReplies, setVoiceReplies] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const navigate = useNavigate();
@@ -114,13 +120,25 @@ export default function CommandBar({
       const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
       if ((event.key === '/' && !isTyping) || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')) {
         event.preventDefault();
-        inputRef.current?.focus();
+        setExpanded(true);
+        window.requestAnimationFrame(() => inputRef.current?.focus());
       }
-      if (event.key === 'Escape') setReply(null);
+      if (event.key === 'Escape') {
+        setExpanded(false);
+        setReply(null);
+      }
     }
     window.addEventListener('keydown', onShortcut);
     return () => window.removeEventListener('keydown', onShortcut);
   }, []);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => { document.body.style.overflow = previous; };
+  }, [expanded]);
 
   useEffect(() => {
     if (!shutdownArmed && !publishArmed) return undefined;
@@ -151,10 +169,6 @@ export default function CommandBar({
       [/produce|render|build (final )?slides/, 'tiktok.produce'],
       [/publish|post|upload/, 'tiktok.publish'],
       [/reconcile|in[- ]flight|settle/, 'tiktok.reconcile'],
-      [/analytics|stats|performance|numbers/, 'analytics.sync'],
-      [/report|briefing|morning/, 'report.daily'],
-      [/audit|pipeline/, 'pipeline.audit'],
-      [/heartbeat|health/, 'system.heartbeat'],
     ];
     const alias = aliases.find(([pattern]) => pattern.test(text));
     if (alias) {
@@ -206,16 +220,12 @@ export default function CommandBar({
     }
 
     if (/what agents|list agents|show agents|agent roster|who is online/.test(t)) {
-      const appAgents = apps
-        .map((app) => `${app.name}: ${automations.filter((automation) => automation.app_id === app.id).map((automation) => automation.name).join(', ') || 'none'}`)
-        .join(' · ');
-      const systemCount = automations.filter((automation) => !automation.app_id).length;
-      return { text: `${appAgents} · ${systemCount} system agents. Click any stone or ask me to open one.`, tone: 'ok' };
+      return { text: 'Three missions only: Deadset promotion is active, Cast promotion is active, and LifeScore is locked until release.', tone: 'ok' };
     }
 
     if (/what can you do|capabilit|help me|command list|available commands/.test(t)) {
       return {
-        text: 'I can launch Cast or Deadset draft missions, target an audience or exact feature, run or pause agents, diagnose the system, open any workspace, build reports, control the review queue, and publish only owner-approved media after confirmation. If an account or source is missing, I will name the blocker instead of pretending the action ran.',
+        text: 'I operate the Deadset, Cast and LifeScore promotion system. I can forge, clone and recalibrate protocols; control selected automation fleets; create truth-locked TikTok campaigns; render exact app proof; inspect intelligence and execution traces; open owner review; and deliver only through explicit external authority. I will name any real blocker instead of pretending.',
         tone: 'ok',
       };
     }
@@ -265,13 +275,33 @@ export default function CommandBar({
       return { text: 'Opened the system overview.', tone: 'ok' };
     }
 
+    if (/\b(forge|build|create|configure)\b.*\b(automation|protocol|agent)\b|\bnew (automation|protocol|agent)\b/.test(t)) {
+      setExpanded(false);
+      onOpenForge();
+      return { text: 'Opened the Protocol Forge in free-input mode.', tone: 'ok' };
+    }
+
+    if (/\b(open|show|switch to)\b.*\b(protocol mesh|protocols|fleet control)\b/.test(t)) {
+      setExpanded(false);
+      onSetMode('protocols');
+      return { text: 'Protocol Mesh online. Fleet control is ready.', tone: 'ok' };
+    }
+
+    if (/\b(open|show|switch to)\b.*\b(intelligence|signals|learning)\b/.test(t)) {
+      setExpanded(false);
+      onSetMode('signals');
+      return { text: 'Intelligence Room online.', tone: 'ok' };
+    }
+
+    if (/\b(open|show|switch to)\b.*\b(control deck|operations|aegis)\b/.test(t)) {
+      setExpanded(false);
+      onSetMode('operations');
+      return { text: 'Sovereign Control Deck online.', tone: 'ok' };
+    }
+
     if (/^(?:(?:open|show|inspect|view)\s+(?:the\s+)?)?(?:queue|review queue|drafts?)$/.test(t)) {
       navigate('/queue');
       return { text: 'Opened the review queue.', tone: 'ok' };
-    }
-    if (/report/.test(t) && !/run|start|trigger|go|status|explain/.test(t)) {
-      navigate('/reports');
-      return { text: 'Opened reports.', tone: 'ok' };
     }
     if (/account|connect/.test(t) && !/run|start|trigger|go|promote|campaign/.test(t)) {
       navigate('/accounts');
@@ -445,8 +475,7 @@ export default function CommandBar({
 
     return {
       text:
-        'Not something I can do. Try "run analytics sync", "pause morning report", ' +
-        '"make a video about Deadset", "show the queue", or "stop everything".',
+        'That is outside the three-mission lock. Try “draft 3 Deadset carousels”, “draft 3 Cast carousels”, “show the queue”, “system status”, or “pause all”.',
       tone: 'warn',
     };
   }
@@ -509,71 +538,113 @@ export default function CommandBar({
     }
   }
 
-  return (
-    <div className="command-bar">
-      <div className="command-label">
-        <span><i /> JARVIS command</span>
-        <span className="command-label-tools">
-          <button
-            type="button"
-            className={voiceReplies ? 'active' : ''}
-            onClick={() => setVoiceReplies((enabled) => !enabled)}
-            aria-pressed={voiceReplies}
-          >
-            Voice replies {voiceReplies ? 'on' : 'off'}
-          </button>
-          <kbd>⌘ K</kbd>
-        </span>
-      </div>
-      {reply && (
-        <div className={`command-reply ${reply.tone === 'warn' ? 'warn' : ''}`} role="status">
-          <b>JARVIS</b>
-          <span>{reply.text}</span>
+  const content = (
+    <>
+      {expanded ? <button className="command-nexus-scrim" type="button" aria-label="Close JARVIS command nexus" onClick={() => setExpanded(false)} /> : null}
+      <div className={`command-bar ${expanded ? 'expanded' : ''}`} role={expanded ? 'dialog' : undefined} aria-modal={expanded ? true : undefined} aria-label={expanded ? 'JARVIS universal command nexus' : undefined}>
+        {expanded ? (
+          <header className="command-nexus-head">
+            <div className="nexus-reactor" aria-hidden="true"><i /><i /><b /></div>
+            <div><span>OWNER VOICE // UNIVERSAL ACTION BUS</span><h3>J.A.R.V.I.S. COMMAND NEXUS</h3><p>Describe the result. The system resolves the real route, protects external actions and reports any hard blocker.</p></div>
+            <button type="button" onClick={() => setExpanded(false)} aria-label="Close command nexus">×</button>
+          </header>
+        ) : null}
+
+        <div className={expanded ? 'command-nexus-grid' : undefined}>
+          <section className="command-nexus-primary">
+            <div className="command-label">
+              <span><i /> JARVIS command</span>
+              <span className="command-label-tools">
+                <button
+                  type="button"
+                  className={voiceReplies ? 'active' : ''}
+                  onClick={() => setVoiceReplies((enabled) => !enabled)}
+                  aria-pressed={voiceReplies}
+                >
+                  Voice replies {voiceReplies ? 'on' : 'off'}
+                </button>
+                {!expanded ? <button type="button" className="nexus-open" onClick={() => setExpanded(true)}>Open nexus</button> : null}
+                <kbd>⌘ K</kbd>
+              </span>
+            </div>
+            {reply && (
+              <div className={`command-reply ${reply.tone === 'warn' ? 'warn' : ''}`} role="status">
+                <b>JARVIS</b>
+                <span>{reply.text}</span>
+              </div>
+            )}
+            <form onSubmit={submit}>
+              <button
+                className={`voice-command ${listening ? 'listening' : ''}`}
+                type="button"
+                onClick={toggleVoice}
+                aria-label={listening ? 'Stop listening' : 'Speak a command'}
+                title={recognitionConstructor ? 'Speak a command' : 'Voice input is not supported in this browser'}
+              >
+                <span aria-hidden="true">{listening ? '◉' : '◌'}</span>
+              </button>
+              <input
+                ref={inputRef}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder={listening ? 'Listening…' : 'Describe the outcome, mission, audience, scope or system action…'}
+                aria-label="Command JARVIS"
+                disabled={busy}
+              />
+              <button className="primary" type="submit" disabled={busy || !value.trim()}>
+                {busy ? 'RESOLVING…' : 'EXECUTE'}
+              </button>
+            </form>
+            <div className="quick-actions">
+              <button onClick={() => quick('what can you do')}>Capabilities</button>
+              <button onClick={() => quick('system status')}>System status</button>
+              <button onClick={() => quick('draft 3 Deadset carousels')}>Draft Deadset ×3</button>
+              <button onClick={() => quick('draft 3 Cast carousels')}>Draft Cast ×3</button>
+              <button onClick={() => quick('what needs attention')}>Diagnose</button>
+              <button onClick={() => quick('show the queue')}>Review queue</button>
+              <button
+                className={shutdownArmed ? 'danger armed' : 'danger'}
+                onClick={() => quick(shutdownArmed ? 'confirm stop everything' : 'stop everything')}
+              >
+                {shutdownArmed ? 'Confirm pause all' : 'Pause all'}
+              </button>
+            </div>
+            <div className="command-contract" aria-label="Command execution contract">
+              <span><i /> REAL ACTION BUS</span>
+              <b>EXECUTE WHEN WIRED</b>
+              <b>CONFIRM EXTERNAL ACTIONS</b>
+              <b>REPORT BLOCKERS HONESTLY</b>
+            </div>
+          </section>
+
+          {expanded ? (
+            <aside className="command-nexus-aside">
+              <section className="nexus-presence">
+                <div className="nexus-sphere" aria-hidden="true"><i /><i /><i /><b /></div>
+                <span>JARVIS PRESENCE</span><strong>{listening ? 'VOICE LINK ACTIVE' : busy ? 'RESOLVING INTENT' : 'AWAITING OWNER COMMAND'}</strong>
+                <div className="nexus-wave" aria-hidden="true">{Array.from({ length: 24 }, (_, index) => <i key={index} />)}</div>
+              </section>
+              <section className="nexus-capability-map">
+                <header><span>LIVE COMMAND DOMAINS</span><b>05 WIRED</b></header>
+                <dl>
+                  <div><dt>MISSION COMPOSITION</dt><dd>READY</dd></div>
+                  <div><dt>PROTOCOL EXECUTION</dt><dd>{automations.filter((automation) => automation.enabled).length} ONLINE</dd></div>
+                  <div><dt>OWNER REVIEW</dt><dd>{drafts} WAITING</dd></div>
+                  <div><dt>CHANNEL AUTHORITY</dt><dd>{accounts.filter((account) => account.status === 'connected').length} LINKED</dd></div>
+                  <div><dt>EMERGENCY PAUSE</dt><dd>ARMED</dd></div>
+                </dl>
+              </section>
+              <section className="nexus-language">
+                <header><span>FREEFORM INPUT</span><b>NO PRESET REQUIRED</b></header>
+                <p>Speak naturally. Include the app, desired result, audience, volume, angle or agent whenever it matters.</p>
+                <div><span>“Draft four Cast concepts for new anglers focused on trust.”</span><span>“What needs my attention right now?”</span><span>“Run the Deadset production protocol.”</span></div>
+              </section>
+            </aside>
+          ) : null}
         </div>
-      )}
-      <form onSubmit={submit}>
-        <button
-          className={`voice-command ${listening ? 'listening' : ''}`}
-          type="button"
-          onClick={toggleVoice}
-          aria-label={listening ? 'Stop listening' : 'Speak a command'}
-          title={recognitionConstructor ? 'Speak a command' : 'Voice input is not supported in this browser'}
-        >
-          <span aria-hidden="true">{listening ? '◉' : '◌'}</span>
-        </button>
-        <input
-          ref={inputRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={listening ? 'Listening…' : 'Try: “Draft 3 Cast carousels for weekend anglers”…'}
-          aria-label="Command JARVIS"
-          disabled={busy}
-        />
-        <button className="primary" type="submit" disabled={busy || !value.trim()}>
-          {busy ? '…' : 'Send'}
-        </button>
-      </form>
-      <div className="quick-actions">
-        <button onClick={() => quick('what can you do')}>Capabilities</button>
-        <button onClick={() => quick('system status')}>System status</button>
-        <button onClick={() => quick('list agents')}>Agent roster</button>
-        <button onClick={() => quick('what needs attention')}>Diagnose</button>
-        <button onClick={() => quick('show the queue')}>Review queue</button>
-        <button onClick={() => quick('run analytics sync')}>Sync analytics</button>
-        <button onClick={() => quick('run morning report')}>Build report</button>
-        <button
-          className={shutdownArmed ? 'danger armed' : 'danger'}
-          onClick={() => quick(shutdownArmed ? 'confirm stop everything' : 'stop everything')}
-        >
-          {shutdownArmed ? 'Confirm pause all' : 'Pause all'}
-        </button>
       </div>
-      <div className="command-contract" aria-label="Command execution contract">
-        <span><i /> REAL ACTION BUS</span>
-        <b>EXECUTE WHEN WIRED</b>
-        <b>CONFIRM EXTERNAL ACTIONS</b>
-        <b>REPORT BLOCKERS HONESTLY</b>
-      </div>
-    </div>
+    </>
   );
+
+  return expanded ? createPortal(content, document.body) : content;
 }

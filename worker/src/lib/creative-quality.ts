@@ -1,4 +1,8 @@
 import { normalizeHashtags } from './hashtags';
+import {
+  CAST_HOOK_VISUAL_TEMPLATE_ID,
+  DEADSET_HOOK_VISUAL_TEMPLATE_ID,
+} from './creative-playbooks';
 
 export interface CreativeQualityInput {
   hook: string | null;
@@ -107,6 +111,26 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
     if (input.photoUrls && input.photoUrls.length !== 2) blockers.push('Attach exactly two final slides in posting order.');
     if (manifest.generated_people === true || manifest.fabricated_ui === true) {
       blockers.push('Generated people and rebuilt app UI are not allowed in this format.');
+    }
+    const requiredHookTemplate = manifest.app_slug === 'deadset'
+      ? {
+          id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
+          blocker: 'Deadset slide one must use the saved casual person-walking-to-a-car visual template.',
+        }
+      : manifest.app_slug === 'cast'
+        ? {
+            id: CAST_HOOK_VISUAL_TEMPLATE_ID,
+            blocker: 'Cast slide one must use the saved real fishing-decision visual template.',
+          }
+        : null;
+    if (requiredHookTemplate) {
+      const visualTemplate = manifest.hook_visual_template;
+      const templateId = visualTemplate && typeof visualTemplate === 'object' && 'id' in visualTemplate
+        ? visualTemplate.id
+        : null;
+      if (templateId !== requiredHookTemplate.id) {
+        blockers.push(requiredHookTemplate.blocker);
+      }
     }
   }
   if (input.mediaType === 'video' && input.videoUrl !== undefined && !input.videoUrl) {

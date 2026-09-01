@@ -7,6 +7,17 @@ export interface CreativeFeature {
   fallbackProofOverlay: string;
 }
 
+export interface HookVisualTemplate {
+  id: string;
+  direction: string;
+  searchQuery: string;
+  requiredAltTermGroups: string[][];
+  captionStyle: string;
+  variationRule: string;
+  rejectionRule: string;
+  gateLabel: string;
+}
+
 export interface CreativePlaybook {
   version: string;
   appSlug: 'deadset' | 'cast';
@@ -15,20 +26,38 @@ export interface CreativePlaybook {
   positioning: string;
   captionSuffix: string;
   defaultHashtags: string[];
+  hookVisualTemplate?: HookVisualTemplate;
   features: Record<string, CreativeFeature>;
   claimsToAvoid: string[];
   videoShape: string[];
 }
 
+export const DEADSET_HOOK_VISUAL_TEMPLATE_ID = 'deadset-casual-car-walk-v1';
+export const CAST_HOOK_VISUAL_TEMPLATE_ID = 'cast-fishing-decision-v2';
+
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-08-31.2',
+    version: 'deadset-2026-09-01.2',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
     positioning: 'A gym planning and workout-tracking app that turns a plan, logged sets and training history into a clearer next workout.',
-    captionSuffix: 'deadset on appstore',
+    captionSuffix: 'Deadset on the App Store.',
     defaultHashtags: ['gymtok', 'gymprogress', 'workoutplan', 'workoutapp'],
+    hookVisualTemplate: {
+      id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
+      direction: 'A real, casual phone-style photo of one person seen from behind or at an angle, mid-step toward any parked car in an ordinary car park or roadside setting at evening or night. Keep the lighting naturally low, the framing slightly imperfect and the moment unposed. The car supports the lifestyle setup; it is not a glossy automotive shoot.',
+      searchQuery: 'person walking toward parked car at night casual parking lot',
+      requiredAltTermGroups: [
+        ['car', 'vehicle', 'automobile'],
+        ['person', 'man', 'woman', 'people'],
+        ['walk', 'walking', 'approach', 'enter', 'parking', 'night', 'evening', 'dark'],
+      ],
+      captionStyle: 'TikTok Classic-style semi-bold white sans serif at a normal medium-heavy weight, clean 4-5px black outline, no box, no hollow lettering and no oversized cinematic title treatment.',
+      variationRule: 'Vary the person, car, location and hook while keeping the same casual walk-up-at-low-light feeling.',
+      rejectionRule: 'Reject key close-ups, posed portraits, gym stock, glossy car photography, cinematic colour grading and any image without both a person and a car.',
+      gateLabel: 'person-and-car',
+    },
     features: {
       muscle_diagram: {
         label: 'Muscle diagram',
@@ -93,21 +122,37 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     ],
   },
   cast: {
-    version: 'cast-2026-08-31.2',
+    version: 'cast-2026-09-01.3',
     appSlug: 'cast',
     appName: 'Cast',
     category: 'fishing',
     positioning: 'Read the water, prove what is there and fish it together: bite intelligence, private-aware catch evidence, FishKey, logging and crews.',
-    captionSuffix: 'cast on appstore',
+    captionSuffix: 'Cast on the App Store.',
     defaultHashtags: ['fishingtok', 'ukfishing', 'angling', 'fishingapp'],
+    hookVisualTemplate: {
+      id: CAST_HOOK_VISUAL_TEMPLATE_ID,
+      direction: 'A real, native-feeling fishing decision moment beside visible water: one angler casting, waiting, checking a rod or looking across the mark. Shoot from behind, over the shoulder or from a casual phone-like angle. Prefer dawn, dusk or naturally low light, slightly imperfect framing and clear fishing action. The image must create the question of whether this is the right time to fish; it must not look like a glossy outdoor advert.',
+      searchQuery: 'angler casting fishing rod lake dusk vertical',
+      requiredAltTermGroups: [
+        ['fish', 'fishing', 'angler', 'fisherman', 'rod'],
+        ['person', 'man', 'woman', 'people', 'angler', 'fisherman'],
+        ['water', 'lake', 'river', 'sea', 'coast', 'shore', 'beach', 'bank'],
+      ],
+      captionStyle: 'TikTok Classic-style semi-bold white sans serif at a normal medium-heavy weight, clean 4-5px black outline, no box, no hollow lettering and no oversized cinematic title treatment.',
+      variationRule: 'Vary the angler, water, weather, location, action and hook while preserving a clear real-world decision about whether and when to fish.',
+      rejectionRule: 'Reject posed trophy shots, fish close-ups, empty landscapes, glossy outdoor advertising, catalogue-style walking shots, cinematic colour grading and any image without an angler, fishing gear and visible water.',
+      gateLabel: 'angler-and-water',
+    },
     features: {
       bite_forecast: {
         label: 'Bite forecast',
         truth: 'CAST combines solunar windows, tide state, pressure trend and weather at the selected mark into one fishing score and exposes the underlying signals.',
         stockDirection: 'angler checking conditions by a lake, river or coast before fishing',
-        fallbackHook: 'Would you fish this window or wait?',
-        fallbackCaption: 'I want the conditions behind the score before I choose a mark.',
-        fallbackProofOverlay: 'The fishing score with its real conditions',
+        fallbackHook: 'Worth going fishing tonight?',
+        fallbackCaption: 'I check the live score and best fishing window before I waste the trip.',
+        // The exact home capture already states the score, recommended window,
+        // target species and tide. Extra text would cover the product proof.
+        fallbackProofOverlay: '',
       },
       fishkey: {
         label: 'FishKey',
@@ -170,6 +215,21 @@ export function getCreativePlaybook(slug: string): CreativePlaybook | null {
   return CREATIVE_PLAYBOOKS[slug] ?? null;
 }
 
+/** Keeps model-written social copy human while enforcing one clean store CTA. */
+export function normalizeCaption(caption: string, suffix: string): string {
+  const appName = suffix.split(/\s+/)[0] ?? '';
+  const legacySuffix = new RegExp(`${appName}\\s+on\\s+(?:the\\s+)?app\\s*store[.!?]*$`, 'i');
+  const cleaned = caption
+    .trim()
+    .replace(/^[\s'"“”‘’]+|[\s'"“”‘’]+$/g, '')
+    .replace(legacySuffix, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const sentence = cleaned || `Try ${appName}`;
+  const punctuation = /[.!?]$/.test(sentence) ? '' : '.';
+  return `${sentence}${punctuation} ${suffix}`.slice(0, 2200);
+}
+
 export function featureSpecs(playbook: CreativePlaybook) {
   return Object.entries(playbook.features).map(([key, feature]) => ({ key, ...feature }));
 }
@@ -189,8 +249,11 @@ export function productTruth(playbook: CreativePlaybook): string {
 
 export function photoSystem(playbook: CreativePlaybook): string {
   const featureTruth = Object.entries(playbook.features)
-    .map(([key, feature]) => `- ${key}: ${feature.truth} Suitable real-photo setup: ${feature.stockDirection}.`)
+    .map(([key, feature]) => `- ${key}: ${feature.truth} Suitable real-photo setup: ${playbook.hookVisualTemplate?.direction ?? feature.stockDirection}.`)
     .join('\n');
+  const hookTemplate = playbook.hookVisualTemplate
+    ? `\nMandatory slide-one visual template (${playbook.hookVisualTemplate.id}):\n- ${playbook.hookVisualTemplate.direction}\n- Caption treatment: ${playbook.hookVisualTemplate.captionStyle}\n- This composition is required for every ${playbook.appName} photo carousel. ${playbook.hookVisualTemplate.variationRule}\n- ${playbook.hookVisualTemplate.rejectionRule}\n`
+    : '';
   return `You create original two-slide TikTok photo carousel drafts for ${playbook.appName.toUpperCase()}.
 
 Content grammar:
@@ -198,6 +261,7 @@ Content grammar:
 2. Slide two is an exact current screenshot of one real ${playbook.appName} feature that answers the setup.
 
 ${featureTruth}
+${hookTemplate}
 
 Rules:
 - One carousel makes one promise to one audience. The exact app screen is the proof.
@@ -212,7 +276,7 @@ Rules:
 Reply with JSON only:
 {"ideas":[{
   "hook":"...","caption":"... ${playbook.captionSuffix}","hashtags":${JSON.stringify(playbook.defaultHashtags)},
-  "shot_notes":"two 1080x1920 stills; native bold white text with black outline; exact app capture",
+  "shot_notes":"two 1080x1920 stills; normal TikTok Classic-style bold white text with a clean black outline; exact app capture",
   "audience":"...","single_promise":"...","hook_hypothesis":"...","proof_shown":"...",
   "feature":"one exact feature key from the list",
   "slides":[

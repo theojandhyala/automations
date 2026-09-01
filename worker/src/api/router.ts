@@ -1,10 +1,21 @@
 import { Db } from '../lib/db';
 import { nextRun } from '../lib/cron';
 import { claimOne, executeRun } from '../lib/runner';
-import { listHandlers } from '../automations/registry';
+import { listHandlers, POSTING_HANDLER_KEYS } from '../automations/registry';
 import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
-import { accessTokenFor, authorizeUrl, creatorInfo, exchangeCode, oauthScopes, storeTokens } from '../lib/tiktok';
+import {
+  accessTokenFor,
+  authorizeUrl,
+  businessAccountsConfigured,
+  exchangeCode,
+  isDirectPostPrivacyAllowed,
+  oauthScopes,
+  postingInfo,
+  publishProvider,
+  storeTokens,
+  unattendedPublishingEnabled,
+} from '../lib/tiktok';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { normalizeHashtags } from '../lib/hashtags';
 import { log, errorFields } from '../lib/log';
@@ -123,9 +134,11 @@ async function promotionReadiness(db: Db, env: Env) {
   const publishAgent = automations.find((automation) => automation.handler_key === 'tiktok.publish');
   const tiktokReviewState = env.TIKTOK_REVIEW_STATE || 'draft';
   const developerAppApproved = tiktokReviewState === 'approved';
+  const sandboxDirectPostReady = tiktokReviewState === 'sandbox';
+  const unattended = unattendedPublishingEnabled(env);
   return {
     free_ai: Boolean(env.AI),
-    review_required: true,
+    review_required: !unattended,
     feature_libraries: Object.fromEntries(apps.flatMap((app) => {
       const playbook = getCreativePlaybook(app.slug);
       if (!playbook) return [];
@@ -186,11 +199,14 @@ async function promotionReadiness(db: Db, env: Env) {
         photo_source_ready: Boolean(pexels),
         producer_available: producerAvailable,
         renderer_available: rendererAvailable,
-        renderer_mode: 'browser_free_reused_session',
+        renderer_mode: 'browser_paid_bounded_session',
         intelligence_mode: 'performance_learning_with_verified_fallbacks',
         drafting_ready: draftAvailable,
         production_ready: productionReady,
         publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount && developerAppApproved),
+        sandbox_publishing_ready: Boolean(
+          publishAgent && publishAgent.status !== 'disabled' && connectedAccount && sandboxDirectPostReady,
+        ),
         manual_post_ready: productionReady,
         tiktok_review_state: tiktokReviewState,
         pending_drafts: drafts.filter((draft) => draft.app_id === app.id).length,
@@ -264,8 +280,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   const db = new Db(env);
 
   // --- TikTok OAuth callback: no session, authenticated by signed state ---
-  if (path === '/tiktok/callback') {
-    const code = url.searchParams.get('code');
+  if (path === '/tiktok/callback' || path === '/tiktok/callback/') {
+    const code = url.searchParams.get('code') ?? url.searchParams.get('auth_code');
     const state = url.searchParams.get('state');
     if (!code || !state) return json({ error: 'missing code or state' }, 400);
 
@@ -299,15 +315,27 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
   if (path === '/tiktok/status' && req.method === 'GET') {
     const reviewState = env.TIKTOK_REVIEW_STATE || 'draft';
+    const provider = publishProvider(env);
+    const businessMode = provider === 'business_accounts';
+    const configured = businessMode
+      ? businessAccountsConfigured(env)
+      : Boolean(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.TIKTOK_REDIRECT_URI);
     return json({
-      developer_app_configured: Boolean(
-        env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.TIKTOK_REDIRECT_URI,
-      ),
-      redirect_uri: env.TIKTOK_REDIRECT_URI ?? null,
-      scopes: oauthScopes(reviewState),
+      developer_app_configured: configured,
+      provider,
+      production_provider: 'business_accounts',
+      redirect_uri: businessMode
+        ? env.TIKTOK_BUSINESS_REDIRECT_URI ?? null
+        : env.TIKTOK_REDIRECT_URI ?? null,
+      scopes: businessMode
+        ? ['TikTok Accounts', 'Photo Publish', 'Get Account Media', 'Account Insights']
+        : oauthScopes(reviewState),
       review_state: reviewState,
-      public_direct_post_ready: reviewState === 'approved',
-      owner_review_required: true,
+      direct_post_test_ready: !businessMode && (reviewState === 'sandbox' || reviewState === 'approved'),
+      sandbox_private_only: !businessMode && reviewState === 'sandbox',
+      public_direct_post_ready: reviewState === 'approved' && configured,
+      autonomous_public_post_ready: unattendedPublishingEnabled(env),
+      owner_review_required: !unattendedPublishingEnabled(env),
     });
   }
 
@@ -799,6 +827,18 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
   if (path === '/automations' && req.method === 'POST') {
     const body = await parseBody(req, createAutomationSchema);
+    if (!POSTING_HANDLER_KEYS.has(body.handler_key)) {
+      return json({ error: 'JARVIS is locked to the three-app TikTok posting pipeline.' }, 409);
+    }
+    if (body.app_id && body.enabled) {
+      const missionApp = await db.selectOne<Pick<PromotionApp, 'promotion_enabled'>>(
+        'apps',
+        `id=eq.${body.app_id}&select=promotion_enabled`,
+      );
+      if (!missionApp?.promotion_enabled) {
+        return json({ error: 'This app mission is release-locked.' }, 409);
+      }
+    }
     const config = validateConfig(body.handler_key, body.config);
     const next = body.cron && body.enabled ? nextRun(body.cron) : null;
 
@@ -827,6 +867,18 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     // Manual trigger. The claim is atomic, so a manual run racing the cron
     // dispatcher loses cleanly rather than both executing.
     if (automationMatch[2] && req.method === 'POST') {
+      if (!POSTING_HANDLER_KEYS.has(automation.handler_key)) {
+        return json({ error: 'This legacy job is outside the three-app posting lock.' }, 409);
+      }
+      if (automation.app_id) {
+        const missionApp = await db.selectOne<Pick<PromotionApp, 'promotion_enabled'>>(
+          'apps',
+          `id=eq.${automation.app_id}&select=promotion_enabled`,
+        );
+        if (!missionApp?.promotion_enabled) {
+          return json({ error: 'This app mission is release-locked.' }, 409);
+        }
+      }
       if (automation.handler_key === 'tiktok.produce') {
         if (!automation.enabled || automation.status === 'disabled') {
           return json({ error: 'Enable the production agent before running it.' }, 409);
@@ -859,6 +911,21 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     if (req.method === 'PATCH') {
       const body = await parseBody(req, updateAutomationSchema);
       const patch: Record<string, unknown> = {};
+      const effectiveAppId = 'app_id' in body ? body.app_id : automation.app_id;
+      const effectiveEnabled = 'enabled' in body ? body.enabled : automation.enabled;
+
+      // Rebinding an already-enabled protocol is just as consequential as
+      // enabling one in place. Validate the effective state before writing so
+      // an edit cannot silently move live authority onto a release-locked app.
+      if (effectiveEnabled && effectiveAppId && ('app_id' in body || 'enabled' in body)) {
+        const missionApp = await db.selectOne<Pick<PromotionApp, 'promotion_enabled'>>(
+          'apps',
+          `id=eq.${effectiveAppId}&select=promotion_enabled`,
+        );
+        if (!missionApp?.promotion_enabled) {
+          return json({ error: 'This app mission is release-locked.' }, 409);
+        }
+      }
 
       for (const field of ['name', 'description', 'app_id', 'icon', 'accent'] as const) {
         if (field in body) patch[field] = body[field];
@@ -871,6 +938,9 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       if ('cron' in body) patch.cron = body.cron ?? null;
 
       if ('enabled' in body) {
+        if (body.enabled && !POSTING_HANDLER_KEYS.has(automation.handler_key)) {
+          return json({ error: 'This legacy job cannot be enabled under the three-app posting lock.' }, 409);
+        }
         patch.enabled = body.enabled;
         // Re-enabling clears a tripped breaker, otherwise it would refuse to
         // schedule and look broken for no visible reason.
@@ -881,7 +951,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       }
 
       const cron = 'cron' in body ? body.cron : automation.cron;
-      const enabled = 'enabled' in body ? body.enabled : automation.enabled;
+      const enabled = effectiveEnabled;
       if ('cron' in body || 'enabled' in body) {
         const next = cron && enabled ? nextRun(cron) : null;
         patch.next_run_at = next ? next.toISOString() : null;
@@ -1185,8 +1255,13 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
           return json({ error: 'The selected TikTok account belongs to a different app workspace.' }, 400);
         }
         if (!privacy) return json({ error: 'choose a privacy level before approval' }, 400);
+        if (!isDirectPostPrivacyAllowed(env.TIKTOK_REVIEW_STATE, privacy)) {
+          return json({ error: 'TikTok Sandbox posts must use SELF ONLY privacy.' }, 400);
+        }
         if (!ownBrand) return json({ error: 'confirm that this promotes your own brand before approval' }, 400);
-        if (!consented) return json({ error: 'explicit TikTok posting consent is required' }, 400);
+        if (!unattendedPublishingEnabled(env) && !consented) {
+          return json({ error: 'explicit TikTok posting consent is required' }, 400);
+        }
         if (!quality.pass) {
           return json({
             error: `Creative quality gate: ${[...quality.blockers, ...quality.warnings].join(' ')}`,
@@ -1194,7 +1269,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
           }, 422);
         }
 
-        patch.posting_consent_at = new Date().toISOString();
+        patch.posting_consent_at = unattendedPublishingEnabled(env) ? null : new Date().toISOString();
         patch.stage = 'schedule';
         patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString() } };
       } else if (body.status === 'draft') {
@@ -1251,7 +1326,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     );
     if (!account) return json({ error: 'account not found' }, 404);
     const token = await accessTokenFor(env, db, account);
-    const info = await creatorInfo(token);
+    const info = await postingInfo(env, token, account);
     return json({
       creator_username: info.creator_username,
       creator_nickname: info.creator_nickname,

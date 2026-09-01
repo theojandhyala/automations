@@ -1,4 +1,4 @@
-import { accessTokenFor, publishStatus } from '../lib/tiktok';
+import { accessTokenFor, publishStatusFor } from '../lib/tiktok';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
@@ -36,7 +36,7 @@ export const reconcilePublishing: Handler = {
 
       try {
         const token = await accessTokenFor(ctx.env, ctx.db, account);
-        const status = await publishStatus(token, artifact.publish_id!);
+        const status = await publishStatusFor(ctx.env, token, account, artifact.publish_id!);
 
         if (status.status === 'PUBLISH_COMPLETE') {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {

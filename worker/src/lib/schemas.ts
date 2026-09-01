@@ -93,7 +93,7 @@ export const manualApproveSchema = z.object({
 export const createAccountSchema = z.object({
   handle: tiktokHandle,
   app_id: uuid.nullish(),
-  daily_post_limit: z.number().int().min(1).max(10).default(2),
+  daily_post_limit: z.number().int().min(1).max(10).default(3),
 });
 
 export const updateAccountSchema = z
@@ -174,15 +174,17 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
       angle: z.string().max(120),
       hypothesis: z.string().max(500),
     }).optional(),
-  }),
+  }).passthrough(),
   'tiktok.publish': z.object({
     max_per_run: z.number().int().min(1).max(10).default(3),
-  }),
+    timezone: z.literal('Europe/London').optional(),
+    local_hours: z.array(z.number().int().min(0).max(23)).min(1).max(6).optional(),
+  }).passthrough(),
   'tiktok.produce': z.object({
     app_slug: z.string().min(1).default('deadset'),
     max_per_run: z.number().int().min(1).max(6).default(3),
     source_run_id: uuid.optional(),
-  }),
+  }).passthrough(),
   'tiktok.reconcile': z.object({}).passthrough(),
   'analytics.sync': z.object({
     lookback_posts: z.number().int().min(1).max(100).default(20),

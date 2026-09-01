@@ -1,5 +1,5 @@
 import { completeJson } from '../lib/ai';
-import { getCreativePlaybook, photoSystem, productTruth } from '../lib/creative-playbooks';
+import { getCreativePlaybook, normalizeCaption, photoSystem, productTruth } from '../lib/creative-playbooks';
 import type { CreativePlaybook } from '../lib/creative-playbooks';
 import {
   planCreativeFeatures,
@@ -16,6 +16,11 @@ interface App {
   name: string;
   tagline: string | null;
   app_store_url: string | null;
+}
+
+interface AccountTarget {
+  id: string;
+  app_id: string | null;
 }
 
 export interface DraftIdea {
@@ -38,10 +43,10 @@ export interface DraftIdea {
   }>;
 }
 
-// Four manual/scheduled runs per brand per UTC day is far above the normal
-// twice-weekly schedule but prevents a stuck client from burning through the
-// shared Workers AI free allocation.
-const MAX_DAILY_RUNS_PER_APP = 4;
+// Each active brand uses one three-concept batch per day. Twelve runs leaves room
+// for owner-requested retries and testing on the paid plan while still stopping
+// a stuck client from creating an unbounded Workers AI bill.
+const MAX_DAILY_RUNS_PER_APP = 12;
 
 const SYSTEM = `You write original, shoot-ready short-form vertical video concepts for a solo app developer
 promoting their own apps on TikTok.
@@ -111,6 +116,7 @@ export function buildCarouselFallbacks(
     const feature = featureOrder[index % featureOrder.length]!;
     const spec = playbook.features[feature];
     if (!spec) continue;
+    const hookVisualDirection = playbook.hookVisualTemplate?.direction ?? spec.stockDirection;
     const variant = Math.floor(index / featureOrder.length);
     const candidates = [
       spec.fallbackHook,
@@ -127,7 +133,7 @@ export function buildCarouselFallbacks(
       hook,
       caption: spec.fallbackCaption,
       hashtags: playbook.defaultHashtags.slice(0, 5),
-      shot_notes: `two 1080x1920 stills; ${spec.stockDirection}; native bold white text with black outline; exact app capture`,
+      shot_notes: `two 1080x1920 stills; ${hookVisualDirection}; ${playbook.hookVisualTemplate?.captionStyle ?? 'native bold white text with black outline'}; exact app capture`,
       audience: playbook.category === 'fishing' ? 'anglers making their next session decision' : 'lifters planning their next workout',
       single_promise: spec.truth,
       hook_hypothesis: `A familiar ${playbook.category} decision earns attention before the exact product proof.`,
@@ -137,7 +143,7 @@ export function buildCarouselFallbacks(
         {
           role: 'hook',
           overlay: hook,
-          asset_query: spec.stockDirection,
+          asset_query: playbook.hookVisualTemplate?.searchQuery ?? spec.stockDirection,
           source_requirement: 'licensed real photo; record source and licence',
         },
         {
@@ -189,6 +195,18 @@ export const generateDrafts: Handler = {
     const playbook = getCreativePlaybook(app.slug);
     if (!playbook) throw new Error(`${app.name} does not have an active, verified promotion playbook`);
 
+    const targetAccountId = config.account_id ?? null;
+    if (targetAccountId) {
+      const target = await ctx.db.selectOne<AccountTarget>(
+        'tiktok_accounts',
+        `id=eq.${targetAccountId}&select=id,app_id`,
+      );
+      if (!target) throw new Error(`configured TikTok account does not exist for ${app.name}`);
+      if (target.app_id !== app.id) {
+        throw new Error(`configured TikTok account belongs to a different app mission than ${app.name}`);
+      }
+    }
+
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
     const todayRuns = await ctx.db.select<{ id: string }>(
@@ -197,7 +215,7 @@ export const generateDrafts: Handler = {
     );
     // The current run row already exists by the time the handler starts.
     if (todayRuns.length > MAX_DAILY_RUNS_PER_APP) {
-      throw new Error(`daily free-AI run limit reached for ${app.name}`);
+      throw new Error(`daily paid-plan safety limit reached for ${app.name}`);
     }
 
     // Avoid re-treading recent angles: show the model what already exists.
@@ -350,6 +368,10 @@ export const generateDrafts: Handler = {
       const rawSlides = Array.isArray(idea.slides) ? idea.slides.slice(0, 2) : [];
       const feature = isCarousel ? idea.feature! : null;
       const featureSpec = feature ? playbook.features[feature] : null;
+      const hookAssetQuery = playbook.hookVisualTemplate?.searchQuery
+        ?? featureSpec?.stockDirection
+        ?? rawSlides[0]?.asset_query
+        ?? idea.shot_notes;
       const slides = isCarousel
         ? [
             {
@@ -358,7 +380,7 @@ export const generateDrafts: Handler = {
               // server-owned so a vague model query cannot select an abstract
               // or off-category photo.
               overlay: idea.hook,
-              asset_query: featureSpec?.stockDirection ?? rawSlides[0]?.asset_query ?? idea.shot_notes,
+              asset_query: hookAssetQuery,
               source_requirement:
                 rawSlides[0]?.source_requirement ?? 'licensed real photo; record original source and licence',
             },
@@ -389,9 +411,7 @@ export const generateDrafts: Handler = {
         generated_people: false,
       };
       const decision = plan.decisions.find((candidate) => candidate.feature === feature) ?? null;
-      const finalCaption = idea.caption.toLowerCase().includes(playbook.captionSuffix)
-        ? idea.caption
-        : `${idea.caption.replace(/[.\s]+$/, '')}. ${playbook.captionSuffix}`;
+      const finalCaption = normalizeCaption(idea.caption, playbook.captionSuffix);
       const creativeQuality = assessCreativeQuality({
         hook: idea.hook,
         caption: finalCaption,
@@ -423,7 +443,7 @@ export const generateDrafts: Handler = {
       return {
         run_id: ctx.runId,
         app_id: app.id,
-        account_id: config.account_id ?? null,
+        account_id: targetAccountId,
         status: 'draft',
         stage: 'concept',
         stages,
@@ -443,6 +463,15 @@ export const generateDrafts: Handler = {
               format: 'two_slide_photo_carousel',
               style: 'native_real_photo_to_feature_proof',
               feature,
+              ...(playbook.hookVisualTemplate
+                ? {
+                    hook_visual_template: {
+                      id: playbook.hookVisualTemplate.id,
+                      direction: playbook.hookVisualTemplate.direction,
+                      caption_style: playbook.hookVisualTemplate.captionStyle,
+                    },
+                  }
+                : {}),
               slides,
               creative_brief: creativeBrief,
               creative_intelligence: {

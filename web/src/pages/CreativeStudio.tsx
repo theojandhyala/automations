@@ -91,11 +91,29 @@ export default function CreativeStudio() {
   const ready = data.pexels.configured && uploaded === total && Boolean(data.producer);
 
   return (
-    <div className="studio-workspace" style={{ '--studio-accent': data.app.accent } as React.CSSProperties}>
-      <div className="page-head">
-        <div><h2>Creative studio</h2><p>Exact product truth, licensed source imagery and deterministic checks for each active app.</p></div>
-        <div className={`studio-readiness ${ready ? 'ready' : ''}`}><span>{ready ? 'Production ready' : 'Setup needed'}</span><strong>{uploaded}/{total} exact screens</strong></div>
+    <div className="studio-workspace ops-page jarvis-route" style={{ '--studio-accent': data.app.accent } as React.CSSProperties}>
+      <div className="route-grid-plane" aria-hidden="true" />
+      <div className="page-head studio-head">
+        <div>
+          <p className="ops-eyebrow"><i /> J.A.R.V.I.S. // PROOF FOUNDRY</p>
+          <h2>Feature proof foundry</h2>
+          <p>Give the agents real photography and exact app screens. This is the truth layer behind every creative.</p>
+        </div>
+        <div className={`studio-readiness ${ready ? 'ready' : ''}`}>
+          <div className="studio-readiness-orbit" aria-hidden="true"><i /><i /><i /></div>
+          <span>{ready ? 'Production ready' : 'Setup needed'}</span>
+          <strong>{uploaded}/{total}</strong>
+          <small>EXACT SCREENS</small>
+        </div>
       </div>
+
+      <section className="studio-pipeline" aria-label="Creative production sequence">
+        {['SOURCE', 'VERIFY', 'RENDER', 'REVIEW'].map((step, index) => (
+          <article className={(index === 0 ? data.pexels.configured : index === 1 ? uploaded === total : index === 2 ? data.renderer.available : false) ? 'ready' : ''} key={step}>
+            <i>{String(index + 1).padStart(2, '0')}</i><span>{step}</span><em>{index === 3 ? 'OWNER LOCK' : 'SYSTEM CHECK'}</em>
+          </article>
+        ))}
+      </section>
 
       <div className="studio-app-switch" role="tablist" aria-label="Creative workspace">
         {(['deadset', 'cast'] as const).map((slug) => <button type="button" role="tab" aria-selected={appSlug === slug} className={appSlug === slug ? 'active' : ''} onClick={() => selectWorkspace(slug)} key={slug}><i />{slug.toUpperCase()}<small>{slug === 'deadset' ? 'FITNESS ENGINE' : 'ANGLING ENGINE'}</small></button>)}
@@ -131,7 +149,7 @@ export default function CreativeStudio() {
       </div>
 
       <section className="card production-console">
-        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders hosted 1080×1920 JPEG slides in one reusable free Browser Run session, records source provenance and stops at owner review.</p><span className={`provider-status ${data.renderer.available ? 'connected' : ''}`}>{data.renderer.message}</span></div>
+        <div><span className="section-label">Automatic {data.app.name} production agent</span><h3>{data.producer?.current_task ?? 'Build waiting carousel drafts'}</h3><p>Renders hosted 1080×1920 JPEG slides in a bounded paid Browser Run session, records source provenance and stops at owner review.</p><span className={`provider-status ${data.renderer.available ? 'connected' : ''}`}>{data.renderer.message}</span></div>
         <button className="primary" onClick={runProducer} disabled={!data.producer || data.producer.status === 'running' || busy === 'producer'}>{data.producer?.status === 'running' || busy === 'producer' ? 'Building…' : `Build waiting ${data.app.name} drafts`}</button>
       </section>
     </div>

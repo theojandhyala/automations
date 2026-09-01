@@ -15,7 +15,11 @@ type Widen<T> = { [K in keyof T]: T[K] extends string ? string : T[K] };
 type OptionalSecret =
   | 'TIKTOK_CLIENT_KEY'
   | 'TIKTOK_CLIENT_SECRET'
-  | 'TIKTOK_REDIRECT_URI';
+  | 'TIKTOK_REDIRECT_URI'
+  | 'TIKTOK_BUSINESS_CLIENT_ID'
+  | 'TIKTOK_BUSINESS_CLIENT_SECRET'
+  | 'TIKTOK_BUSINESS_AUTH_URL'
+  | 'TIKTOK_BUSINESS_REDIRECT_URI';
 
 export type Env = Widen<Omit<WorkerEnv, OptionalSecret>> &
   Partial<Pick<Widen<WorkerEnv>, OptionalSecret>>;

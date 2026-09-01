@@ -12,6 +12,7 @@ export interface RunContext {
   db: Db;
   automation: Automation;
   runId: string;
+  trigger: 'cron' | 'manual' | 'chain';
   log(level: LogLevel, message: string, data?: unknown): void;
   /** Sets the one-line "what am I doing right now" shown on the agent badge. */
   setTask(task: string): Promise<void>;
@@ -103,6 +104,7 @@ export async function executeRun(
     db,
     automation,
     runId: run.id,
+    trigger,
     log: (level, message, data) => logger.log(level, message, data),
     setTask: async (task) => {
       logger.log('info', task);
@@ -191,9 +193,8 @@ export async function dispatchDue(env: Env): Promise<{ started: number }> {
   const producers = claimed.filter((automation) => automation.handler_key === 'tiktok.produce');
   const other = claimed.filter((automation) => automation.handler_key !== 'tiktok.produce');
   await Promise.all(other.map(runClaimed));
-  // Browser Run's free plan starts at most one new browser every 20 seconds.
-  // Production runs are serialized so Cast can reuse Deadset's idle session
-  // (or vice versa) rather than racing to launch another browser.
+  // Keep media production serialized to bound Browser Run concurrency and make
+  // spend predictable across every connected app.
   for (const producer of producers) await runClaimed(producer);
 
   return { started: claimed.length };

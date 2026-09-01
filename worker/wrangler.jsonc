@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "automations",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-31",
+  "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
 
   // The dashboard SPA is served from the same Worker as the API, so there is
@@ -33,9 +33,8 @@
     "remote": true
   },
 
-  // One session renders both carousel slides and is then left available for
-  // the next Cast/Deadset job. This stays inside Browser Run's free allowance
-  // and avoids Quick Action request bursts.
+  // Each session renders both carousel slides and closes immediately so paid
+  // Browser Run time cannot leak through the idle timeout.
   "browser": {
     "binding": "BROWSER"
   },
@@ -44,7 +43,8 @@
   "vars": {
     "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",
     "PUBLIC_BASE_URL": "https://automations.theojandhyala.workers.dev",
-    "TIKTOK_REVIEW_STATE": "draft",
+    "TIKTOK_PUBLISH_PROVIDER": "content_posting",
+    "TIKTOK_REVIEW_STATE": "sandbox",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3bWd2dWpscXZkY3R6cnlmYmlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMTM3ODMsImV4cCI6MjEwMzY4OTc4M30.sQBCfLDKp6u2ER7ANxnt_stCkbx6qXPWt2UcXo0bw_U",
     "OWNER_EMAIL": "theojandhyala@icloud.com"
   }

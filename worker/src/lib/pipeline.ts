@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { publishProvider, unattendedPublishingEnabled } from './tiktok';
 
 /**
  * The real production pipeline. Every automated stage points at the handler
@@ -52,7 +53,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'edit',
     name: 'Edit / render',
-    description: 'Render native 1080×1920 JPEG slides in one reusable free Browser Run session.',
+    description: 'Render native 1080×1920 JPEG slides in a bounded paid Browser Run session.',
     handler: 'tiktok.produce',
     requires: [],
   },
@@ -82,7 +83,7 @@ export const STAGES: StageDef[] = [
   {
     key: 'analytics',
     name: 'Analytics',
-    description: 'Pull views, watch time and follower deltas back in.',
+    description: 'Feed post performance back into the next creative decision without producing a separate report.',
     handler: 'analytics.sync',
     requires: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
   },
@@ -103,23 +104,38 @@ export interface StageStatus extends StageDef {
  */
 export function stageStatuses(env: Env): StageStatus[] {
   return STAGES.map((stage) => {
-    const missing = stage.requires.filter((key) => !env[key]);
+    const unattended = unattendedPublishingEnabled(env);
+    const resolved = unattended && stage.key === 'review'
+      ? { ...stage, handler: 'tiktok.produce', manual: false, description: 'Apply deterministic truth, media and native-quality gates before scheduling.' }
+      : unattended && stage.key === 'schedule'
+        ? { ...stage, handler: 'tiktok.publish', manual: false, description: 'Release one approved carousel per account at 12:00, 15:00 and 18:00 Europe/London.' }
+        : stage;
+    const isTikTokApiStage = resolved.key === 'publish' || resolved.key === 'analytics';
+    const required = isTikTokApiStage && publishProvider(env) === 'business_accounts'
+      ? [
+          'TIKTOK_BUSINESS_CLIENT_ID',
+          'TIKTOK_BUSINESS_CLIENT_SECRET',
+          'TIKTOK_BUSINESS_AUTH_URL',
+          'TIKTOK_BUSINESS_REDIRECT_URI',
+        ] as Array<keyof Env>
+      : resolved.requires;
+    const missing = required.filter((key) => !env[key]);
 
     let state: StageState;
     let blocker: string | null = null;
 
-    if (!stage.handler && !stage.manual) {
+    if (!resolved.handler && !resolved.manual) {
       state = 'not_built';
       blocker = 'No handler implemented yet — this stage does nothing.';
     } else if (missing.length > 0) {
       state = 'not_configured';
       blocker = `Missing ${missing.join(', ')}`;
-    } else if (stage.manual) {
+    } else if (resolved.manual) {
       state = 'manual';
     } else {
       state = 'ready';
     }
 
-    return { ...stage, state, blocker };
+    return { ...resolved, requires: required, state, blocker };
   });
 }

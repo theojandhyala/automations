@@ -12,15 +12,15 @@ interface PromotionAccount { id: string; handle: string; display_name: string | 
 interface PromotionApp {
   id: string; slug: string; name: string; tagline: string | null; accent: string;
   draft_agent_id: string | null; producer_agent_id: string | null; publish_agent_id: string | null;
-  drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean;
+  drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean; sandbox_publishing_ready: boolean;
   pending_drafts: number; blockers: string[]; playbook_version: string; content_domain: 'fitness' | 'fishing';
   uploaded_feature_keys: string[]; uploaded_feature_count: number; feature_count: number;
   photo_source_ready: boolean; producer_available: boolean; renderer_available: boolean;
-  renderer_mode: 'browser_free_reused_session'; intelligence_mode: 'performance_learning_with_verified_fallbacks';
+  renderer_mode: 'browser_paid_bounded_session'; intelligence_mode: 'performance_learning_with_verified_fallbacks';
   manual_post_ready: boolean; tiktok_review_state: string;
 }
 interface Readiness {
-  free_ai: boolean; review_required: true; feature_libraries: Record<string, FeatureReadiness[]>;
+  free_ai: boolean; review_required: boolean; feature_libraries: Record<string, FeatureReadiness[]>;
   accounts: PromotionAccount[]; apps: PromotionApp[];
 }
 interface Mission {
@@ -116,6 +116,7 @@ export default function PromotionMission() {
         : 'Local renderer + licensed source + exact screens ready';
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
+  const autonomousRelease = Boolean(readiness && !readiness.review_required);
 
   function chooseApp(slug: string) {
     setAppSlug(slug);
@@ -147,7 +148,9 @@ export default function PromotionMission() {
           auto_produce: format === 'photo_carousel' && autoProduce && selectedProductionReady,
         }),
       });
-      setMessage({ tone: 'ok', text: `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will return here and to your review queue—nothing will publish without you.` });
+      setMessage({ tone: 'ok', text: autonomousRelease
+        ? `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will pass the truth and quality gates, then enter the next public posting windows automatically.`
+        : `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will return here while TikTok production approval remains pending.` });
       await refresh();
     } catch (error) {
       setMessage({ tone: 'bad', text: error instanceof Error ? error.message : 'Mission could not launch.' });
@@ -167,15 +170,15 @@ export default function PromotionMission() {
   }
 
   return (
-    <div className="ops-page promote-page">
-      <div className="ops-grid-plane" aria-hidden="true" />
+    <div className="ops-page promote-page jarvis-route">
+      <div className="route-grid-plane" aria-hidden="true" />
       <header className="promote-hero">
         <div>
           <p className="ops-eyebrow"><i /> J.A.R.V.I.S. // PROMOTION MISSION</p>
           <h2>Tell the system what outcome you want.</h2>
           <p>It turns that into native TikTok concepts, exact product proof and a review-ready handoff.</p>
         </div>
-        <div className="promote-safety"><span>AUTHORITY LOCK</span><b>OWNER REVIEW REQUIRED</b><p>Drafting and production can run. Publishing cannot bypass you.</p></div>
+        <div className="promote-safety"><span>RELEASE AUTHORITY</span><b>{autonomousRelease ? 'AUTONOMOUS QUALITY GATE' : 'TIKTOK APPROVAL GATE'}</b><p>{autonomousRelease ? 'Truth-checked posts release automatically at the configured windows; you can pause the mission at any time.' : 'Drafting and production can run now. Public delivery unlocks only after TikTok approves the Business Accounts integration.'}</p></div>
       </header>
 
       {message && <div className={`ops-alert ${message.tone}`}>{message.text}</div>}
@@ -183,8 +186,8 @@ export default function PromotionMission() {
       <section className="mission-flightpath" aria-label={`${selectedApp?.name ?? 'App'} mission readiness`}>
         <article className={selectedApp?.drafting_ready ? 'ready' : ''}><i>01</i><div><span>THINK</span><b>Truth-locked concepts</b></div><em>{selectedApp?.drafting_ready ? 'ONLINE' : 'CHECK'}</em></article>
         <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>Exact-screen carousels</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
-        <article className={selectedApp?.publishing_ready ? 'ready' : ''}><i>03</i><div><span>ROUTE</span><b>{selectedApp?.name ?? 'App'} TikTok channel</b></div><em>{selectedApp?.publishing_ready ? 'ONLINE' : 'CONNECT'}</em></article>
-        <article className="authority"><i>04</i><div><span>AUTHORISE</span><b>Your final review</b></div><em>LOCKED</em></article>
+        <article className={selectedApp?.publishing_ready ? 'ready' : ''}><i>03</i><div><span>ROUTE</span><b>{selectedApp?.name ?? 'App'} TikTok channel</b></div><em>{selectedApp?.publishing_ready ? 'PUBLIC AUTO' : 'BUSINESS REVIEW'}</em></article>
+        <article className={autonomousRelease ? 'ready authority' : 'authority'}><i>04</i><div><span>RELEASE</span><b>{autonomousRelease ? 'Automated truth + quality gates' : 'TikTok approval interlock'}</b></div><em>{autonomousRelease ? 'ONLINE' : 'LOCKED'}</em></article>
       </section>
 
       <form className="mission-layout" onSubmit={launch}>
@@ -240,8 +243,8 @@ export default function PromotionMission() {
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
             <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `${selectedApp.tiktok_review_state === 'approved' ? 'Learns from live results' : 'Learning framework ready; live metrics begin after TikTok approval'} · rotates fresh proof · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
             <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
-            <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Public Direct Post and account ready' : selectedApp?.manual_post_ready ? 'Manual-post handoff works now; API delivery awaits TikTok review' : 'Drafting still works; finish production setup'}</small></div></div>
-            <div className="readiness-line locked"><i /><div><b>Owner approval lock</b><small>Always active. No autonomous publishing.</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Business Accounts public publishing is ready' : selectedApp?.manual_post_ready ? 'Manual-post handoff works now; public API delivery awaits TikTok Business review' : 'Drafting still works; finish production setup'}</small></div></div>
+            <div className={`readiness-line ${autonomousRelease ? '' : 'locked'}`}><i className={autonomousRelease ? 'ready' : ''} /><div><b>Autonomous release</b><small>{autonomousRelease ? 'Truth and quality gates approve safe posts into the 12:00, 15:00 and 18:00 windows.' : 'Fail-closed until TikTok approves the Business Accounts integration.'}</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
             <div className="mission-shortcuts"><Link to={`/studio?app=${appSlug}`}>OPEN STUDIO</Link><Link to={`/accounts?app=${appSlug}`}>OPEN ACCOUNTS</Link></div>
           </section>

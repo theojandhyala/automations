@@ -1,11 +1,8 @@
 import type { RunContext } from '../lib/runner';
-import { heartbeat } from './heartbeat';
 import { generateDrafts } from './tiktok-generate';
 import { publishApproved } from './tiktok-publish';
 import { reconcilePublishing } from './tiktok-reconcile';
 import { analyticsSync } from './analytics-sync';
-import { reportDaily } from './report-daily';
-import { pipelineAudit } from './pipeline-audit';
 import { produceCarousels } from './tiktok-produce';
 
 export interface Handler {
@@ -17,15 +14,15 @@ export interface Handler {
 }
 
 const HANDLERS: Handler[] = [
-  heartbeat,
   generateDrafts,
   produceCarousels,
   publishApproved,
   reconcilePublishing,
   analyticsSync,
-  reportDaily,
-  pipelineAudit,
 ];
+
+/** The only executable work is the posting pipeline for the three app missions. */
+export const POSTING_HANDLER_KEYS = new Set(HANDLERS.map((handler) => handler.key));
 
 const BY_KEY = new Map(HANDLERS.map((h) => [h.key, h]));
 

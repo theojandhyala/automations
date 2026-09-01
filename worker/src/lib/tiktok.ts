@@ -4,11 +4,35 @@ import type { Env, TikTokAccount } from '../types';
 
 const API = 'https://open.tiktokapis.com/v2';
 const AUTH = 'https://www.tiktok.com/v2/auth/authorize/';
+const BUSINESS_API = 'https://business-api.tiktok.com/open_api/v1.3';
+
+export type TikTokPublishProvider = 'content_posting' | 'business_accounts';
+
+export function publishProvider(env: Pick<Env, 'TIKTOK_PUBLISH_PROVIDER'>): TikTokPublishProvider {
+  return env.TIKTOK_PUBLISH_PROVIDER === 'business_accounts'
+    ? 'business_accounts'
+    : 'content_posting';
+}
+
+export function businessAccountsConfigured(env: Env): boolean {
+  return Boolean(
+    env.TIKTOK_BUSINESS_CLIENT_ID
+      && env.TIKTOK_BUSINESS_CLIENT_SECRET
+      && env.TIKTOK_BUSINESS_AUTH_URL
+      && env.TIKTOK_BUSINESS_REDIRECT_URI,
+  );
+}
+
+/** TikTok Accounts API is the only provider that permits owned-account posts without per-post consent. */
+export function unattendedPublishingEnabled(env: Env): boolean {
+  return publishProvider(env) === 'business_accounts'
+    && env.TIKTOK_REVIEW_STATE === 'approved'
+    && businessAccountsConfigured(env);
+}
 
 /** Scopes used by the reviewed publishing and performance-learning loop. */
 export const POSTING_SCOPES = ['user.info.basic', 'video.publish', 'video.upload'];
 export const ANALYTICS_SCOPES = ['user.info.stats', 'video.list'];
-export const SCOPES = [...POSTING_SCOPES, ...ANALYTICS_SCOPES];
 export const SANDBOX_SCOPES = ['user.info.basic'];
 
 /**
@@ -18,10 +42,28 @@ export const SANDBOX_SCOPES = ['user.info.basic'];
  * make TikTok reject the whole request with a generic `scope` error.
  */
 export function oauthScopes(reviewState: string | undefined): string[] {
-  return reviewState === 'approved' ? SCOPES : SANDBOX_SCOPES;
+  // The configured Sandbox contains Login Kit + Content Posting API, so it
+  // may request the posting scopes needed for TikTok's required review demo.
+  // Production still remains locked until the environment is `approved`.
+  return reviewState === 'approved' || reviewState === 'sandbox'
+    ? POSTING_SCOPES
+    : SANDBOX_SCOPES;
+}
+
+/** Unreviewed Sandbox clients may only create private test posts. */
+export function isDirectPostPrivacyAllowed(reviewState: string | undefined, privacy: string): boolean {
+  return reviewState !== 'sandbox' || privacy === 'SELF_ONLY';
 }
 
 export function authorizeUrl(env: Env, state: string): string {
+  if (publishProvider(env) === 'business_accounts') {
+    if (!businessAccountsConfigured(env)) {
+      throw new Error('TikTok Business Accounts credentials and authorization URL are not configured');
+    }
+    const url = new URL(env.TIKTOK_BUSINESS_AUTH_URL!);
+    url.searchParams.set('state', state);
+    return url.toString();
+  }
   if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_REDIRECT_URI) {
     throw new Error('TIKTOK_CLIENT_KEY and TIKTOK_REDIRECT_URI must be configured');
   }
@@ -45,6 +87,39 @@ interface TokenResponse {
   error_description?: string;
 }
 
+interface BusinessEnvelope<T> {
+  code: number;
+  message?: string;
+  request_id?: string;
+  data?: T;
+}
+
+async function businessTokenRequest(
+  env: Env,
+  path: '/tt_user/oauth2/token/' | '/tt_user/oauth2/refresh_token/',
+  body: Record<string, string>,
+): Promise<TokenResponse> {
+  if (!env.TIKTOK_BUSINESS_CLIENT_ID || !env.TIKTOK_BUSINESS_CLIENT_SECRET) {
+    throw new Error('TikTok Business Accounts client credentials are not configured');
+  }
+  const res = await fetch(`${BUSINESS_API}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: env.TIKTOK_BUSINESS_CLIENT_ID,
+      client_secret: env.TIKTOK_BUSINESS_CLIENT_SECRET,
+      ...body,
+    }),
+  });
+  const json = (await res.json()) as BusinessEnvelope<TokenResponse>;
+  if (!res.ok || json.code !== 0 || !json.data) {
+    throw new Error(
+      `tiktok business token: ${json.code ?? res.status} ${json.message ?? ''}`.trim(),
+    );
+  }
+  return json.data;
+}
+
 async function tokenRequest(env: Env, body: Record<string, string>): Promise<TokenResponse> {
   if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_CLIENT_SECRET) {
     throw new Error('TikTok client credentials are not configured');
@@ -66,6 +141,13 @@ async function tokenRequest(env: Env, body: Record<string, string>): Promise<Tok
 }
 
 export function exchangeCode(env: Env, code: string): Promise<TokenResponse> {
+  if (publishProvider(env) === 'business_accounts') {
+    return businessTokenRequest(env, '/tt_user/oauth2/token/', {
+      auth_code: code,
+      grant_type: 'authorization_code',
+      redirect_uri: env.TIKTOK_BUSINESS_REDIRECT_URI ?? '',
+    });
+  }
   return tokenRequest(env, {
     code,
     grant_type: 'authorization_code',
@@ -106,10 +188,15 @@ export async function accessTokenFor(env: Env, db: Db, account: TikTokAccount): 
 
   const refreshToken = await decrypt(account.refresh_token_enc, env.TOKEN_ENCRYPTION_KEY);
   try {
-    const tokens = await tokenRequest(env, {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    });
+    const tokens = publishProvider(env) === 'business_accounts'
+      ? await businessTokenRequest(env, '/tt_user/oauth2/refresh_token/', {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        })
+      : await tokenRequest(env, {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        });
     await storeTokens(env, db, account.id, tokens);
     return tokens.access_token;
   } catch (err) {
@@ -135,6 +222,30 @@ async function apiPost<T>(token: string, path: string, body: unknown): Promise<T
   return json.data as T;
 }
 
+async function businessApi<T>(
+  token: string,
+  path: string,
+  init: { method: 'GET' | 'POST'; body?: unknown; query?: Record<string, string> },
+): Promise<T> {
+  const url = new URL(`${BUSINESS_API}${path}`);
+  for (const [key, value] of Object.entries(init.query ?? {})) url.searchParams.set(key, value);
+  const res = await fetch(url, {
+    method: init.method,
+    headers: {
+      'Access-Token': token,
+      'Content-Type': 'application/json',
+    },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  });
+  const json = (await res.json()) as BusinessEnvelope<T>;
+  if (!res.ok || json.code !== 0 || !json.data) {
+    throw new Error(
+      `tiktok business ${path}: ${json.code ?? res.status} ${json.message ?? ''}`.trim(),
+    );
+  }
+  return json.data;
+}
+
 export interface CreatorInfo {
   creator_avatar_url?: string;
   creator_username: string;
@@ -152,6 +263,22 @@ export interface CreatorInfo {
  */
 export function creatorInfo(token: string): Promise<CreatorInfo> {
   return apiPost<CreatorInfo>(token, '/post/publish/creator_info/query/', {});
+}
+
+/** Provider-aware settings check performed immediately before every publish. */
+export async function postingInfo(env: Env, token: string, account: TikTokAccount): Promise<CreatorInfo> {
+  if (publishProvider(env) !== 'business_accounts') return creatorInfo(token);
+  if (!account.open_id) throw new Error(`@${account.handle} needs reconnecting to TikTok Accounts API`);
+  const settings = await businessApi<Omit<CreatorInfo, 'creator_username' | 'creator_nickname'>>(
+    token,
+    '/business/video/settings/',
+    { method: 'GET', query: { business_id: account.open_id } },
+  );
+  return {
+    ...settings,
+    creator_username: account.handle,
+    creator_nickname: account.display_name ?? account.handle,
+  };
 }
 
 export interface PublishInit {
@@ -229,6 +356,41 @@ export function initPhotoPublish(
   });
 }
 
+/** Starts an unattended owned-account photo carousel through TikTok API for Business. */
+export async function initOwnedPhotoPublish(
+  token: string,
+  businessId: string,
+  opts: {
+    title: string;
+    caption: string;
+    photoUrls: string[];
+    privacyLevel: string;
+    disableComment: boolean;
+    autoAddMusic: boolean;
+    brandOrganic: boolean;
+    brandContent: boolean;
+  },
+): Promise<PublishInit> {
+  const data = await businessApi<{ share_id: string }>(token, '/business/photo/publish/', {
+    method: 'POST',
+    body: {
+      business_id: businessId,
+      photo_images: opts.photoUrls,
+      photo_cover_index: 0,
+      post_info: {
+        title: opts.title.slice(0, 90),
+        caption: opts.caption.slice(0, 4000),
+        privacy_level: opts.privacyLevel,
+        disable_comment: opts.disableComment,
+        auto_add_music: opts.autoAddMusic,
+        is_brand_organic: opts.brandOrganic,
+        is_branded_content: opts.brandContent,
+      },
+    },
+  });
+  return { publish_id: data.share_id };
+}
+
 export interface PublishStatus {
   status: string; // PROCESSING_UPLOAD | PUBLISH_COMPLETE | FAILED ...
   fail_reason?: string;
@@ -237,4 +399,28 @@ export interface PublishStatus {
 
 export function publishStatus(token: string, publishId: string): Promise<PublishStatus> {
   return apiPost<PublishStatus>(token, '/post/publish/status/fetch/', { publish_id: publishId });
+}
+
+/** Provider-aware publishing status normalized to the Content Posting API shape. */
+export async function publishStatusFor(
+  env: Env,
+  token: string,
+  account: TikTokAccount,
+  publishId: string,
+): Promise<PublishStatus> {
+  if (publishProvider(env) !== 'business_accounts') return publishStatus(token, publishId);
+  if (!account.open_id) throw new Error(`@${account.handle} needs reconnecting to TikTok Accounts API`);
+  const data = await businessApi<{ status: string; post_ids?: string[]; reason?: string }>(
+    token,
+    '/business/publish/status/',
+    {
+      method: 'GET',
+      query: { business_id: account.open_id, publish_id: publishId },
+    },
+  );
+  return {
+    status: data.status,
+    fail_reason: data.reason,
+    publicaly_available_post_id: data.post_ids,
+  };
 }

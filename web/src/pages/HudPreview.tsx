@@ -1,10 +1,10 @@
 import CommandCenter, { type CommandCenterPreviewData } from './CommandCenter';
-import type { App, Automation } from '../lib/types';
+import type { App, Automation, Run } from '../lib/types';
 
 const APPS: App[] = [
-  { id: 'deadset', slug: 'deadset', name: 'Deadset', tagline: 'Training intelligence', accent: '#55e8ff', icon: 'activity', sort_order: 1 },
-  { id: 'cast', slug: 'cast', name: 'Cast', tagline: 'Social intelligence', accent: '#9c78ff', icon: 'sparkles', sort_order: 2 },
-  { id: 'lifescore', slug: 'lifescore', name: 'LifeScore', tagline: 'Personal systems', accent: '#ffb454', icon: 'chart', sort_order: 3 },
+  { id: 'deadset', slug: 'deadset', name: 'Deadset', tagline: 'Plan. Log. Progress.', accent: '#ff513f', icon: 'activity', sort_order: 1, promotion_enabled: true },
+  { id: 'cast', slug: 'cast', name: 'Cast', tagline: 'Fish smarter. Catch more.', accent: '#48c9ff', icon: 'sparkles', sort_order: 2, promotion_enabled: true },
+  { id: 'lifescore', slug: 'lifescore', name: 'LifeScore', tagline: 'Awaiting release', accent: '#ffc861', icon: 'chart', sort_order: 3, promotion_enabled: false },
 ];
 
 function automation(
@@ -41,28 +41,54 @@ function automation(
 }
 
 const AUTOMATIONS: Automation[] = [
-  automation(0, 'Creative Forge', 'tiktok.generate', 'deadset', 'running', 'sparkles', '#58efff', 'Synthesizing three native performance concepts'),
-  automation(1, 'Launch Control', 'tiktok.publish', 'deadset', 'idle', 'send', '#40d8ff', null),
-  automation(2, 'Flight Recorder', 'analytics.sync', 'deadset', 'idle', 'chart', '#62f2cf', null),
-  automation(3, 'Signal Mapper', 'analytics.sync', 'cast', 'running', 'activity', '#9c78ff', 'Mapping audience velocity across active channels'),
-  automation(4, 'Narrative Engine', 'tiktok.generate', 'cast', 'idle', 'file', '#b98aff', null),
-  automation(5, 'Vital Monitor', 'system.heartbeat', null, 'idle', 'heart', '#58ffc4', null),
-  automation(6, 'Morning Brief', 'report.daily', null, 'idle', 'sun', '#ffcb64', null),
-  automation(7, 'Pipeline Sentinel', 'pipeline.audit', null, 'failed', 'shield', '#ff6277', 'Awaiting operator review'),
-  automation(8, 'LifeScore Relay', 'tiktok.publish', 'lifescore', 'disabled', 'send', '#ffb454', null),
+  automation(0, 'Deadset Mission Brain', 'tiktok.generate', 'deadset', 'running', 'sparkles', '#ff513f', 'Selecting the next feature proof from recent creative signals'),
+  automation(1, 'Cast Mission Brain', 'tiktok.generate', 'cast', 'idle', 'activity', '#48c9ff', null),
+  automation(2, 'LifeScore Mission Brain', 'tiktok.generate', 'lifescore', 'disabled', 'shield', '#ffc861', null),
 ];
+
+const RUNS: Run[] = Array.from({ length: 16 }, (_, index) => {
+  const status: Run['status'] = index === 0 ? 'running' : index === 6 ? 'failed' : 'succeeded';
+  const started = Date.now() - index * 3_900_000;
+  return {
+    id: `run-${index}`,
+    automation_id: AUTOMATIONS[index % AUTOMATIONS.length]!.id,
+    status,
+    trigger: index % 4 === 0 ? 'manual' : 'cron',
+    started_at: new Date(started).toISOString(),
+    finished_at: status === 'running' ? null : new Date(started + 42_000 + index * 1_700).toISOString(),
+    duration_ms: status === 'running' ? null : 42_000 + index * 1_700,
+    error: status === 'failed' ? 'Proof-source uplink timed out safely before delivery.' : null,
+    result: status === 'succeeded' ? { drafted: 3, verified: 3 } : null,
+  };
+});
 
 const PREVIEW_DATA: CommandCenterPreviewData = {
   apps: APPS,
   automations: AUTOMATIONS,
+  runs: RUNS,
   accounts: [
     { id: 'account-a', handle: 'deadset.training', display_name: 'Deadset', app_id: 'deadset', status: 'connected', daily_post_limit: 3, token_expires_at: null },
-    { id: 'account-b', handle: 'cast.studio', display_name: 'Cast', app_id: 'cast', status: 'connected', daily_post_limit: 2, token_expires_at: null },
+    { id: 'account-b', handle: 'cast.studio', display_name: 'Cast', app_id: 'cast', status: 'connected', daily_post_limit: 3, token_expires_at: null },
   ],
-  queue: [{ status: 'draft' }, { status: 'draft' }, { status: 'approved' }],
+  queue: [
+    { app_id: 'deadset', status: 'draft', created_at: new Date().toISOString() },
+    { app_id: 'deadset', status: 'published', created_at: new Date().toISOString() },
+    { app_id: 'cast', status: 'approved', created_at: new Date().toISOString() },
+  ],
   snapshots: [
     { id: 'snapshot-a', account_id: 'account-a', app_id: 'deadset', captured_at: new Date().toISOString(), followers: 12842, following: 114, likes_total: 85200, video_count: 61, views_28d: 412000, watch_time_min: 9280, comments_28d: 1840, shares_28d: 3210, quality: 'ok' },
     { id: 'snapshot-b', account_id: 'account-b', app_id: 'cast', captured_at: new Date().toISOString(), followers: 7218, following: 93, likes_total: 34800, video_count: 37, views_28d: 188000, watch_time_min: 4130, comments_28d: 790, shares_28d: 1260, quality: 'ok' },
+  ],
+  readiness: [
+    { slug: 'deadset', uploaded_feature_count: 4, feature_count: 6, drafting_ready: true, production_ready: true, publishing_ready: true, blockers: [] },
+    { slug: 'cast', uploaded_feature_count: 6, feature_count: 6, drafting_ready: true, production_ready: true, publishing_ready: false, blockers: ['TikTok production review'] },
+  ],
+  handlers: [
+    { key: 'tiktok.generate', name: 'Creative intelligence', description: 'Builds configurable native content concepts from verified product proof.' },
+    { key: 'tiktok.produce', name: 'Production foundry', description: 'Produces approved carousel assets through the rendering pipeline.' },
+    { key: 'tiktok.publish', name: 'Launch control', description: 'Publishes approved media within configured release and safety limits.' },
+    { key: 'tiktok.reconcile', name: 'Delivery reconciler', description: 'Checks in-flight delivery and records final post state.' },
+    { key: 'analytics.sync', name: 'Signal mapper', description: 'Collects performance data for linked channels.' },
   ],
 };
 

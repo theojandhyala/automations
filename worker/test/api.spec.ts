@@ -143,6 +143,34 @@ describe('validation', () => {
     expect(res.status).toBe(400);
   });
 
+  it('cannot rebind an enabled automation onto a release-locked app', async () => {
+    const lockedAppId = '33333333-3333-4333-8333-333333333333';
+    let automationWrites = 0;
+    stubFetch([
+      authRoute,
+      {
+        match: /\/rest\/v1\/automations\?id=eq/,
+        respond: (request) => {
+          if (request.method === 'PATCH') automationWrites++;
+          return jsonResponse([automationRow({ app_id: null, enabled: true })]);
+        },
+      },
+      {
+        match: /\/rest\/v1\/apps\?id=eq/,
+        respond: () => jsonResponse([{ promotion_enabled: false }]),
+      },
+    ]);
+
+    const res = await call(apiRequest(`/automations/${AUTOMATION_ID}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ app_id: lockedAppId }),
+    }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: string }).error).toMatch(/release-locked/);
+    expect(automationWrites).toBe(0);
+  });
+
   it('rejects a video_url that is not a URL', async () => {
     stubFetch([
       authRoute,
@@ -173,7 +201,7 @@ describe('validation', () => {
       apiRequest('/tiktok/accounts', { method: 'POST', body: JSON.stringify({ handle: '@deadsetapp' }) }),
     );
     expect(res.status).toBe(201);
-    expect(inserted).toMatchObject({ handle: 'deadsetapp', daily_post_limit: 2 });
+    expect(inserted).toMatchObject({ handle: 'deadsetapp', daily_post_limit: 3 });
   });
 
   it('rejects a handle with characters TikTok does not allow', async () => {
@@ -408,7 +436,7 @@ describe('pipeline honesty', () => {
       expect(byKey[key]!.state).toBe('ready');
       expect(byKey[key]!.blocker).toBeNull();
     }
-    expect(byKey.edit!.description).toMatch(/reusable free Browser Run session/);
+    expect(byKey.edit!.description).toMatch(/bounded paid Browser Run session/);
     // These are wired and configured in the test env.
     expect(byKey['concept']!.state).toBe('ready');
     expect(byKey['assets']!.state).toBe('ready');
@@ -460,6 +488,7 @@ describe('promotion missions', () => {
     expect(res.status).toBe(200);
     expect(text).toContain('"review_required":true');
     expect(text).toContain('"publishing_ready":false');
+    expect(text).toContain('"sandbox_publishing_ready":false');
     expect(text).toContain('"tiktok_review_state":"draft"');
     expect(text).not.toContain('MUST-NOT-LEAK');
     expect(text).not.toContain('secret_enc');

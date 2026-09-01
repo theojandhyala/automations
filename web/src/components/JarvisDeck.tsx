@@ -1,119 +1,140 @@
 import type { CSSProperties } from 'react';
-import { AgentIcon } from './icons';
 import type { Account, App, Automation } from '../lib/types';
 
-type AgentStyle = CSSProperties & { '--agent-color': string };
+type MissionStyle = CSSProperties & { '--mission-color': string; '--mission-index': number };
 
-function agentState(automation: Automation): { label: string; tone: string } {
-  if (!automation.enabled || automation.status === 'disabled') return { label: 'STANDBY', tone: 'sleeping' };
-  if (automation.status === 'running') return { label: 'EXECUTING', tone: 'working' };
-  if (automation.status === 'failed') return { label: 'FAULT', tone: 'failed' };
-  return { label: 'READY', tone: 'ready' };
+export interface MissionArtifact {
+  app_id: string | null;
+  status: string;
+  created_at?: string;
 }
 
-function nextTime(at: string | null): string {
-  if (!at) return 'MANUAL';
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
+export interface MissionReadiness {
+  slug: string;
+  uploaded_feature_count: number;
+  feature_count: number;
+  drafting_ready: boolean;
+  production_ready: boolean;
+  publishing_ready: boolean;
+  sandbox_publishing_ready?: boolean;
+  blockers: string[];
+}
+
+function nextMissionAt(automations: Automation[]): string | null {
+  let earliest: string | null = null;
+  for (const automation of automations) {
+    if (!automation.enabled || !automation.next_run_at) continue;
+    if (!earliest || automation.next_run_at < earliest) earliest = automation.next_run_at;
+  }
+  return earliest;
+}
+
+function formatLaunch(at: string | null): string {
+  if (!at) return 'AWAITING COMMAND';
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(at)).toUpperCase();
 }
 
 export default function JarvisDeck({
   automations,
   apps,
   accounts,
-  drafts,
+  artifacts,
+  readiness,
   onOpenAgent,
   onOpenCore,
 }: {
   automations: Automation[];
   apps: App[];
   accounts: Account[];
-  drafts: number;
+  artifacts: MissionArtifact[];
+  readiness: MissionReadiness[];
   onOpenAgent: (automation: Automation) => void;
   onOpenCore: () => void;
 }) {
+  const missions = apps
+    .filter((app) => ['deadset', 'cast', 'lifescore'].includes(app.slug))
+    .sort((a, b) => a.sort_order - b.sort_order);
   const running = automations.filter((automation) => automation.status === 'running').length;
-  const faults = automations.filter((automation) => automation.status === 'failed').length;
   const connected = accounts.filter((account) => account.status === 'connected').length;
-  const accountFaults = accounts.filter((account) => account.status !== 'connected').length;
-  const condition = faults || accountFaults
-    ? 'ATTENTION REQUIRED'
-    : connected === 0
-      ? 'PUBLISHING LINK REQUIRED'
-      : running
-        ? 'MISSION ACTIVE'
-        : 'ALL SYSTEMS NOMINAL';
+  const review = artifacts.filter((artifact) => artifact.status === 'draft').length;
 
   return (
-    <section className="jarvis-deck" aria-label="JARVIS agent control deck">
+    <section className="jarvis-deck focused-deck" aria-label="Three-app JARVIS mission control">
       <div className="deck-corner tl" aria-hidden="true" />
       <div className="deck-corner tr" aria-hidden="true" />
       <div className="deck-corner bl" aria-hidden="true" />
       <div className="deck-corner br" aria-hidden="true" />
 
-      <button className="jarvis-kernel" type="button" onClick={onOpenCore} aria-label="Open the JARVIS control plane">
-        <span className="kernel-coordinate top">EDGE CONTROL PLANE // OWNER AUTHORITY</span>
-        <span className="kernel-coordinate side">CORE NODE // 00-A</span>
+      <button className="jarvis-kernel mission-kernel" type="button" onClick={onOpenCore} aria-label="Open the JARVIS mission core">
+        <span className="kernel-coordinate top">OWNER COMMAND // THREE-MISSION LOCK</span>
+        <span className="kernel-coordinate side">ARC CORE // MARK 03</span>
         <span className="kernel-reactor" aria-hidden="true">
-          <i className="reactor-tick tick-a" />
-          <i className="reactor-tick tick-b" />
-          <i className="reactor-tick tick-c" />
-          <i className="reactor-ring r1" />
-          <i className="reactor-ring r2" />
-          <i className="reactor-ring r3" />
-          <i className="reactor-triangle" />
-          <i className="reactor-core" />
-          <i className="reactor-scan" />
+          <i className="reactor-tick tick-a" /><i className="reactor-tick tick-b" /><i className="reactor-tick tick-c" />
+          <i className="reactor-ring r1" /><i className="reactor-ring r2" /><i className="reactor-ring r3" />
+          <i className="reactor-triangle" /><i className="reactor-core" /><i className="reactor-scan" />
         </span>
         <span className="kernel-id">J.A.R.V.I.S.</span>
-        <strong className={faults || accountFaults || connected === 0 ? 'warn' : ''}>{condition}</strong>
-        <span className="kernel-copy">
-          Natural-language command authority<br />
-          {automations.length} agent protocols linked
-        </span>
+        <strong>{running ? 'MISSION EXECUTING' : 'POSTING CORE ONLINE'}</strong>
+        <span className="kernel-copy">Deadset · Cast · LifeScore<br />No unrelated automation branches</span>
         <span className="kernel-wave" aria-hidden="true">
           {Array.from({ length: 22 }, (_, index) => <i key={index} />)}
         </span>
         <span className="kernel-stats">
-          <span><b>{running}</b> ACTIVE</span>
-          <span><b>{connected}</b> LINKED</span>
-          <span><b>{drafts}</b> REVIEW</span>
+          <span><b>{running}</b> ACTIVE</span><span><b>{connected}</b> LINKED</span><span><b>{review}</b> REVIEW</span>
         </span>
-        <span className="kernel-action">OPEN SYSTEM CORE</span>
+        <span className="kernel-action">OPEN MISSION CORE</span>
       </button>
 
-      <div className="agent-matrix" aria-label="Agent protocols">
-        <div className="matrix-head">
-          <span>AGENT PROTOCOL MATRIX</span>
-          <span>{automations.filter((automation) => automation.enabled).length}/{automations.length} ONLINE</span>
-        </div>
-        <div className="matrix-grid">
-          {automations.map((automation, index) => {
-            const app = apps.find((candidate) => candidate.id === automation.app_id);
-            const state = agentState(automation);
-            const accent = automation.accent ?? app?.accent ?? '#63e7ff';
+      <div className="mission-array" aria-label="App posting missions">
+        <div className="matrix-head"><span>APP MISSION ARRAY</span><span>3 CHANNELS // HARD LOCK</span></div>
+        <div className="mission-grid">
+          {missions.map((app, index) => {
+            const appAutomations = automations.filter((automation) => automation.app_id === app.id);
+            const primary = appAutomations.find((automation) => automation.handler_key === 'tiktok.generate') ?? appAutomations[0];
+            const account = accounts.find((candidate) => candidate.app_id === app.id);
+            const appArtifacts = artifacts.filter((artifact) => artifact.app_id === app.id);
+            const appReadiness = readiness.find((candidate) => candidate.slug === app.slug);
+            const isStandby = app.slug === 'lifescore' || app.promotion_enabled === false;
+            const isRunning = appAutomations.some((automation) => automation.status === 'running');
+            const deliveryBlocked = !isStandby && !appReadiness?.publishing_ready;
+            const hasFault = appAutomations.some((automation) => automation.status === 'failed') || Boolean(account && account.status !== 'connected') || deliveryBlocked;
+            const status = isStandby ? 'LOCKED UNTIL RELEASE' : isRunning ? 'EXECUTING' : hasFault ? 'ATTENTION' : 'MISSION READY';
+            const nextAt = nextMissionAt(appAutomations);
+            const featureTotal = appReadiness?.feature_count ?? 0;
+            const featureReady = appReadiness?.uploaded_feature_count ?? 0;
+            const drafts = appArtifacts.filter((artifact) => artifact.status === 'draft').length;
+            const approved = appArtifacts.filter((artifact) => ['approved', 'publishing'].includes(artifact.status)).length;
+            const published = appArtifacts.filter((artifact) => artifact.status === 'published').length;
+            const accent = app.accent || ['#ff4f3e', '#48c9ff', '#ffc861'][index] || '#63e7ff';
+
             return (
               <button
+                className={`app-mission ${isStandby ? 'standby' : ''} ${hasFault ? 'attention' : ''}`}
+                style={{ '--mission-color': accent, '--mission-index': index } as MissionStyle}
                 type="button"
-                className={`protocol-card ${state.tone}`}
-                style={{ '--agent-color': accent } as AgentStyle}
-                key={automation.id}
-                onClick={() => onOpenAgent(automation)}
-                aria-label={`${automation.name}: ${state.label}. Open agent controls.`}
+                key={app.id}
+                disabled={!primary}
+                onClick={() => primary && onOpenAgent(primary)}
               >
-                <span className="protocol-index">A-{String(index + 1).padStart(2, '0')}</span>
-                <span className="protocol-icon"><AgentIcon name={automation.icon} size={19} /></span>
-                <span className="protocol-body">
-                  <strong>{automation.name}</strong>
-                  <small>{app?.name ?? 'SYSTEM'} // {automation.handler_key}</small>
-                  <em>{automation.current_task ?? automation.description ?? 'Awaiting command'}</em>
+                <span className="mission-number">0{index + 1}</span>
+                <span className="mission-orb" aria-hidden="true"><i /><i /><i /><b /></span>
+                <span className="mission-copy"><small>{isStandby ? 'FUTURE CHANNEL' : 'AUTONOMOUS POSTING CHANNEL'}</small><strong>{app.name}</strong><em>{app.tagline ?? 'Product promotion intelligence'}</em></span>
+                <span className="mission-state"><i />{status}</span>
+                <span className="mission-data-grid">
+                  <span><small>OUTPUT</small><b>{isStandby ? 'OFF' : `${account?.daily_post_limit ?? 3}/DAY`}</b></span>
+                  <span><small>DRAFTS</small><b>{drafts}</b></span>
+                  <span><small>READY</small><b>{approved}</b></span>
+                  <span><small>SHIPPED</small><b>{published}</b></span>
+                  <span><small>FEATURE PROOF</small><b>{featureTotal ? `${featureReady}/${featureTotal}` : isStandby ? 'LOCKED' : '—'}</b></span>
+                  <span><small>TIKTOK ACCESS</small><b>{isStandby ? 'WAITING' : appReadiness?.publishing_ready ? 'PUBLIC AUTO' : account?.status === 'connected' ? 'BUSINESS REVIEW' : 'ACTION'}</b></span>
                 </span>
-                <span className="protocol-meta">
-                  <b>{state.label}</b>
-                  <small>{nextTime(automation.next_run_at)}</small>
+                <span className="mission-launch"><small>{isStandby ? 'NEXT INTELLIGENCE CYCLE' : 'POSTING WINDOWS // UK'}</small><b>{isStandby ? 'AFTER APP STORE RELEASE' : '12:00 · 15:00 · 18:00'}</b>{!isStandby && <em>Next content build {formatLaunch(nextAt)}</em>}</span>
+                <span className="mission-pipeline" aria-hidden="true">
+                  {['IDEA', 'PROOF', 'RENDER', 'REVIEW', 'POST'].map((stage, stageIndex) => <i key={stage} data-stage={stage} className={isStandby ? '' : stageIndex < 3 ? 'live' : ''} />)}
                 </span>
-                <span className="protocol-scan" aria-hidden="true" />
-                <span className="protocol-arc" aria-hidden="true"><i /></span>
-                <span className="protocol-signal" aria-hidden="true"><i /><i /><i /><i /></span>
+                <span className="mission-scan" aria-hidden="true" />
               </button>
             );
           })}

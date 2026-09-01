@@ -2,7 +2,14 @@ import { decrypt } from '../lib/crypto';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
-import { renderCarouselSlides } from '../lib/slide-renderer';
+import { assessCreativeQuality } from '../lib/creative-quality';
+import { unattendedPublishingEnabled } from '../lib/tiktok';
+import {
+  closeSlideRenderer,
+  openSlideRenderer,
+  renderCarouselSlides,
+  type SlideRendererSession,
+} from '../lib/slide-renderer';
 import type { Db } from '../lib/db';
 import type { Artifact, Env } from '../types';
 import type { Handler } from './registry';
@@ -45,18 +52,30 @@ export interface ProductionResult {
   photo_urls?: string[];
 }
 
-function choosePhoto(photos: PexelsPhoto[], artifactId: string, category: 'fitness' | 'fishing'): PexelsPhoto | null {
+export function choosePhoto(
+  photos: PexelsPhoto[],
+  artifactId: string,
+  category: 'fitness' | 'fishing',
+  requiredAltTermGroups: string[][] = [],
+): PexelsPhoto | null {
   if (photos.length === 0) return null;
   const categoryTerms = category === 'fitness'
     ? ['gym', 'fitness', 'workout', 'weight', 'barbell', 'lifter', 'athlete', 'exercise', 'training']
     : ['fish', 'fishing', 'angler', 'lake', 'river', 'sea', 'coast', 'rod', 'catch'];
+  const templateMatches = requiredAltTermGroups.length
+    ? photos.filter((photo) => {
+        const alt = photo.alt.toLowerCase();
+        return requiredAltTermGroups.every((group) => group.some((term) => alt.includes(term)));
+      })
+    : [];
+  if (requiredAltTermGroups.length && templateMatches.length === 0) return null;
   const relevant = photos.filter((photo) => {
     const alt = photo.alt.toLowerCase();
     return categoryTerms.some((term) => alt.includes(term));
   });
   // Pexels orders by relevance. Prefer results whose alt text confirms the app
   // category, then vary only among the first six strong matches.
-  const pool = (relevant.length ? relevant : photos).slice(0, 6);
+  const pool = (templateMatches.length ? templateMatches : relevant.length ? relevant : photos).slice(0, 6);
   const seed = [...artifactId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return pool[seed % pool.length] ?? null;
 }
@@ -127,6 +146,7 @@ export async function produceArtifact(
   db: Db,
   artifact: Artifact,
   appSlug: string,
+  renderer?: SlideRendererSession,
 ): Promise<ProductionResult> {
   const manifest = artifact.asset_manifest as CarouselManifest;
   const playbook = getCreativePlaybook(appSlug);
@@ -157,9 +177,22 @@ export async function produceArtifact(
 
   // The verified feature playbook owns the visual search. Model-authored asset
   // queries remain in old manifests for traceability but cannot steer sourcing.
-  const query = playbook.features[featureKey]!.stockDirection;
-  const stock = choosePhoto(await searchPexels(key, query), artifact.id, playbook.category);
-  if (!stock) return { state: 'blocked', reason: `No licensed portrait photo found for “${query}”.` };
+  const hookVisualTemplate = playbook.hookVisualTemplate;
+  const query = hookVisualTemplate?.searchQuery ?? playbook.features[featureKey]!.stockDirection;
+  const stock = choosePhoto(
+    await searchPexels(key, query),
+    artifact.id,
+    playbook.category,
+    hookVisualTemplate?.requiredAltTermGroups,
+  );
+  if (!stock) {
+    return {
+      state: 'blocked',
+      reason: hookVisualTemplate
+        ? `No licensed portrait photo passed the required “${hookVisualTemplate.id}” ${hookVisualTemplate.gateLabel} visual gate.`
+        : `No licensed portrait photo found for “${query}”.`,
+    };
+  }
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
   const featureOverlay = playbook.features[featureKey]!.fallbackProofOverlay;
 
@@ -177,6 +210,7 @@ export async function produceArtifact(
       overlay: featureOverlay,
       role: 'feature',
     },
+    renderer,
   );
   const nonce = crypto.randomUUID();
   const hookPath = `outputs/${artifact.id}/slide-1-${nonce}.jpg`;
@@ -188,19 +222,48 @@ export async function produceArtifact(
 
   const now = new Date().toISOString();
   const photoUrls = [publicMediaUrl(env, hookPath), publicMediaUrl(env, featurePath)];
+  const unattended = unattendedPublishingEnabled(env) && Boolean(artifact.account_id);
   await db.update('artifacts', `id=eq.${artifact.id}`, {
+    status: unattended ? 'approved' : 'draft',
     hook: hookOverlay,
     photo_urls: photoUrls,
     error: null,
-    stage: 'review',
+    stage: unattended ? 'schedule' : 'review',
+    ...(unattended ? {
+      tiktok_privacy_level: 'PUBLIC_TO_EVERYONE',
+      disable_comment: false,
+      auto_add_music: true,
+      brand_organic_toggle: true,
+      brand_content_toggle: false,
+      posting_consent_at: null,
+    } : {}),
     stages: {
       ...artifact.stages,
-      assets: { state: 'done', at: now, note: `Licensed Pexels photo ${stock.id} + owner-uploaded ${featureKey}` },
-      edit: { state: 'done', at: now, note: 'Rendered in one reusable session as two 1080×1920 JPEG slides' },
-      review: { state: 'pending' },
+      assets: {
+        state: 'done',
+        at: now,
+        note: `Licensed Pexels photo ${stock.id}${hookVisualTemplate ? ` passed ${hookVisualTemplate.id}` : ''} + owner-uploaded ${featureKey}`,
+      },
+      edit: { state: 'done', at: now, note: 'Rendered in one bounded paid session as two 1080×1920 JPEG slides' },
+      review: unattended
+        ? { state: 'done', at: now, note: 'Autonomous quality and truth gates passed for the owned account.' }
+        : { state: 'pending' },
+      ...(unattended ? {
+        schedule: { state: 'pending', at: now, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+      } : {}),
     },
     asset_manifest: {
       ...manifest,
+      app_slug: appSlug,
+      ...(hookVisualTemplate
+        ? {
+            hook_visual_template: {
+              id: hookVisualTemplate.id,
+              direction: hookVisualTemplate.direction,
+              caption_style: hookVisualTemplate.captionStyle,
+            },
+          }
+        : {}),
       slides: [
         { ...hookSlide, overlay: hookOverlay, asset_query: query },
         { ...featureSlide, overlay: featureOverlay, app_asset_key: featureKey },
@@ -209,7 +272,7 @@ export async function produceArtifact(
         rendered_at: now,
         dimensions: { width: 1080, height: 1920 },
         output_format: 'image/jpeg',
-        renderer: 'cloudflare_browser_reused_session',
+        renderer: 'cloudflare_browser_paid_bounded_session',
         stock: {
           provider: 'pexels',
           id: stock.id,
@@ -237,8 +300,18 @@ export async function produceOne(
   artifact: Artifact,
 ): Promise<ProductionResult> {
   const manifest = artifact.asset_manifest as CarouselManifest;
-  // Older produced drafts pre-date the manifest app key and are all Deadset.
-  const appSlug = typeof manifest.app_slug === 'string' ? manifest.app_slug : 'deadset';
+  if (!artifact.app_id) return { state: 'blocked', reason: 'This draft is not assigned to an app mission.' };
+  const app = await db.selectOne<{ slug: string; promotion_enabled: boolean }>(
+    'apps',
+    `id=eq.${artifact.app_id}&select=slug,promotion_enabled`,
+  );
+  if (!app?.promotion_enabled || !getCreativePlaybook(app.slug)) {
+    return { state: 'blocked', reason: 'This app does not have an active, verified production playbook.' };
+  }
+  if (typeof manifest.app_slug === 'string' && manifest.app_slug !== app.slug) {
+    return { state: 'blocked', reason: `Draft content belongs to ${manifest.app_slug}, not ${app.slug}.` };
+  }
+  const appSlug = app.slug;
   const blocker = await preflightArtifact(env, db, artifact, appSlug);
   if (blocker) return { state: 'blocked', reason: blocker };
   return produceArtifact(env, db, artifact, appSlug);
@@ -261,7 +334,9 @@ export const produceCarousels: Handler = {
       ? null
       : await ctx.db.selectOne<PromotionMissionLink>(
           'promotion_missions',
-          `app_id=eq.${app.id}&auto_produce=eq.true&content_format=eq.photo_carousel&draft_run_id=not.is.null&status=in.(failed,producing,awaiting_review)&select=id,draft_run_id,draft_count&order=created_at.desc&limit=1`,
+          // Retry requests move a failed mission back to `producing` first.
+          // Completed and failed missions must never starve the scheduled queue.
+          `app_id=eq.${app.id}&auto_produce=eq.true&content_format=eq.photo_carousel&draft_run_id=not.is.null&status=eq.producing&select=id,draft_run_id,draft_count&order=created_at.desc&limit=1`,
         );
     const sourceRunId = config.source_run_id ?? activeMission?.draft_run_id;
 
@@ -277,10 +352,44 @@ export const produceCarousels: Handler = {
         'limit=30',
       ].filter(Boolean).join('&'),
     );
+    let autoApproved = 0;
+    if (unattendedPublishingEnabled(ctx.env)) {
+      const renderedDrafts = candidates
+        .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35)
+        .slice(0, maxPerRun);
+      for (const artifact of renderedDrafts) {
+        const quality = assessCreativeQuality({
+          hook: artifact.hook,
+          caption: artifact.caption,
+          hashtags: artifact.hashtags,
+          mediaType: artifact.media_type,
+          assetManifest: artifact.asset_manifest,
+          photoUrls: artifact.photo_urls,
+        });
+        if (!quality.pass) continue;
+        const approvedAt = new Date().toISOString();
+        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+          status: 'approved',
+          stage: 'schedule',
+          tiktok_privacy_level: 'PUBLIC_TO_EVERYONE',
+          disable_comment: false,
+          auto_add_music: true,
+          brand_organic_toggle: true,
+          brand_content_toggle: false,
+          posting_consent_at: null,
+          stages: {
+            ...artifact.stages,
+            review: { state: 'done', at: approvedAt, note: 'Autonomous quality and truth gates passed for the owned account.' },
+            schedule: { state: 'pending', at: approvedAt, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+          },
+        });
+        autoApproved++;
+      }
+    }
     const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0).slice(0, maxPerRun);
     if (pending.length === 0) {
       if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
-      return { produced: 0, blocked: 0, message: 'No unrendered photo drafts.' };
+      return { produced: 0, auto_approved: autoApproved, blocked: 0, message: 'No unrendered photo drafts.' };
     }
 
     await ctx.setTask(`building ${pending.length} ${playbook.appName} carousel${pending.length === 1 ? '' : 's'}`);
@@ -303,35 +412,40 @@ export const produceCarousels: Handler = {
     }
     if (ready.length === 0) return { produced, blocked: blocked.length, blockers: blocked };
 
-    // Sequential artifacts reconnect to the same idle browser session, avoiding
-    // the free plan's one-new-browser-per-20-seconds burst limit.
-    for (const artifact of ready) {
-      try {
-        const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug);
-        if (result.state === 'produced') {
-          produced += 1;
-          ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
-        } else {
-          blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
-          ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
+    // One paid Browser Run session owns the entire batch. This avoids launch
+    // bursts and then closes immediately so no idle time is billed.
+    const renderer = await openSlideRenderer(ctx.env);
+    try {
+      for (const artifact of ready) {
+        try {
+          const result = await produceArtifact(ctx.env, ctx.db, artifact, appSlug, renderer);
+          if (result.state === 'produced') {
+            produced += 1;
+            ctx.log('info', 'carousel produced', { artifact_id: artifact.id });
+          } else {
+            blocked.push({ id: artifact.id, reason: result.reason ?? 'blocked' });
+            ctx.log('warn', 'carousel blocked', { artifact_id: artifact.id, reason: result.reason });
+            await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+              error: result.reason,
+              stage: 'assets',
+              stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
+            });
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          blocked.push({ id: artifact.id, reason });
+          ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-            error: result.reason,
+            error: reason,
             stage: 'assets',
-            stages: { ...artifact.stages, assets: { state: 'blocked', note: result.reason } },
+            stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
           });
         }
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        blocked.push({ id: artifact.id, reason });
-        ctx.log('error', 'carousel production failed', { artifact_id: artifact.id, reason });
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-          error: reason,
-          stage: 'assets',
-          stages: { ...artifact.stages, assets: { state: 'failed', note: reason } },
-        });
       }
+    } finally {
+      await closeSlideRenderer(renderer);
     }
     if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
-    return { produced, blocked: blocked.length, blockers: blocked };
+    return { produced, auto_approved: autoApproved, blocked: blocked.length, blockers: blocked };
   },
 };
