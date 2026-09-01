@@ -4,9 +4,13 @@ import type { Account, App, Automation } from '../lib/types';
 type MissionStyle = CSSProperties & { '--mission-color': string; '--mission-index': number };
 
 export interface MissionArtifact {
+  id?: string;
   app_id: string | null;
   status: string;
   created_at?: string;
+  published_at?: string | null;
+  hook?: string | null;
+  tiktok_post_id?: string | null;
 }
 
 export interface MissionReadiness {

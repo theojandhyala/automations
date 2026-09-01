@@ -6,9 +6,10 @@ import JarvisDeck, { type MissionArtifact, type MissionReadiness } from '../comp
 import AgentBrain from '../components/AgentBrain';
 import ScheduleStrip from '../components/ScheduleStrip';
 import HudAtmosphere from '../components/HudAtmosphere';
-import type { Account, AnalyticsSnapshot, App, Automation, Run } from '../lib/types';
+import type { Account, AnalyticsSnapshot, App, Automation, PostMetric, Run } from '../lib/types';
 import ArcReactorMark from '../components/ArcReactorMark';
 import type { AutomationHandler, ProtocolForgeMode } from '../components/ProtocolForge';
+import LiveTelemetryBadge from '../components/LiveTelemetryBadge';
 
 const ProtocolForge = lazy(() => import('../components/ProtocolForge'));
 const SystemViews = lazy(() => import('../components/SystemViews'));
@@ -30,6 +31,7 @@ export interface CommandCenterPreviewData {
   accounts: Account[];
   queue: MissionArtifact[];
   snapshots: AnalyticsSnapshot[];
+  postMetrics: PostMetric[];
   readiness: MissionReadiness[];
   handlers: AutomationHandler[];
   runs: Run[];
@@ -47,13 +49,15 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
 
   const { data, refresh } = useData(async () => {
     if (previewData) return previewData;
-    const [automations, apps, accounts, queue, snapshots, runs, promotion, registry] = await Promise.all([
+    const [automations, apps, accounts, queue, snapshots, postMetrics, runs, promotion, registry] = await Promise.all([
       supabase.from('automations').select('*').in('handler_key', POSTING_HANDLERS).order('orbit_ring').order('orbit_position'),
       supabase.from('apps').select('*').in('slug', APP_SLUGS).order('sort_order'),
       supabase.from('tiktok_accounts_public').select('*'),
-      supabase.from('artifacts').select('app_id,status,created_at').order('created_at', { ascending: false }).limit(500),
+      supabase.from('artifacts').select('id,app_id,status,created_at,published_at,hook,tiktok_post_id').order('created_at', { ascending: false }).limit(500),
       supabase.from('analytics_snapshots').select('*')
         .order('captured_at', { ascending: false }).limit(40),
+      supabase.from('post_metrics').select('*')
+        .order('captured_at', { ascending: false }).limit(200),
       supabase.from('runs').select('*').order('started_at', { ascending: false }).limit(80),
       api<{ apps: MissionReadiness[] }>('/promotion/readiness'),
       api<{ handlers: AutomationHandler[] }>('/handlers'),
@@ -65,6 +69,7 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
       accounts: (accounts.data ?? []) as Account[],
       queue: (queue.data ?? []) as MissionArtifact[],
       snapshots: (snapshots.data ?? []) as AnalyticsSnapshot[],
+      postMetrics: (postMetrics.data ?? []) as PostMetric[],
       readiness: promotion.apps,
       handlers: registry.handlers,
       runs: (runs.data ?? []) as Run[],
@@ -94,7 +99,7 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
     );
   }
 
-  const { automations, apps, accounts, queue, snapshots, readiness, handlers, runs } = data;
+  const { automations, apps, accounts, queue, snapshots, postMetrics, readiness, handlers, runs } = data;
   const working = automations.filter((a) => a.status === 'running');
   const failing = automations.filter((a) => a.status === 'failed');
   const connectionFaults = accounts.filter((account) => account.status !== 'connected').length;
@@ -182,6 +187,7 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
               <div className="k">Attention</div>
               <div className="v">{attentionCount}</div>
             </div>
+            <LiveTelemetryBadge compact />
             <div className="hud-clock" aria-label="System clock">
               <span>SYS TIME</span>
               <b>{SYSTEM_TIME_FORMATTER.format(new Date())}</b>
@@ -229,6 +235,7 @@ export default function CommandCenter({ previewData }: { previewData?: CommandCe
               apps={apps}
               accounts={accounts}
               snapshots={snapshots}
+              postMetrics={postMetrics}
               artifacts={queue}
               runs={runs}
               onOpenAgent={(automation) => setOpenAgent(automation.id)}

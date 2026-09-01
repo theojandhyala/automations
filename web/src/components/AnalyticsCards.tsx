@@ -73,7 +73,7 @@ export default function AnalyticsCards({
               </p>
             ) : (
               <>
-                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                   <div className="stat">
                     <div className="label">Followers</div>
                     <div className="value" style={{ fontSize: 22 }}>{fmt(latest.followers)}</div>
@@ -88,15 +88,27 @@ export default function AnalyticsCards({
                     <div className="value" style={{ fontSize: 22 }}>{fmt(latest.views_28d)}</div>
                   </div>
                   <div className="stat">
-                    <div className="label">Watch time</div>
-                    <div className="value" style={{ fontSize: 22 }}>
-                      {fmtWatchTime(latest.watch_time_min)}
-                    </div>
+                    <div className="label">Profile likes</div>
+                    <div className="value" style={{ fontSize: 22 }}>{fmt(latest.likes_total)}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="label">Comments (recent)</div>
+                    <div className="value" style={{ fontSize: 22 }}>{fmt(latest.comments_28d)}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="label">Shares (recent)</div>
+                    <div className="value" style={{ fontSize: 22 }}>{fmt(latest.shares_28d)}</div>
                   </div>
                   <div className="stat">
                     <div className="label">Posts</div>
                     <div className="value" style={{ fontSize: 22 }}>{fmt(latest.video_count)}</div>
                   </div>
+                  {latest.watch_time_min != null ? (
+                    <div className="stat">
+                      <div className="label">Watch time</div>
+                      <div className="value" style={{ fontSize: 22 }}>{fmtWatchTime(latest.watch_time_min)}</div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {latest.quality !== 'ok' && (

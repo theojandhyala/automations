@@ -11,6 +11,8 @@ import CreativeStudio from './pages/CreativeStudio';
 import PromotionMission from './pages/PromotionMission';
 import ArcReactorMark from './components/ArcReactorMark';
 import Legal from './pages/Legal';
+import LiveTelemetryBadge from './components/LiveTelemetryBadge';
+import { LiveSyncProvider } from './lib/liveSync';
 
 const WORKSPACE_ROUTES = [
   { to: '/', index: '00', label: 'Command center', short: 'Core', detail: 'Live mission overview', end: true },
@@ -76,6 +78,7 @@ function Shell({ session }: { session: Session }) {
         <header className="workspace-bar">
           <div className="workspace-identity"><i>{meta.code}</i><span><small>J.A.R.V.I.S. WORKSPACE</small><b>{meta.title}</b><em>{meta.detail}</em></span></div>
           <div className="workspace-telemetry">
+            <LiveTelemetryBadge compact />
             <span><i /> SECURE</span>
             <span>POST WINDOWS <b>12 · 15 · 18</b></span>
             <span>UK TIME</span>
@@ -131,14 +134,14 @@ export default function App() {
   if (!ready) return null;
   if (!session) return <Login />;
 
-  if (location.pathname === '/') {
-    return (
-      <>
-        <CommandCenter />
-        <CommandDock />
-      </>
-    );
-  }
-
-  return <Shell session={session} />;
+  return (
+    <LiveSyncProvider>
+      {location.pathname === '/' ? (
+        <>
+          <CommandCenter />
+          <CommandDock />
+        </>
+      ) : <Shell session={session} />}
+    </LiveSyncProvider>
+  );
 }

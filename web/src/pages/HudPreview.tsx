@@ -79,6 +79,10 @@ const PREVIEW_DATA: CommandCenterPreviewData = {
     { id: 'snapshot-a', account_id: 'account-a', app_id: 'deadset', captured_at: new Date().toISOString(), followers: 12842, following: 114, likes_total: 85200, video_count: 61, views_28d: 412000, watch_time_min: 9280, comments_28d: 1840, shares_28d: 3210, quality: 'ok' },
     { id: 'snapshot-b', account_id: 'account-b', app_id: 'cast', captured_at: new Date().toISOString(), followers: 7218, following: 93, likes_total: 34800, video_count: 37, views_28d: 188000, watch_time_min: 4130, comments_28d: 790, shares_28d: 1260, quality: 'ok' },
   ],
+  postMetrics: [
+    { id: 'metric-a', artifact_id: null, account_id: 'account-a', tiktok_post_id: 'deadset-preview-post', captured_at: new Date().toISOString(), views: 82400, likes: 6910, comments: 284, shares: 731, watch_time_min: null },
+    { id: 'metric-b', artifact_id: null, account_id: 'account-b', tiktok_post_id: 'cast-preview-post', captured_at: new Date().toISOString(), views: 37100, likes: 2980, comments: 147, shares: 402, watch_time_min: null },
+  ],
   readiness: [
     { slug: 'deadset', uploaded_feature_count: 4, feature_count: 6, drafting_ready: true, production_ready: true, publishing_ready: true, blockers: [] },
     { slug: 'cast', uploaded_feature_count: 6, feature_count: 6, drafting_ready: true, production_ready: true, publishing_ready: false, blockers: ['TikTok production review'] },

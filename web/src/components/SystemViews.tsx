@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Ago } from './bits';
 import { api } from '../lib/supabase';
 import type { MissionArtifact } from './JarvisDeck';
-import type { Account, AnalyticsSnapshot, App, Automation, Run } from '../lib/types';
+import type { Account, AnalyticsSnapshot, App, Automation, PostMetric, Run } from '../lib/types';
 
 type ProtocolStyle = CSSProperties & { '--protocol-color': string; '--protocol-index': number };
 type SignalStyle = CSSProperties & { '--signal-color': string; '--signal-level': string };
@@ -24,6 +24,14 @@ function stateLabel(automation: Automation): string {
 
 function sortedSnapshots(snapshots: AnalyticsSnapshot[]): AnalyticsSnapshot[] {
   return [...snapshots].sort((a, b) => b.captured_at.localeCompare(a.captured_at));
+}
+
+function latestPostMetrics(metrics: PostMetric[]): PostMetric[] {
+  const latest = new Map<string, PostMetric>();
+  for (const metric of [...metrics].sort((a, b) => b.captured_at.localeCompare(a.captured_at))) {
+    if (!latest.has(metric.tiktok_post_id)) latest.set(metric.tiktok_post_id, metric);
+  }
+  return [...latest.values()];
 }
 
 function duration(ms: number | null): string {
@@ -201,11 +209,13 @@ function SignalRoom({
   apps,
   accounts,
   snapshots,
+  postMetrics,
   artifacts,
 }: {
   apps: App[];
   accounts: Account[];
   snapshots: AnalyticsSnapshot[];
+  postMetrics: PostMetric[];
   artifacts: MissionArtifact[];
 }) {
   const orderedSnapshots = sortedSnapshots(snapshots);
@@ -216,13 +226,15 @@ function SignalRoom({
   const latestSignals = [...latestByAccount.values()];
   const totalViews = latestSignals.reduce((sum, snapshot) => sum + (snapshot.views_28d ?? 0), 0);
   const totalFollowers = latestSignals.reduce((sum, snapshot) => sum + (snapshot.followers ?? 0), 0);
+  const latestPosts = latestPostMetrics(postMetrics);
+  const totalLikes = latestPosts.reduce((sum, metric) => sum + (metric.likes ?? 0), 0);
   const connected = accounts.filter((account) => account.status === 'connected').length;
 
   return (
     <section className="system-view signal-view" aria-label="JARVIS intelligence room">
       <header className="system-view-head">
         <div><span>J.A.R.V.I.S. // LEARNING ARRAY</span><h3>INTELLIGENCE ROOM</h3><p>Audience signals, mission outcomes and the evidence feeding the next decision.</p></div>
-        <div className="system-view-stats"><span><b>{fmt(totalFollowers)}</b> REACH</span><span><b>{fmt(totalViews)}</b> SIGNALS</span><span><b>{connected}</b> UPLINKS</span><span><b>{snapshots.length}</b> SAMPLES</span></div>
+        <div className="system-view-stats"><span><b>{fmt(totalFollowers)}</b> REACH</span><span><b>{fmt(totalViews)}</b> VIEWS</span><span><b>{fmt(totalLikes)}</b> LIKES</span><span><b>{connected}</b> UPLINKS</span></div>
       </header>
 
       <div className="signal-grid">
@@ -234,6 +246,11 @@ function SignalRoom({
           const drafts = appArtifacts.filter((artifact) => artifact.status === 'draft').length;
           const views = latest?.views_28d ?? 0;
           const followers = latest?.followers ?? 0;
+          const appPostMetrics = latestPosts.filter((metric) => metric.account_id === account?.id);
+          const postViews = appPostMetrics.reduce((sum, metric) => sum + (metric.views ?? 0), 0);
+          const postLikes = appPostMetrics.reduce((sum, metric) => sum + (metric.likes ?? 0), 0);
+          const postComments = appPostMetrics.reduce((sum, metric) => sum + (metric.comments ?? 0), 0);
+          const postShares = appPostMetrics.reduce((sum, metric) => sum + (metric.shares ?? 0), 0);
           const signalLevel = Math.min(100, Math.max(8, Math.round(views / Math.max(followers, 1)) * 3));
           const bars = [followers, views / 9, (latest?.shares_28d ?? 0) * 8, (latest?.comments_28d ?? 0) * 10, published * 1200, drafts * 900];
           const peak = Math.max(...bars, 1);
@@ -246,10 +263,10 @@ function SignalRoom({
                 <span>LIVE SIGNAL DISTRIBUTION</span>
               </div>
               <div className="signal-metrics">
-                <span><small>FOLLOWERS</small><b>{fmt(latest?.followers)}</b></span>
-                <span><small>28D VIEWS</small><b>{fmt(latest?.views_28d)}</b></span>
-                <span><small>SHARES</small><b>{fmt(latest?.shares_28d)}</b></span>
-                <span><small>COMMENTS</small><b>{fmt(latest?.comments_28d)}</b></span>
+                <span><small>POST VIEWS</small><b>{appPostMetrics.length ? fmt(postViews) : fmt(latest?.views_28d)}</b></span>
+                <span><small>LIKES</small><b>{appPostMetrics.length ? fmt(postLikes) : fmt(latest?.likes_total)}</b></span>
+                <span><small>COMMENTS</small><b>{appPostMetrics.length ? fmt(postComments) : fmt(latest?.comments_28d)}</b></span>
+                <span><small>SHARES</small><b>{appPostMetrics.length ? fmt(postShares) : fmt(latest?.shares_28d)}</b></span>
               </div>
               <footer><span><b>{drafts}</b> IN REVIEW</span><span><b>{published}</b> SHIPPED</span><span><b>{account?.status?.toUpperCase() ?? 'OFFLINE'}</b> UPLINK</span></footer>
               <span className="signal-scan" aria-hidden="true" />
@@ -265,13 +282,15 @@ function SignalRoom({
           <dl><div><dt>CONNECTED SOURCES</dt><dd>{connected}/{accounts.length || 0}</dd></div><div><dt>PROOF SET</dt><dd>{artifacts.filter((artifact) => artifact.status === 'published').length}</dd></div><div><dt>DATA QUALITY</dt><dd>{orderedSnapshots.some((snapshot) => snapshot.quality !== 'ok') ? 'PARTIAL' : snapshots.length ? 'NOMINAL' : 'EMPTY'}</dd></div></dl>
         </section>
         <section className="signal-tape">
-          <header><span>RECENT INTELLIGENCE ACQUISITIONS</span><b>LIVE FEED</b></header>
+          <header><span>PER-POST PERFORMANCE SIGNALS</span><b>10M TELEMETRY</b></header>
           <div>
-            {orderedSnapshots.slice(0, 6).map((snapshot, index) => {
-              const app = apps.find((candidate) => candidate.id === snapshot.app_id);
-              return <article key={snapshot.id}><i style={{ background: app?.accent }} /><span><small>{new Date(snapshot.captured_at).toLocaleString()}</small><b>{app?.name ?? 'System'} signal package acquired</b></span><em>{fmt(snapshot.views_28d)} VIEWS</em><strong>0{index + 1}</strong></article>;
+            {latestPosts.slice(0, 8).map((metric, index) => {
+              const account = accounts.find((candidate) => candidate.id === metric.account_id);
+              const app = apps.find((candidate) => candidate.id === account?.app_id);
+              const artifact = artifacts.find((candidate) => candidate.id === metric.artifact_id);
+              return <article key={metric.id}><i style={{ background: app?.accent }} /><span><small>{new Date(metric.captured_at).toLocaleString()} · @{account?.handle ?? 'channel'}</small><b>{artifact?.hook ?? `TikTok post ${metric.tiktok_post_id.slice(-8)}`}</b></span><em>{fmt(metric.views)} V · {fmt(metric.likes)} L · {fmt(metric.comments)} C · {fmt(metric.shares)} S</em><strong>{String(index + 1).padStart(2, '0')}</strong></article>;
             })}
-            {orderedSnapshots.length === 0 ? <p>NO INTELLIGENCE SAMPLES HAVE BEEN ACQUIRED.</p> : null}
+            {latestPosts.length === 0 ? <p>AWAITING TIKTOK ANALYTICS AUTHORITY. LIVE COLLECTION IS ARMED.</p> : null}
           </div>
         </section>
       </div>
@@ -416,6 +435,7 @@ export default function SystemViews({
   apps,
   accounts,
   snapshots,
+  postMetrics,
   artifacts,
   runs,
   preview,
@@ -428,6 +448,7 @@ export default function SystemViews({
   apps: App[];
   accounts: Account[];
   snapshots: AnalyticsSnapshot[];
+  postMetrics: PostMetric[];
   artifacts: MissionArtifact[];
   runs: Run[];
   preview: boolean;
@@ -436,6 +457,6 @@ export default function SystemViews({
   onChanged: () => void;
 }) {
   if (mode === 'protocols') return <ProtocolMesh automations={automations} apps={apps} preview={preview} onOpenAgent={onOpenAgent} onForge={onForge} onChanged={onChanged} />;
-  if (mode === 'signals') return <SignalRoom apps={apps} accounts={accounts} snapshots={snapshots} artifacts={artifacts} />;
+  if (mode === 'signals') return <SignalRoom apps={apps} accounts={accounts} snapshots={snapshots} postMetrics={postMetrics} artifacts={artifacts} />;
   return <ControlDeck automations={automations} apps={apps} accounts={accounts} artifacts={artifacts} runs={runs} onOpenAgent={onOpenAgent} onForge={onForge} />;
 }

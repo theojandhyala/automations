@@ -136,6 +136,19 @@ export interface AnalyticsSnapshot {
   quality: 'ok' | 'partial' | 'unavailable';
 }
 
+export interface PostMetric {
+  id: string;
+  artifact_id: string | null;
+  account_id: string;
+  tiktok_post_id: string;
+  captured_at: string;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  watch_time_min: number | null;
+}
+
 export interface ReportSection {
   title: string;
   lines: string[];

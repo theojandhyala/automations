@@ -236,7 +236,7 @@ textarea:focus-visible {
 }
 
 .sidebar-core-state span i,
-.workspace-telemetry span:first-child i {
+.workspace-telemetry > span:first-child > i {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -459,7 +459,7 @@ textarea:focus-visible {
   flex: 0 0 auto;
 }
 
-.workspace-telemetry span {
+.workspace-telemetry > span {
   padding: 7px 9px;
   color: #678b98;
   border: 1px solid rgba(91, 220, 251, .12);
@@ -1314,7 +1314,7 @@ textarea:focus-visible {
   .jarvis-shell > .sidebar { padding-inline: 13px; }
   .sidebar-brand-copy strong { font-size: 18px; }
   .workspace-identity em { display: none; }
-  .workspace-telemetry span:nth-child(2) { display: none; }
+  .workspace-telemetry > span:nth-child(2) { display: none; }
   .mission-layout { grid-template-columns: minmax(0, 1fr); }
   .mission-sidebar { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mission-stream { grid-column: 1 / -1; }
@@ -1395,8 +1395,8 @@ textarea:focus-visible {
   .workspace-identity > i { width: 27px; height: 27px; font-size: 7px; }
   .workspace-identity small { font-size: 6px; letter-spacing: .12em; }
   .workspace-identity b { display: block; max-width: 145px; overflow: hidden; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
-  .workspace-telemetry span { display: none; }
-  .workspace-telemetry span:first-child { display: block; padding: 6px; font-size: 6px; }
+  .workspace-telemetry > span { display: none; }
+  .workspace-telemetry > span:first-child { display: flex; padding: 6px; font-size: 6px; }
 
   .jarvis-workspace > main { padding: 13px 10px calc(94px + env(safe-area-inset-bottom)); }
   .workspace-corner { display: none; }
