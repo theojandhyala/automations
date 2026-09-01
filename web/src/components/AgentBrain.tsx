@@ -40,6 +40,12 @@ export default function AgentBrain({
   }, [onClose]);
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
+  useEffect(() => {
     if (!runArmed) return undefined;
     const timeout = window.setTimeout(() => setRunArmed(false), 10_000);
     return () => window.clearTimeout(timeout);

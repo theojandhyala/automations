@@ -130,7 +130,7 @@ export default function JarvisDeck({
                   <span><small>FEATURE PROOF</small><b>{featureTotal ? `${featureReady}/${featureTotal}` : isStandby ? 'LOCKED' : '—'}</b></span>
                   <span><small>TIKTOK ACCESS</small><b>{isStandby ? 'WAITING' : appReadiness?.publishing_ready ? 'PUBLIC AUTO' : account?.status === 'connected' ? 'BUSINESS REVIEW' : 'ACTION'}</b></span>
                 </span>
-                <span className="mission-launch"><small>{isStandby ? 'NEXT INTELLIGENCE CYCLE' : 'POSTING WINDOWS // UK'}</small><b>{isStandby ? 'AFTER APP STORE RELEASE' : '12:00 · 15:00 · 18:00'}</b>{!isStandby && <em>Next content build {formatLaunch(nextAt)}</em>}</span>
+                <span className="mission-window"><small>{isStandby ? 'NEXT INTELLIGENCE CYCLE' : 'POSTING WINDOWS // UK'}</small><b>{isStandby ? 'AFTER APP STORE RELEASE' : '12:00 · 15:00 · 18:00'}</b>{!isStandby && <em>Next content build {formatLaunch(nextAt)}</em>}</span>
                 <span className="mission-pipeline" aria-hidden="true">
                   {['IDEA', 'PROOF', 'RENDER', 'REVIEW', 'POST'].map((stage, stageIndex) => <i key={stage} data-stage={stage} className={isStandby ? '' : stageIndex < 3 ? 'live' : ''} />)}
                 </span>
