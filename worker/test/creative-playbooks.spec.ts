@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { getCreativePlaybook, normalizeCaption, photoSystem, productTruth } from '../src/lib/creative-playbooks';
-import { buildCarouselFallbacks } from '../src/automations/tiktok-generate';
+import {
+  getCreativePlaybook,
+  normalizeCaption,
+  photoSystem,
+  planCarouselContentLanes,
+  productTruth,
+} from '../src/lib/creative-playbooks';
+import { buildCarouselFallbacks, selectCreativeHashtags } from '../src/automations/tiktok-generate';
 import { planCreativeFeatures } from '../src/lib/creative-intelligence';
 
 describe('verified creative playbooks', () => {
@@ -60,6 +66,54 @@ describe('verified creative playbooks', () => {
     expect(prompt).toContain('required for every Deadset photo carousel');
     expect(prompt).toContain('Reject key close-ups');
     expect(fallback.slides?.[0]?.asset_query).toBe(deadset.hookVisualTemplate?.searchQuery);
+  });
+
+  it('schedules occasional Deadset heartbreak and villain lanes without running them back-to-back', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const ordinary = Array.from({ length: 5 }, () => ({
+      asset_manifest: { content_lane: { id: 'car_lifestyle' } },
+    }));
+    const heartbreak = planCarouselContentLanes(deadset, ordinary, 3);
+    expect(heartbreak.map((entry) => entry.lane.id)).toEqual([
+      'heartbreak_rebuild', 'car_lifestyle', 'car_lifestyle',
+    ]);
+    expect(heartbreak[0]?.lane.featureKey).toBe('muscle_diagram');
+    expect(heartbreak[0]?.lane.proofOverlay).toBe('Enough.');
+
+    const immediatelyAfter = planCarouselContentLanes(deadset, [
+      { asset_manifest: { content_lane: { id: 'heartbreak_rebuild' } } },
+      ...ordinary,
+    ], 3);
+    expect(immediatelyAfter.every((entry) => entry.lane.id === 'car_lifestyle')).toBe(true);
+
+    const villain = planCarouselContentLanes(deadset, [
+      ...ordinary,
+      { asset_manifest: { content_lane: { id: 'heartbreak_rebuild' } } },
+    ], 3);
+    expect(villain[0]?.lane.id).toBe('villain_arc');
+  });
+
+  it('builds the requested emotional payoff from verified Deadset truth', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const lane = deadset.creativeStrategy.lanes.heartbreak_rebuild!;
+    const fallback = buildCarouselFallbacks(deadset, ['muscle_diagram'], 1, [], [], lane)[0]!;
+    expect(fallback.hook).toBe('How much did it hurt?');
+    expect(fallback.creative_lane).toBe('heartbreak_rebuild');
+    expect(fallback.feature).toBe('muscle_diagram');
+    expect(fallback.slides?.[1]?.overlay).toBe('Enough.');
+    expect(fallback.single_promise).toMatch(/not a body-transformation/i);
+  });
+
+  it('keeps captions and music direction production-safe while rejecting hashtag bait', () => {
+    const deadset = getCreativePlaybook('deadset')!;
+    const lane = deadset.creativeStrategy.lanes.villain_arc!;
+    const hashtags = selectCreativeHashtags(deadset, lane, ['#viral', '#fyp', '#strengthtraining']);
+    expect(hashtags).toContain('gymtok');
+    expect(hashtags).toContain('strengthtraining');
+    expect(hashtags).not.toEqual(expect.arrayContaining(['viral', 'fyp']));
+    expect(deadset.creativeStrategy.captionTreatment).toMatch(/pure white fill, clean 5px black outside stroke/i);
+    expect(lane.soundMood).toMatch(/Commercial Music Library/i);
+    expect(photoSystem(deadset)).toContain('Direct photo posting can request TikTok recommended music but cannot name an exact track');
   });
 
   it('does not activate an unverified LifeScore promotion model', () => {

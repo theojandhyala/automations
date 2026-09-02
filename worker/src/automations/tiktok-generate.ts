@@ -1,6 +1,12 @@
 import { completeJson } from '../lib/ai';
-import { getCreativePlaybook, normalizeCaption, photoSystem, productTruth } from '../lib/creative-playbooks';
-import type { CreativePlaybook } from '../lib/creative-playbooks';
+import {
+  getCreativePlaybook,
+  normalizeCaption,
+  photoSystem,
+  planCarouselContentLanes,
+  productTruth,
+} from '../lib/creative-playbooks';
+import type { CreativeContentLane, CreativePlaybook } from '../lib/creative-playbooks';
 import {
   planCreativeFeatures,
   type CreativeArtifactSignal,
@@ -34,6 +40,8 @@ export interface DraftIdea {
   proof_shown?: string;
   script?: string;
   feature?: string;
+  creative_lane?: string;
+  sound_brief?: string;
   slides?: Array<{
     role: 'hook' | 'feature_proof';
     overlay: string;
@@ -84,6 +92,20 @@ function hasMeaningfulHook(value: string): boolean {
   return value.trim().length >= 8 && words.length >= 2;
 }
 
+export function selectCreativeHashtags(
+  playbook: CreativePlaybook,
+  lane: CreativeContentLane,
+  candidate: string[],
+): string[] {
+  const blocked = new Set(playbook.creativeStrategy.blockedHashtags.map((tag) => tag.toLowerCase()));
+  const ordered = normalizeHashtags([
+    ...lane.hashtags,
+    ...candidate,
+    ...playbook.defaultHashtags,
+  ], 50).filter((tag) => !blocked.has(tag.toLowerCase()));
+  return [...new Set(ordered)].slice(0, 5);
+}
+
 /**
  * The model is allowed to be creative, but it is not allowed to make a
  * promotion mission unreliable. If every free-form candidate misses a truth
@@ -96,6 +118,7 @@ export function buildCarouselFallbacks(
   needed: number,
   existingIdeas: DraftIdea[] = [],
   recentHooks: string[] = [],
+  requestedLane?: CreativeContentLane,
 ): DraftIdea[] {
   if (needed <= 0 || allowedFeatures.length === 0) return [];
 
@@ -110,6 +133,9 @@ export function buildCarouselFallbacks(
       .map((hook) => hook.trim().toLowerCase()),
   );
   const session = playbook.category === 'fishing' ? 'session' : 'workout';
+  const lane = requestedLane
+    ?? playbook.creativeStrategy.lanes[playbook.creativeStrategy.defaultLane];
+  if (!lane) return [];
   const fallbacks: DraftIdea[] = [];
 
   for (let index = 0; index < featureOrder.length * 6 && fallbacks.length < needed; index += 1) {
@@ -118,27 +144,33 @@ export function buildCarouselFallbacks(
     if (!spec) continue;
     const hookVisualDirection = playbook.hookVisualTemplate?.direction ?? spec.stockDirection;
     const variant = Math.floor(index / featureOrder.length);
-    const candidates = [
-      spec.fallbackHook,
-      `${spec.label}: the check I make before the next ${session}`,
-      `The ${spec.label.toLowerCase()} detail I kept forgetting`,
-      `One ${spec.label.toLowerCase()} screen before the next ${session}`,
-      `The ${spec.label.toLowerCase()} check after the last ${session}`,
-      `${spec.label}: the part I want saved for next time`,
-    ];
+    const candidates = requestedLane
+      ? lane.hookExamples
+      : [
+          spec.fallbackHook,
+          `${spec.label}: the check I make before the next ${session}`,
+          `The ${spec.label.toLowerCase()} detail I kept forgetting`,
+          `One ${spec.label.toLowerCase()} screen before the next ${session}`,
+          `The ${spec.label.toLowerCase()} check after the last ${session}`,
+          `${spec.label}: the part I want saved for next time`,
+        ];
     const hook = candidates[variant];
     if (!hook || hook.length > 120 || usedHooks.has(hook.toLowerCase())) continue;
     usedHooks.add(hook.toLowerCase());
     fallbacks.push({
       hook,
-      caption: spec.fallbackCaption,
-      hashtags: playbook.defaultHashtags.slice(0, 5),
-      shot_notes: `two 1080x1920 stills; ${hookVisualDirection}; ${playbook.hookVisualTemplate?.captionStyle ?? 'native bold white text with black outline'}; exact app capture`,
+      caption: requestedLane
+        ? lane.captionExamples[variant % lane.captionExamples.length] ?? spec.fallbackCaption
+        : spec.fallbackCaption,
+      hashtags: selectCreativeHashtags(playbook, lane, playbook.defaultHashtags),
+      shot_notes: `two 1080x1920 stills; ${hookVisualDirection}; ${playbook.creativeStrategy.captionTreatment}; exact app capture; sound mood: ${lane.soundMood}`,
       audience: playbook.category === 'fishing' ? 'anglers making their next session decision' : 'lifters planning their next workout',
       single_promise: spec.truth,
       hook_hypothesis: `A familiar ${playbook.category} decision earns attention before the exact product proof.`,
       proof_shown: spec.truth,
       feature,
+      creative_lane: lane.id,
+      sound_brief: lane.soundMood,
       slides: [
         {
           role: 'hook',
@@ -148,7 +180,7 @@ export function buildCarouselFallbacks(
         },
         {
           role: 'feature_proof',
-          overlay: spec.fallbackProofOverlay,
+          overlay: lane.proofOverlay ?? spec.fallbackProofOverlay,
           app_asset_key: feature,
           source_requirement: `exact current ${playbook.appName} screenshot; no rebuilt UI`,
         },
@@ -238,6 +270,12 @@ export const generateDrafts: Handler = {
     // one-concept mission, where one wrong free-form feature key previously
     // caused the entire run to fail without a second chance.
     const candidateCount = isCarousel ? Math.min(Math.max(count * 3, count), 10) : count;
+    const outputLanePlan = isCarousel
+      ? planCarouselContentLanes(playbook, recent, count, allowedFeatures)
+      : [];
+    const laneAssignments = isCarousel
+      ? Array.from({ length: candidateCount }, (_, index) => outputLanePlan[index % outputLanePlan.length]!)
+      : [];
     let metrics: CreativeMetricSignal[] = [];
     const publishedIds = recent.filter((artifact) => artifact.status === 'published').map((artifact) => artifact.id);
     if (isCarousel && publishedIds.length) {
@@ -256,6 +294,12 @@ export const generateDrafts: Handler = {
     const featureAssignments = isCarousel
       ? plan.decisions.map((decision) => decision.feature)
       : [];
+    for (let index = 0; index < laneAssignments.length; index += 1) {
+      const requiredFeature = laneAssignments[index]?.lane.featureKey;
+      if (requiredFeature && allowedFeatures.includes(requiredFeature)) {
+        featureAssignments[index] = requiredFeature;
+      }
+    }
     let ideas: DraftIdea[] = [];
     let generationMode: 'workers_ai' | 'verified_fallback' = 'workers_ai';
     try {
@@ -276,6 +320,12 @@ export const generateDrafts: Handler = {
             : null,
           isCarousel
             ? `Required candidate-to-feature assignment, in order: ${featureAssignments.map((feature, index) => `${index + 1}=${feature}`).join(', ')}. Write each candidate specifically for its assigned feature.`
+            : null,
+          isCarousel
+            ? `Required candidate-to-content-lane assignment, in order: ${laneAssignments.map((assignment, index) => `${index + 1}=${assignment.lane.id}`).join(', ')}. The creative_lane field must match. Follow that lane's hook, payoff, safety and sound-mood rules exactly.`
+            : null,
+          isCarousel
+            ? `Output lane plan: ${outputLanePlan.map((assignment, index) => `${index + 1}=${assignment.lane.id} (${assignment.reason})`).join('; ')}.`
             : null,
           config.extra_context ? `Context: ${config.extra_context}` : null,
           config.creative_brief ? `Creative brief: ${JSON.stringify(config.creative_brief)}` : null,
@@ -300,13 +350,23 @@ export const generateDrafts: Handler = {
 
     const normalizedIdeas = ideas.map((idea, index) => {
       const hook = idea.hook?.trim() ?? '';
+      const lane = isCarousel
+        ? laneAssignments[index % laneAssignments.length]!.lane
+        : null;
       return {
         ...idea,
-        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
+        hashtags: lane
+          ? selectCreativeHashtags(playbook, lane, Array.isArray(idea.hashtags) ? idea.hashtags : [])
+          : normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
         // Product-proof routing is campaign configuration, not a creative
         // model decision. The model is told the assignment, while the stored
         // key is always taken from the verified server-side rotation.
         feature: isCarousel ? featureAssignments[index % featureAssignments.length] : idea.feature,
+        // Narrative and music direction are also server-owned. The model can
+        // express the idea, but it cannot silently convert an occasional
+        // heartbreak post into a transformation claim or pick stale music.
+        creative_lane: lane?.id ?? idea.creative_lane,
+        sound_brief: lane?.soundMood ?? idea.sound_brief,
         // The hook is the viewer-facing copy. Never substitute the model's
         // stock-search phrase into this field.
         hook,
@@ -332,6 +392,13 @@ export const generateDrafts: Handler = {
       else if (!Array.isArray(idea.hashtags) || idea.hashtags.length < 3) reason = 'fewer than three hashtags';
       else if (forbidden) reason = `forbidden claim: ${forbidden}`;
       else if (isCarousel && (!idea.feature || !allowedFeatures.includes(idea.feature))) reason = 'unverified feature key';
+      else if (isCarousel && (!idea.creative_lane || !playbook.creativeStrategy.lanes[idea.creative_lane])) reason = 'unverified content lane';
+      else if (
+        isCarousel
+        && idea.creative_lane
+        && playbook.creativeStrategy.lanes[idea.creative_lane]?.featureKey
+        && playbook.creativeStrategy.lanes[idea.creative_lane]?.featureKey !== idea.feature
+      ) reason = 'content lane is attached to the wrong proof feature';
       else if (isCarousel && idea.feature && seenFeatures.has(idea.feature) && allowedFeatures.length >= count) reason = 'duplicate feature';
       else if (!isCarousel && (!idea.script || (idea.script.match(/\d{1,2}:\d{2}/g)?.length ?? 0) < 3)) {
         reason = 'video brief lacks three timestamped beats';
@@ -343,11 +410,40 @@ export const generateDrafts: Handler = {
       if (idea.feature) seenFeatures.add(idea.feature);
       return true;
     });
-    const acceptedIdeas: DraftIdea[] = validIdeas.slice(0, count);
+    const acceptedIdeas: DraftIdea[] = [];
+    const plannedOccasional = isCarousel
+      ? outputLanePlan.find((assignment) => assignment.lane.id !== playbook.creativeStrategy.defaultLane)
+      : null;
+    if (plannedOccasional) {
+      const occasionalIdea = validIdeas.find((idea) => idea.creative_lane === plannedOccasional.lane.id);
+      if (occasionalIdea) acceptedIdeas.push(occasionalIdea);
+    }
+    for (const idea of validIdeas) {
+      if (acceptedIdeas.length >= count) break;
+      if (!acceptedIdeas.includes(idea)) acceptedIdeas.push(idea);
+    }
+    if (isCarousel && plannedOccasional && !acceptedIdeas.some((idea) => idea.creative_lane === plannedOccasional.lane.id)) {
+      const requiredFeature = plannedOccasional.lane.featureKey;
+      const recoveredOccasional = requiredFeature
+        ? buildCarouselFallbacks(
+            playbook,
+            [requiredFeature],
+            1,
+            acceptedIdeas,
+            recentHooks as string[],
+            plannedOccasional.lane,
+          )[0]
+        : null;
+      if (recoveredOccasional) {
+        acceptedIdeas.unshift(recoveredOccasional);
+        if (acceptedIdeas.length > count) acceptedIdeas.pop();
+        generationMode = 'verified_fallback';
+      }
+    }
     if (isCarousel && acceptedIdeas.length < count) {
       const recovered = buildCarouselFallbacks(
         playbook,
-        [...new Set(plan.decisions.map((decision) => decision.feature))],
+        [...new Set(featureAssignments)],
         count - acceptedIdeas.length,
         acceptedIdeas,
         recentHooks as string[],
@@ -368,6 +464,14 @@ export const generateDrafts: Handler = {
       const rawSlides = Array.isArray(idea.slides) ? idea.slides.slice(0, 2) : [];
       const feature = isCarousel ? idea.feature! : null;
       const featureSpec = feature ? playbook.features[feature] : null;
+      const contentLane = playbook.creativeStrategy.lanes[
+        idea.creative_lane ?? playbook.creativeStrategy.defaultLane
+      ] ?? playbook.creativeStrategy.lanes[playbook.creativeStrategy.defaultLane]!;
+      const finalHashtags = selectCreativeHashtags(
+        playbook,
+        contentLane,
+        Array.isArray(idea.hashtags) ? idea.hashtags : [],
+      );
       const hookAssetQuery = playbook.hookVisualTemplate?.searchQuery
         ?? featureSpec?.stockDirection
         ?? rawSlides[0]?.asset_query
@@ -389,7 +493,7 @@ export const generateDrafts: Handler = {
               // The exact screenshot already carries product detail. Use the
               // concise verified payoff instead of allowing model-written ad
               // copy to obscure the real UI.
-              overlay: featureSpec?.fallbackProofOverlay ?? 'the proof, in the app',
+              overlay: contentLane.proofOverlay ?? featureSpec?.fallbackProofOverlay ?? 'the proof, in the app',
               // The feature key is chosen from the verified playbook, never
               // trusted from a second free-form model field.
               app_asset_key: feature,
@@ -405,6 +509,9 @@ export const generateDrafts: Handler = {
         single_promise: idea.single_promise ?? null,
         hook_hypothesis: idea.hook_hypothesis ?? config.creative_brief?.hypothesis ?? null,
         proof_shown: idea.proof_shown ?? feature,
+        content_lane: contentLane.id,
+        sound_mood: contentLane.soundMood,
+        narrative_guardrails: contentLane.rules,
         footage_provenance: isCarousel
           ? 'creator-owned or explicitly licensed still; source and licence must be recorded'
           : 'creator-owned or explicitly licensed real footage; generated people may not represent customers',
@@ -415,7 +522,7 @@ export const generateDrafts: Handler = {
       const creativeQuality = assessCreativeQuality({
         hook: idea.hook,
         caption: finalCaption,
-        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
+        hashtags: finalHashtags,
         mediaType: isCarousel ? 'photo' : 'video',
         assetManifest: isCarousel ? { format: 'two_slide_photo_carousel', slides } : {},
       });
@@ -453,7 +560,7 @@ export const generateDrafts: Handler = {
         // instructions, and the review queue is where they are actually needed.
         shot_notes: idea.shot_notes ?? null,
         script: idea.script ?? null,
-        hashtags: normalizeHashtags(Array.isArray(idea.hashtags) ? idea.hashtags : []),
+        hashtags: finalHashtags,
         media_type: isCarousel ? 'photo' : 'video',
         asset_manifest: isCarousel
           ? {
@@ -463,6 +570,31 @@ export const generateDrafts: Handler = {
               format: 'two_slide_photo_carousel',
               style: 'native_real_photo_to_feature_proof',
               feature,
+              content_lane: {
+                id: contentLane.id,
+                label: contentLane.label,
+                reason: outputLanePlan.find((assignment) => assignment.lane.id === contentLane.id)?.reason
+                  ?? 'verified recovery lane',
+                feature_key: contentLane.featureKey ?? null,
+                proof_overlay: contentLane.proofOverlay ?? null,
+                guardrails: contentLane.rules,
+              },
+              caption_treatment: playbook.creativeStrategy.captionTreatment,
+              sound_plan: {
+                mood: contentLane.soundMood,
+                market: 'GB',
+                commercial_eligibility_required: true,
+                execution: 'tiktok_auto_recommended_music_for_direct_photo_post',
+                exact_track_control: false,
+                policy: playbook.creativeStrategy.soundPolicy,
+              },
+              trend_policy: {
+                market: 'GB',
+                source: 'TikTok Creative Centre and Commercial Music Library',
+                rules: playbook.creativeStrategy.trendPolicy,
+                blocked_hashtags: playbook.creativeStrategy.blockedHashtags,
+                learning_metrics: playbook.creativeStrategy.learningMetrics,
+              },
               ...(playbook.hookVisualTemplate
                 ? {
                     hook_visual_template: {
@@ -494,6 +626,7 @@ export const generateDrafts: Handler = {
                 required_before_publish: [
                   'licensed source recorded',
                   'exact current app screenshot verified',
+                  'TikTok recommended commercial music requested with the stored lane mood brief',
                   'final two-slide export reviewed',
                   'owner confirms caption, CTA and disclosure',
                 ],

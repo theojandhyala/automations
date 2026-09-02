@@ -55,6 +55,11 @@ is never treated as a licence. Production uses creator-owned or explicitly
 licensed stock imagery, records the source/licence, rejects generated people,
 and rejects rebuilt app UI. The current feature rotation is muscle targeting,
 training heatmap, PR wall, progression board, workout plan and live logger.
+About one post in six enters an occasional emotional lane, alternating between
+heartbreak/rebuild and a controlled villain arc with at least four ordinary
+posts between them. Those posts keep the same car image, use the exact muscle
+diagram as proof and may use the two-beat copy “How much did it hurt?” then
+“Enough.” They never show or imply a fabricated before/after body result.
 
 Cast uses the stronger `cast-fishing-decision-v2` grammar. Slide one is a
 licensed real photograph of an angler casting, waiting, checking a rod or
@@ -68,6 +73,17 @@ bite-forecast posts it leads with a clear benefit and shows the live water,
 fishing score, recommended window, target species and tide. A raw dashboard
 with no benefit framing, the Safety Brief, settings or a generic screen cannot
 be used as the payoff.
+
+Both brands use the same production-grade on-image caption treatment: white
+TikTok Classic-style semi-bold text, a clean 5px black stroke, subtle black
+shadow and safe-zone placement at 1080×1920. Generic engagement-bait tags such
+as `#fyp`, `#viral` and `#trending` are removed in favour of three to five
+relevant brand/category tags. Each artifact stores a sound-mood brief and the
+UK commercial-eligibility rule. TikTok's Direct Post photo API cannot select a
+named track; it can only request recommended music, so the publisher enables
+that option and never pretends an exact trend was selected. Exact named tracks,
+when manually changed in TikTok, must be eligible in the UK Commercial Music
+Library at posting time.
 
 Claiming is atomic. The dispatcher calls `claim_due_automations()`, which flips
 rows to `running` in the same statement that selects them, under
@@ -96,7 +112,7 @@ The Deadset photo workflow now runs from concept through final hosted media.
 The Creative studio is the anywhere-control surface. Add a free Pexels API key
 there (encrypted at rest), upload the six exact current Deadset feature screens,
 and the production agent will find a licensed portrait photo, record its source,
-render two 1080×1920 JPEG slides in a bounded Cloudflare Browser Run session, store them privately and expose stable Worker
+render two high-quality 1080×1920 JPEG slides in a bounded Cloudflare Browser Run session, store them privately and expose stable Worker
 media URLs. It runs every 15 minutes or on demand and closes every session explicitly. Approval still rejects
 anything without final ordered photo URLs.
 

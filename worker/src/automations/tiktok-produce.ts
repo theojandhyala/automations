@@ -5,6 +5,7 @@ import { getCreativePlaybook } from '../lib/creative-playbooks';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { unattendedPublishingEnabled } from '../lib/tiktok';
 import {
+  CAPTION_RENDERER_VERSION,
   closeSlideRenderer,
   openSlideRenderer,
   renderCarouselSlides,
@@ -44,6 +45,7 @@ interface CarouselManifest extends Record<string, unknown> {
   slides?: ManifestSlide[];
   feature?: string;
   app_slug?: string;
+  content_lane?: { id?: string };
 }
 
 export interface ProductionResult {
@@ -126,6 +128,12 @@ async function preflightArtifact(env: Env, db: Db, artifact: Artifact, appSlug: 
   const featureSlide = slides.find((slide) => slide.role === 'feature_proof') ?? slides[1];
   const featureKey = featureSlide?.app_asset_key ?? (typeof manifest.feature === 'string' ? manifest.feature : null);
   if (!featureKey || !(featureKey in playbook.features)) return `Draft does not name a verified ${playbook.appName} feature screen.`;
+  const contentLaneId = manifest.content_lane?.id ?? playbook.creativeStrategy.defaultLane;
+  const contentLane = playbook.creativeStrategy.lanes[contentLaneId];
+  if (!contentLane) return `Draft does not name a verified ${playbook.appName} content lane.`;
+  if (contentLane.featureKey && contentLane.featureKey !== featureKey) {
+    return `${contentLane.label} must use the verified ${contentLane.featureKey} proof screen.`;
+  }
   const [feature, key] = await Promise.all([
     db.selectOne<{ id: string; mime_type: string }>(
       'creative_assets',
@@ -159,6 +167,14 @@ export async function produceArtifact(
   const featureKey = featureSlide.app_asset_key ?? (typeof manifest.feature === 'string' ? manifest.feature : null);
   if (!featureKey || !(featureKey in playbook.features)) {
     return { state: 'blocked', reason: `Draft does not name a verified ${playbook.appName} feature screen.` };
+  }
+  const contentLaneId = manifest.content_lane?.id ?? playbook.creativeStrategy.defaultLane;
+  const contentLane = playbook.creativeStrategy.lanes[contentLaneId];
+  if (!contentLane) {
+    return { state: 'blocked', reason: `Draft does not name a verified ${playbook.appName} content lane.` };
+  }
+  if (contentLane.featureKey && contentLane.featureKey !== featureKey) {
+    return { state: 'blocked', reason: `${contentLane.label} must use the verified ${contentLane.featureKey} proof screen.` };
   }
 
   const feature = await db.selectOne<CreativeAsset>(
@@ -194,7 +210,7 @@ export async function produceArtifact(
     };
   }
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
-  const featureOverlay = playbook.features[featureKey]!.fallbackProofOverlay;
+  const featureOverlay = contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay;
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
     env,
@@ -255,6 +271,7 @@ export async function produceArtifact(
     asset_manifest: {
       ...manifest,
       app_slug: appSlug,
+      caption_treatment: playbook.creativeStrategy.captionTreatment,
       ...(hookVisualTemplate
         ? {
             hook_visual_template: {
@@ -273,6 +290,8 @@ export async function produceArtifact(
         dimensions: { width: 1080, height: 1920 },
         output_format: 'image/jpeg',
         renderer: 'cloudflare_browser_paid_bounded_session',
+        caption_renderer: CAPTION_RENDERER_VERSION,
+        jpeg_quality: 94,
         stock: {
           provider: 'pexels',
           id: stock.id,

@@ -3,6 +3,7 @@ import type { Env } from '../types';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v2';
 
 export interface SlideInput {
   imageUrl: string;
@@ -38,7 +39,7 @@ body{font-family:InterTikTok,"Avenir Next","Helvetica Neue",Arial,sans-serif;col
 .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:${imageFit};object-position:${position};background:#06070a}
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.05) 46%,rgba(0,0,0,.24))}
 .feature-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 66%,rgba(0,0,0,.35))}
-.copy{position:absolute;${overlayPosition}text-align:center;font-size:${fontSize}px;font-weight:600;line-height:1.12;letter-spacing:-.5px;color:#fff;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 2px 5px rgba(0,0,0,.28);overflow-wrap:anywhere}
+.copy{position:absolute;${overlayPosition}text-align:center;font-size:${fontSize}px;font-weight:600;line-height:1.12;letter-spacing:-.5px;color:#fff;-webkit-text-fill-color:#fff;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 2px 0 #000,0 3px 7px rgba(0,0,0,.42);overflow-wrap:anywhere;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}
 </style></head><body><img class="photo" src="${escapeHtml(imageUrl)}"><div class="${shadeClass}"></div><div class="copy">${escapeHtml(overlay)}</div></body></html>`;
 }
 
@@ -114,7 +115,7 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     type: 'jpeg',
     // TikTok recompresses uploads. This keeps 1080×1920 text and app proof
     // crisp while making the five-account daily volume storage-safe.
-    quality: 88,
+    quality: 94,
     clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
     captureBeyondViewport: false,
   });
