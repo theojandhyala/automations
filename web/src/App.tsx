@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import CommandCenter from './pages/CommandCenter';
+import DeadsetHQ from './pages/DeadsetHQ';
 import Queue from './pages/Queue';
 import Accounts from './pages/Accounts';
 import HudPreview from './pages/HudPreview';
@@ -15,6 +16,7 @@ import LiveTelemetryBadge from './components/LiveTelemetryBadge';
 import { LiveSyncProvider } from './lib/liveSync';
 
 const WORKSPACE_ROUTES = [
+  { to: '/deadset', index: 'HQ', label: 'DEADSET HQ', short: 'DEADSET', detail: 'Growth, retention and revenue' },
   { to: '/', index: '00', label: 'Command center', short: 'Core', detail: 'Live mission overview', end: true },
   { to: '/promote', index: '01', label: 'App missions', short: 'Missions', detail: 'Create the next batch' },
   { to: '/queue', index: '02', label: 'Review queue', short: 'Review', detail: 'Inspect and authorise' },
@@ -23,6 +25,7 @@ const WORKSPACE_ROUTES = [
 ] as const;
 
 const WORKSPACE_META: Record<string, { code: string; title: string; detail: string }> = {
+  '/deadset': { code: 'HQ', title: 'DEADSET HQ', detail: '90-day flagship focus' },
   '/promote': { code: '01', title: 'Mission composer', detail: 'Turn an outcome into three native, proof-led posts' },
   '/queue': { code: '02', title: 'Review bay', detail: 'Inspect the exact media, copy and destination' },
   '/studio': { code: '03', title: 'Proof foundry', detail: 'Maintain the verified product-screen library' },
@@ -86,6 +89,7 @@ function Shell({ session }: { session: Session }) {
         </header>
         <main>
           <Routes>
+            <Route path="/deadset" element={<DeadsetHQ />} />
             <Route path="/promote" element={<PromotionMission />} />
             <Route path="/queue" element={<Queue />} />
             <Route path="/studio" element={<CreativeStudio />} />
@@ -103,7 +107,7 @@ function Shell({ session }: { session: Session }) {
 function CommandDock() {
   return (
     <nav className="command-dock" aria-label="JARVIS workspaces">
-      {WORKSPACE_ROUTES.slice(1).map((item) => (
+      {WORKSPACE_ROUTES.filter(item => item.to !== '/').map((item) => (
         <NavLink to={item.to} key={item.to}><i>{item.index}</i><span>{item.short}</span></NavLink>
       ))}
     </nav>
