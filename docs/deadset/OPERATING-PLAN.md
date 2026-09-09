@@ -35,7 +35,7 @@ Days 61–90: repeat winning content concepts with materially different creative
 
 Monday: previous complete week's growth, retention, revenue, acquisition, content, anomalies and three ranked actions. Tuesday: activation and retention. Wednesday: content experiment review. Thursday: define and preregister next experiments. Friday: reviewed release and rollback check.
 
-Weekly report must include source freshness, metric definitions, period, comparison period and cohort maturity. Rank recommendations by evidence, expected impact and effort. No report delivery is configured by this change; do not claim a Monday schedule or notification exists until enabled and tested.
+Weekly report must include source freshness, metric definitions, period, comparison period and cohort maturity. Rank recommendations by evidence, expected impact and effort. A Codex heartbeat now schedules the Monday CEO review at 08:00, with results in this task. Its first scheduled execution has not happened yet. Email/push delivery and Worker-side report generation remain unconfigured.
 
 ## Workstreams and dependencies
 

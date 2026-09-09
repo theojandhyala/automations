@@ -32,7 +32,7 @@ A first snapshot has been collected locally. It is not bundled into the website 
 
 ## What remains
 
-- Automatic scheduled baseline collection is not enabled; the current collector/import is explicit and reproducible.
+- A Codex Monday CEO review is scheduled for 08:00 and will run the read-only collector and save a private report in this task. Worker-side scheduled collection and automatic HQ import are not enabled; these remain follow-up work.
 - RevenueCat server-side billing feed and price/currency ledger; App Store install reports.
 - Foreground app activity events, first-open cohorts, D1/D7/D30 and matured trial conversion. Workout-active counts are narrower than DAU/WAU and must remain labelled accordingly.
 - Campaign identifiers at landing are observational, not guaranteed causal attribution. Do not infer per-post installs from them.
