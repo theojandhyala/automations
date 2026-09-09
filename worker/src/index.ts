@@ -1,3 +1,4 @@
+import { handleDeadset } from './api/deadset';
 import { handleApiSafe } from './api/router';
 import { backfillSchedules, dispatchDue } from './lib/runner';
 import { log, errorFields } from './lib/log';
@@ -12,6 +13,8 @@ import { streamMedia } from './lib/storage';
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+
+    if (url.pathname === '/api/deadset/baselines') return handleDeadset(req, env);
 
     if (url.pathname.startsWith('/api/')) {
       return handleApiSafe(req, env, ctx);
