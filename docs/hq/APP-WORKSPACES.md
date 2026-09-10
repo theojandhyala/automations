@@ -23,7 +23,7 @@ No database migration, production app code change, or content publication is inc
 
 ## Validation
 
-Worker typecheck, 139 worker tests, production web build and Wrangler dry-run passed. Tests cover unauthenticated read/write rejection, bounded report input, cross-source validation, incomplete periods, Apple app isolation, updates/re-downloads/refunds, bundle credits and separate currency proceeds. Live UI verification is recorded after deployment.
+Worker typecheck, 140 worker tests, production web build and Wrangler dry-run passed. Tests cover unauthenticated read/write rejection, bounded report input, cross-source validation, incomplete periods, Apple app isolation, updates/re-downloads/refunds, bundle credits and separate currency proceeds. Live deployment `70f16801-692c-437a-9774-827c5446f764` was verified in the authenticated browser: both branded HQs, app switching without cross-app product data, 7-day/30-day filters, chart observations, Cast post performance, DEADSET product counts, source setup and return links. The unauthenticated live HQ API returned 401. Apple reporting is not configured; Cast product and complete billing feeds remain explicit gaps.
 
 ## Provider references
 
