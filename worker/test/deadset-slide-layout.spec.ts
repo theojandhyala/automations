@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { deadsetSlideHtml, DEADSET_SAFE_AREA, DEADSET_PROOF_AREA, isFinishedSlidePath } from '../src/lib/deadset-slide-layout';
+import { deadsetSlideHtml, deadsetSourceFits, DEADSET_SAFE_AREA, DEADSET_PROOF_AREA, isFinishedSlidePath } from '../src/lib/deadset-slide-layout';
 
 describe('DEADSET slide composition', () => {
-  it('keeps the proof rectangle inside the conservative TikTok safe area', () => {
+  it('fills the entire frame while reserving conservative bounds for copy', () => {
     const safe = DEADSET_SAFE_AREA, proof = DEADSET_PROOF_AREA;
-    expect(proof.x).toBeGreaterThanOrEqual(safe.x);
-    expect(proof.y).toBeGreaterThanOrEqual(safe.y);
-    expect(proof.x + proof.width).toBeLessThanOrEqual(safe.x + safe.width);
-    expect(proof.y + proof.height).toBeLessThanOrEqual(safe.y + safe.height);
+    expect(proof).toEqual({ x: 0, y: 0, width: 1080, height: 1920 });
     expect(safe.x + safe.width).toBeLessThanOrEqual(1080 * .8);
     expect(safe.y + safe.height).toBeLessThanOrEqual(1920 * .67);
   });
@@ -18,14 +15,23 @@ describe('DEADSET slide composition', () => {
     expect(body).not.toContain('Enough.');
     expect(body).not.toContain('Get DEADSET');
     expect(body).not.toContain('class="shade"');
-    expect(html).toContain('object-fit:contain');
+    expect(html).not.toContain('object-fit:contain');
   });
-  it('keeps screenshot proof separate from the benefit and CTA', () => {
+  it('uses full-frame proof and a short reaction, not a boxed advert', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/capture.png', overlay: 'See the muscles each exercise targets', role: 'feature' });
-    expect(html).toContain('class="proof"><img');
-    expect(html).toContain('class="benefit"');
-    expect(html).toContain('class="download"');
+    expect(html).toContain('class="proof"');
+    expect(html).toContain('class="proof-copy"');
+    expect(html).not.toContain('class="download"');
+    expect(html).not.toContain('class="benefit"');
+    expect(html).not.toContain('object-fit:contain');
     expect(html).not.toContain('bottom:190px');
+  });
+  it('rejects card crops and low-resolution or incorrectly sized finished exports', () => {
+    expect(deadsetSourceFits(1320, 2868)).toBe(true);
+    expect(deadsetSourceFits(1080, 1920, true)).toBe(true);
+    expect(deadsetSourceFits(1074, 1217)).toBe(false);
+    expect(deadsetSourceFits(300, 650)).toBe(false);
+    expect(deadsetSourceFits(1320, 2868, true)).toBe(false);
   });
   it('escapes source and caption HTML', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/" onerror="alert(1)', overlay: '<img src=x onerror=alert(1)>', role: 'hook' });

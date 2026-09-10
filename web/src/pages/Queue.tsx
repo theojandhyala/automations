@@ -196,7 +196,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
       </div>
 
       <div className="queue-command-strip">
-        <div><span>POSTING WINDOWS // UK</span><b>12:00</b><i /><b>15:00</b><i /><b>18:00</b></div>
+        <div><span>POSTING WINDOWS // UK</span><b>12:00</b><i /><b>15:00</b><i /><b>18:00</b><i /><b>21:00</b></div>
         <div className="queue-filters" role="tablist" aria-label="Review status">
           {FILTERS.map((f) => (
             <button key={f} role="tab" aria-selected={f === filter} className={f === filter ? 'primary' : ''} onClick={() => setFilter(f)}>
