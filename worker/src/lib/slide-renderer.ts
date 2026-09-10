@@ -1,11 +1,11 @@
 import { castEditorialHtml } from './cast-editorial';
 import puppeteer from '@cloudflare/puppeteer';
 import type { Env } from '../types';
-import { deadsetSlideHtml } from './deadset-slide-layout';
+import { deadsetSlideHtml, deadsetSourceFits } from './deadset-slide-layout';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v3-deadset-safe';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v4.1-deadset-fullframe';
 
 export interface SlideInput {
   imageUrl: string;
@@ -13,6 +13,7 @@ export interface SlideInput {
   role: 'hook' | 'feature';
   appSlug?: string;
   finished?: boolean;
+  featureKey?: string;
   editorial?: { body: string; kicker: string };
 }
 
@@ -119,8 +120,14 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     'Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0)',
     { timeout: 20_000 },
   );
+  if (input.appSlug === 'deadset' && (input.role === 'feature' || input.finished)) {
+    const dimensions = await page.evaluate(`({width:document.images[0].naturalWidth,height:document.images[0].naturalHeight})`) as {width:number;height:number};
+    if (!deadsetSourceFits(dimensions.width, dimensions.height, input.finished)) {
+      throw new Error('DEADSET needs a full portrait app screen (or an exact 9:16 finished slide); this card crop would cut off product proof.');
+    }
+  }
   if (input.appSlug === 'deadset' && !input.finished) {
-    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.hook-copy,.benefit,.download')).every(el => {
+    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.hook-copy,.proof-copy')).every(el => {
       const r=el.getBoundingClientRect();
       return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1;
     })`);

@@ -4,6 +4,7 @@ import { encrypt } from '../src/lib/crypto';
 import { Db } from '../src/lib/db';
 import { publishApproved } from '../src/automations/tiktok-publish';
 import { produceCarousels } from '../src/automations/tiktok-produce';
+import { CAPTION_RENDERER_VERSION } from '../src/lib/slide-renderer';
 import { isRepeatedHook } from '../src/lib/creative-variety';
 import { planCreativeFeatures } from '../src/lib/creative-intelligence';
 import { getCreativePlaybook } from '../src/lib/creative-playbooks';
@@ -73,7 +74,7 @@ describe('unattended safety', () => {
     expect(plan.decisions.every(decision => decision.latest_views === null)).toBe(true);
   });
 
-  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true) {
+  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false) {
     const channel = await account();
     const artifact: Artifact = {
       id: 'artifact-1', run_id: null, app_id: 'deadset-id', account_id: channel.id, status: 'approved',
@@ -81,6 +82,7 @@ describe('unattended safety', () => {
       hashtags: ['gymtok', 'workoutapp', 'gymprogress'], media_type: 'photo', video_url: null,
       photo_urls: ['https://example.test/media/outputs/one.jpg', 'https://example.test/media/outputs/two.jpg'],
       asset_manifest: { app_slug: 'deadset', format: 'two_slide_photo_carousel', slides: [{}, {}],
+        production: { caption_renderer: legacy ? 'tiktok-classic-v2' : CAPTION_RENDERER_VERSION },
         hook_visual_template: { id: getCreativePlaybook('deadset')!.hookVisualTemplate!.id } },
       thumbnail_url: null, duration_s: null, publish_id: null, tiktok_post_id: null, error: null,
       scheduled_for: null, stage: 'schedule', stages: {}, shot_notes: null, script: null,
@@ -144,6 +146,11 @@ describe('unattended safety', () => {
     expect(automaticCreativeApprovalAllowed('deadset')).toBe(true);
     expect(automaticCreativeApprovalAllowed('cast')).toBe(true);
     expect(automaticCreativeApprovalAllowed('lifescore')).toBe(false);
+  });
+
+  it('does not reapprove legacy Deadset exports with the old cropped layout', async () => {
+    const calls = await publishingFixture(false, false, false, 'produce', false, true);
+    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).not.toContainEqual(expect.objectContaining({ status: 'approved' }));
   });
 
   it('invalidates an owner receipt when content or destination changes', async () => {
