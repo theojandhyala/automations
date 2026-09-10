@@ -33,3 +33,11 @@ The usual automation dashboard build remains unchanged when `VITE_DEADSET_HQ` is
 The clean deployment build, typecheck and Worker/Node suites passed. Live unauthenticated baseline requests return 401, and the site shell returns 200 with noindex, frame protection and CSP headers. Owner-session UI verification requires signing in; no authentication bypass was added.
 
 Rollback only the `deadset-hq` Worker to a known version if needed. Keep the private KV snapshots and existing automation service intact. The Supabase 0021 migration is not required by this dedicated KV-based deployment; it remains available for a future consolidated automation-hosted dashboard.
+
+## Owner password recovery
+
+The login screen links to `/reset-password`. Signed-out users can request a Supabase recovery email; a recovered session can set and confirm a new password. Before updating credentials, the client validates its session through the existing `/api/me` owner gate. Credentials are sent directly to Supabase and never embedded in source.
+
+Supabase Auth now permits the exact redirect `https://deadset-hq.theojandhyala.workers.dev/reset-password`; the original default site URL and existing redirects remain unchanged.
+
+Validation: production HQ build and 16 focused recovery/private-API tests passed. Actual owner password entry and submission remain a user handoff.

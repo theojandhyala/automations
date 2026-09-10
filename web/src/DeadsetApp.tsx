@@ -7,6 +7,7 @@ import { LiveSyncProvider } from './lib/liveSync';
 import type { Automation, Run } from './lib/types';
 import type { DeadsetBaseline } from '../../worker/src/lib/deadset-baseline';
 import Queue from './pages/Queue';
+import PasswordRecovery from './PasswordRecovery';
 
 const paths: Record<string, string> = { home: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', chart: 'M3 20h18 M6 16v-5 M12 16V4 M18 16V8', users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 4a4 4 0 0 1 0 8 M20 21v-2a4 4 0 0 0-3-4 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8', play: 'm9 5 11 7-11 7z M3 5v14', coin: 'M12 2v20 M17 5H9a4 4 0 0 0 0 8h6a3 3 0 0 1 0 6H6', bolt: 'm13 2-9 12h7l-1 8 10-13h-8z', refresh: 'M20 7v5h-5 M4 17v-5h5 M5 8a8 8 0 0 1 14-2l1 3 M19 16A8 8 0 0 1 5 18l-1-3', arrow: 'M5 12h14 M13 6l6 6-6 6', logout: 'M9 4H4v16h5 M9 12h12 M16 7l5 5-5 5', shield: 'm12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M8 12l3 3 5-6', data: 'M3 6c0-4 18-4 18 0s-18 4-18 0v12c0 4 18 4 18 0V6 M3 12c0 4 18 4 18 0' };
 function Glyph({ name, className = '' }: { name: string; className?: string }) { return <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.chart} /></svg>; }
@@ -20,7 +21,7 @@ function OwnerLogin() {
     catch (err) { setError(err instanceof Error ? err.message : 'Sign-in failed. Please try again.'); }
     finally { setBusy(false); }
   }
-  return <div className="ds-login"><div className="ds-login-art"><Wordmark /><div><p className="ds-kicker">BUILT FOR THE LONG GAME</p><h1>EVERY REP.<br />EVERY USER.<br /><em>EVERY STEP.</em></h1><p>The home of DEADSET growth.</p></div><small>FORGE YOUR BODY. BUILD YOUR BUSINESS.</small></div><section className="ds-login-form"><div className="ds-lock"><Glyph name="shield" /></div><p className="ds-kicker">OWNER ACCESS</p><h2>Back to work.</h2><p>Your numbers. Your next move.</p><form onSubmit={signIn}><label>Email address<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="ds-primary" disabled={busy}>{busy ? 'Signing in…' : 'Enter DEADSET HQ'}<Glyph name="arrow" /></button>{error && <p className="ds-alert" role="alert">{error}</p>}</form><small>Use your existing automation dashboard owner account.</small></section></div>;
+  return <div className="ds-login"><div className="ds-login-art"><Wordmark /><div><p className="ds-kicker">BUILT FOR THE LONG GAME</p><h1>EVERY REP.<br />EVERY USER.<br /><em>EVERY STEP.</em></h1><p>The home of DEADSET growth.</p></div><small>FORGE YOUR BODY. BUILD YOUR BUSINESS.</small></div><section className="ds-login-form"><div className="ds-lock"><Glyph name="shield" /></div><p className="ds-kicker">OWNER ACCESS</p><h2>Back to work.</h2><p>Your numbers. Your next move.</p><form onSubmit={signIn}><label>Email address<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="ds-primary" disabled={busy}>{busy ? 'Signing in…' : 'Enter DEADSET HQ'}<Glyph name="arrow" /></button>{error && <p className="ds-alert" role="alert">{error}</p>}</form><Link to="/reset-password">Set or reset your password</Link><small>Use your existing automation dashboard owner account.</small></section></div>;
 }
 async function loadDashboard() {
   const baselineRequest = api<{ current: DeadsetBaseline | null; previous: DeadsetBaseline | null }>('/deadset/baselines').then(result => ({ ...result, error: null as string | null })).catch(error => ({ current: null, previous: null, error: error instanceof Error ? error.message : 'Baseline unavailable' }));
@@ -84,10 +85,12 @@ function Dashboard({ session }: { session: Session }) {
       <footer className="ds-footer"><span><b>DEADSET</b> HQ / BUILT FOR THE LONG GAME.</span><span>100 → 500 → 1,000 paying users → £10k MRR</span></footer></main></div></div>;
 }
 export default function DeadsetApp() {
+  const location = useLocation();
   const [session, setSession] = useState<Session | null>(null), [ready, setReady] = useState(false);
   useEffect(() => { let mounted = true; supabase.auth.getSession().then(({ data }) => { if (mounted) { setSession(data.session); setReady(true); } }); const { data } = supabase.auth.onAuthStateChange((_event, s) => { setSession(s); setReady(true); }); return () => { mounted = false; data.subscription.unsubscribe(); }; }, []);
   useEffect(() => { document.title = 'DEADSET HQ — Growth, with intent'; document.documentElement.classList.add('deadset-site'); return () => document.documentElement.classList.remove('deadset-site'); }, []);
   if (!ready) return <div className="ds-boot"><Wordmark /><span>Opening your workspace…</span></div>;
+  if (location.pathname === '/reset-password') return <PasswordRecovery session={session} />;
   if (!session) return <OwnerLogin />;
   return <LiveSyncProvider><Dashboard session={session} /></LiveSyncProvider>;
 }
