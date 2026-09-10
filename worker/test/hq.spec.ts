@@ -66,3 +66,14 @@ it('does not accept an unknown row count as an empty verified source', async () 
   vi.stubGlobal('fetch', vi.fn(async () => new Response('[]', { headers: { 'content-range': '0-0/*' } })));
   await expect(collectDeadsetSource('https://example.supabase.co', 'secret')).rejects.toThrow('coverage');
 });
+it('collects complete source rows and emits aggregates rather than identities', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+    const url = new URL(input);
+    const rows = url.pathname.endsWith('/profiles') ? [{ id: 'private-user', created_at: '2026-09-01T00:00:00Z' }] : url.pathname.endsWith('/user_state') ? [{ user_id: 'private-user', sessions: [], attribution: { source: 'tiktok' } }] : [];
+    return new Response(JSON.stringify(rows), { headers: { 'content-range': rows.length ? '0-0/1' : '*/0' } });
+  }));
+  const result = await collectDeadsetSource('https://example.supabase.co', 'secret');
+  expect(result.registered_users).toBe(1);
+  expect(result.sources[0]?.source).toBe('tiktok');
+  expect(JSON.stringify(result)).not.toContain('private-user');
+});

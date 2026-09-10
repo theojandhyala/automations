@@ -223,13 +223,13 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
         <aside className="delivery-blocker sandbox" role="status">
           <div><span>CONSUMER SANDBOX // TEST ONLY</span><strong>Real Deadset and Cast accounts stay public.</strong></div>
           <p>TikTok blocks public posts from this unaudited consumer client. JARVIS will not ask you to make either account private; production is moving through TikTok's Business Accounts API.</p>
-          <Link to="/accounts?app=deadset">OPEN PUBLIC UPLINK →</Link>
+          {appSlug ? <a href="https://automations.theojandhyala.workers.dev/accounts?app=deadset" target="_blank" rel="noreferrer">Manage TikTok connection →</a> : <Link to="/accounts?app=deadset">OPEN PUBLIC UPLINK →</Link>}
         </aside>
       ) : manualMode && (
         <aside className="delivery-blocker" role="status">
           <div><span>WHY NOTHING HAS POSTED</span><strong>TikTok production access is still awaiting review.</strong></div>
           <p>The agents have generated {visibleArtifacts.length} {filter} item{visibleArtifacts.length === 1 ? '' : 's'}, but TikTok has not approved the Business Accounts publishing integration. JARVIS will not pretend a draft is live.</p>
-          <Link to="/accounts">COMPLETE PUBLISHING UPLINK →</Link>
+          {appSlug ? <a href="https://automations.theojandhyala.workers.dev/accounts?app=deadset" target="_blank" rel="noreferrer">Manage TikTok connection →</a> : <Link to="/accounts">COMPLETE PUBLISHING UPLINK →</Link>}
         </aside>
       )}
 
