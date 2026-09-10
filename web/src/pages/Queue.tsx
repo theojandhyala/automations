@@ -27,7 +27,7 @@ function urlsFromTextarea(value: string): string[] {
  * Owner-visible audit and intervention surface. Before Business Accounts
  * approval it also provides the manual handoff path.
  */
-export default function Queue() {
+export default function Queue({ appSlug }: { appSlug?: string } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('draft');
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +41,16 @@ export default function Queue() {
   const [recordingPost, setRecordingPost] = useState<string | null>(null);
 
   const { data, refresh } = useData(async () => {
+    const scope = appSlug ? await supabase.from('apps').select('id').eq('slug', appSlug).single() : null;
+    if (scope?.error) throw scope.error;
+    let artifactQuery = supabase.from('artifacts').select('*').eq('status', filter);
+    let appQuery = supabase.from('apps').select('*');
+    let accountQuery = supabase.from('tiktok_accounts_public').select('*');
+    if (scope?.data) { artifactQuery = artifactQuery.eq('app_id', scope.data.id); appQuery = appQuery.eq('id', scope.data.id); accountQuery = accountQuery.eq('app_id', scope.data.id); }
     const [artifacts, apps, accounts, tiktokStatus] = await Promise.all([
-      supabase.from('artifacts').select('*').eq('status', filter)
-        .order('created_at', { ascending: false }).limit(60),
-      supabase.from('apps').select('*'),
-      supabase.from('tiktok_accounts_public').select('*'),
+      artifactQuery.order('created_at', { ascending: false }).limit(60),
+      appQuery,
+      accountQuery,
       api<{
         provider: 'content_posting' | 'business_accounts';
         direct_post_test_ready: boolean;
@@ -64,7 +69,7 @@ export default function Queue() {
       accounts: (accounts.data ?? []) as Account[],
       tiktokStatus,
     };
-  }, [filter]);
+  }, [filter, appSlug]);
 
   async function patch(id: string, body: Record<string, unknown>) {
     setError(null);
@@ -218,13 +223,13 @@ export default function Queue() {
         <aside className="delivery-blocker sandbox" role="status">
           <div><span>CONSUMER SANDBOX // TEST ONLY</span><strong>Real Deadset and Cast accounts stay public.</strong></div>
           <p>TikTok blocks public posts from this unaudited consumer client. JARVIS will not ask you to make either account private; production is moving through TikTok's Business Accounts API.</p>
-          <Link to="/accounts?app=deadset">OPEN PUBLIC UPLINK →</Link>
+          {appSlug ? <a href="https://automations.theojandhyala.workers.dev/accounts?app=deadset" target="_blank" rel="noreferrer">Manage TikTok connection →</a> : <Link to="/accounts?app=deadset">OPEN PUBLIC UPLINK →</Link>}
         </aside>
       ) : manualMode && (
         <aside className="delivery-blocker" role="status">
           <div><span>WHY NOTHING HAS POSTED</span><strong>TikTok production access is still awaiting review.</strong></div>
           <p>The agents have generated {visibleArtifacts.length} {filter} item{visibleArtifacts.length === 1 ? '' : 's'}, but TikTok has not approved the Business Accounts publishing integration. JARVIS will not pretend a draft is live.</p>
-          <Link to="/accounts">COMPLETE PUBLISHING UPLINK →</Link>
+          {appSlug ? <a href="https://automations.theojandhyala.workers.dev/accounts?app=deadset" target="_blank" rel="noreferrer">Manage TikTok connection →</a> : <Link to="/accounts">COMPLETE PUBLISHING UPLINK →</Link>}
         </aside>
       )}
 

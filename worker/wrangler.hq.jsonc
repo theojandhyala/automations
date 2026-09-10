@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "deadset-hq",
+  "main": "src/hq.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "services": [
+    {
+      "binding": "AUTOMATIONS",
+      "service": "automations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BASELINE",
+      "id": "48433907f95c443687f31fc2343a8c55"
+    }
+  ],
+  "vars": {
+    "DEADSET_SOURCE_URL": "https://fqfdygbveeztgxwkbmfi.supabase.co"
+  },
+  "triggers": {
+    "crons": [
+      "17 * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
