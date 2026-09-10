@@ -49,7 +49,7 @@ export async function collectBilling(
     {
       headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(20000),
-      redirect: "error",
+      redirect: "manual",
     },
   );
   if (!res.ok) {

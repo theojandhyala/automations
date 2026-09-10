@@ -149,7 +149,7 @@ async function sourceReader(app: HqApp, key: string) {
             Prefer: "count=exact",
           },
           signal: AbortSignal.timeout(20000),
-          redirect: "error",
+          redirect: "manual",
         },
       );
       if (!res.ok) {
