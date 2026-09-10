@@ -34,3 +34,15 @@ The equipment-check post uses general preparation advice, not species-specific p
 ## Review and measurement
 
 Inspect each export on a phone-size preview. Check header and body readability, subject crop, absence of covered content and consistency between headline and final item. Record saves and shares per view alongside comments and any available attributable installs. Compare equivalent observation windows. Test one variable per follow-up (hook or first photo); do not call a concept a winner from raw views alone.
+
+## Production verification
+
+Deployed to the JARVIS `automations` Worker, version `84093a46-be2a-4c6f-9833-4d8d1744d1cd`. The Cast mission created at 20:55:55 UK time reports **3/3 rendered, ready for your review**. All eighteen final 1080×1920 JPEGs were visually inspected, including the revised teal number badges. Text remained readable and inside the configured safe area. No post was published in this task.
+
+| Draft | Artifact ID | Final output nonce |
+|---|---|---|
+| Fishing notes, ranked from vague to useful | 5d682cf3-82a1-4624-a33c-eb065552fc12 | 8696aab9-8ef2-4501-bfa8-c52428817b6b |
+| 5 things to check before buying another lure | 1b1038f4-d97a-412a-bdac-e7313602c062 | 05ae2f59-552d-453c-8007-f7dec009edc9 |
+| 5 ways a catch photo gives away your spot | 87d89d43-22a3-451b-907b-ac633158b692 | 8b2b069d-16bb-47e3-b314-ac22d5d88f91 |
+
+Outputs follow `/media/outputs/{artifact}/editorial-{1..6}-{nonce}.jpg`. Validation passed: worker typecheck, 131 Vitest tests, 13 Node tests and the production web build. An unauthenticated private artifacts request returned 401. Explicit owner missions now render even when the routine ready buffer is full; the new editorial drafts remain behind exact review.
