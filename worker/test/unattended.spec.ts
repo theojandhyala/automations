@@ -12,6 +12,7 @@ import { verifyPublishMedia } from '../src/lib/publish-media';
 import { ownerApprovalReceipt, hasExactOwnerApproval, automaticCreativeApprovalAllowed } from '../src/lib/owner-approval';
 import type { Artifact, Automation, Env, TikTokAccount } from '../src/types';
 import { automationRow, jsonResponse, stubFetch, testEnv } from './helpers';
+import { visualReviewFixture } from './visual-review-fixture';
 
 afterEach(() => vi.unstubAllGlobals());
 const env: Env = { ...testEnv, PUBLIC_BASE_URL: 'https://example.test',
@@ -92,6 +93,8 @@ describe('unattended safety', () => {
     const repeated = { ...artifact, id: 'repeated-artifact', hook: 'The set I nearly forgot to log',
       error: 'Creative variety hold: this hook repeats recent account content; replace the concept.' };
     const ready = repeatedFirst ? [repeated, artifact] : [artifact];
+    for (const item of ready) item.asset_manifest = { ...item.asset_manifest,
+      native_visual_review: visualReviewFixture(item.hook, item.caption, item.photo_urls) };
     if (mode === 'produce' && approved) {
       channel.handle = 'cast.fishing.app';
       for (const item of ready) item.asset_manifest = { ...item.asset_manifest, app_slug: 'cast',

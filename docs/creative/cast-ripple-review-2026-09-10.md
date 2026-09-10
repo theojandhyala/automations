@@ -1,5 +1,7 @@
 # Cast editorial direction — 10 September 2026
 
+> Follow-up creative reset: readable/full-frame does not establish the requested natural-photo quality. The three drafts below remain unapproved; the first inspected cover still looks like posed stock. Do not treat the previous inspection as a pass under the new native-photo standard. See `native-queue-reset-2026-09-10.md`.
+
 Owner: use r1pple8 as the reference for Cast, make fewer purely promotional posts, no AI media. The first three Latest entries were opened and every slide was visually inspected in TikTok and its displayed image URLs. They are six-image photo carousels, not moving-video edits. The source images are 3:4; Cast's exports use a 1080×1920 canvas with a conservative text safe area.
 
 | Latest order | Reference | Visible views | Likes / comments / saves / shares | Posted label |

@@ -1,5 +1,7 @@
 # Deadset full-frame repair — 10 September 2026
 
+> Superseded queue status: the owner rejected the photography/creative quality after this layout repair. All six Deadset and twelve legacy Cast approvals below were moved back to draft/review. They are NOT ready to publish. See `creative/native-queue-reset-2026-09-10.md` before any release.
+
 ## Source and deployment
 
 Integrated checkout: `jarvis-quality-release`, preserving HQ/Cast work and both KV bindings.
