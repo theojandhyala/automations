@@ -70,6 +70,7 @@ export interface Artifact {
     slides?: Array<{
       role?: string;
       overlay?: string;
+      body?: string;
       asset_query?: string;
       app_asset_key?: string;
       source_requirement?: string;

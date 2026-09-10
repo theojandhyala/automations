@@ -1,3 +1,4 @@
+import { castEditorialHtml } from './cast-editorial';
 import puppeteer from '@cloudflare/puppeteer';
 import type { Env } from '../types';
 import { deadsetSlideHtml } from './deadset-slide-layout';
@@ -12,6 +13,7 @@ export interface SlideInput {
   role: 'hook' | 'feature';
   appSlug?: string;
   finished?: boolean;
+  editorial?: { body: string; kicker: string };
 }
 
 function escapeHtml(value: string): string {
@@ -24,6 +26,7 @@ function escapeHtml(value: string): string {
 }
 
 function slideHtml(input: SlideInput): string {
+  if (input.appSlug === 'cast' && input.editorial) return castEditorialHtml({ ...input, editorial: input.editorial });
   if (input.appSlug === 'deadset') return deadsetSlideHtml(input);
   const { imageUrl, overlay, role } = input;
   const hook = role === 'hook';
@@ -123,6 +126,10 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     })`);
     if (!fits) throw new Error('DEADSET copy exceeds TikTok safe bounds; shorten the copy before approval.');
   }
+  if (input.editorial) {
+    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.copy,.kicker,.brand')).every(el => { const r=el.getBoundingClientRect(); return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1; })`);
+    if (!fits) throw new Error('Cast editorial text exceeds TikTok safe bounds.');
+  }
   const bytes = await page.screenshot({
     type: 'jpeg',
     // TikTok recompresses uploads. This keeps 1080×1920 text and app proof
@@ -167,4 +174,19 @@ export async function renderCarouselSlides(
   } finally {
     if (ownsBrowser && browser) await closeSlideRenderer(browser);
   }
+}
+
+/** Render a finite editorial sequence in a single bounded browser session. */
+export async function renderEditorialSlides(env: Env, slides: SlideInput[], session?: SlideRendererSession): Promise<Uint8Array[]> {
+  if (slides.length !== 6) throw new Error('Cast editorial requires six slides.');
+  const browser = session ?? await openSlideRenderer(env);
+  try {
+    const page = await browser.newPage();
+    try {
+      await page.setViewport({ width: WIDTH, height: HEIGHT, deviceScaleFactor: 1 });
+      const output: Uint8Array[] = [];
+      for (const slide of slides) output.push(await renderPage(page, slide));
+      return output;
+    } finally { await page.close(); }
+  } finally { if (!session) await closeSlideRenderer(browser); }
 }

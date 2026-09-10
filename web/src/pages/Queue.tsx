@@ -262,16 +262,16 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   <Dot status={artifact.status} />
                   <span className="queue-title"><small>HOOK SIGNAL</small><strong>{artifact.hook ?? 'Untitled'}</strong></span>
                 </div>
-                <div className="queue-card-meta">{app && <span className="pill">{app.name}</span>}<span className="pill">{artifact.media_type === 'photo' ? '2-SLIDE CAROUSEL' : 'VIDEO'}</span><span className="muted"><Ago at={artifact.created_at} /></span></div>
+                <div className="queue-card-meta">{app && <span className="pill">{app.name}</span>}<span className="pill">{artifact.media_type === 'photo' ? `${artifact.asset_manifest.slides?.length || artifact.photo_urls.length || 2}-SLIDE CAROUSEL` : 'VIDEO'}</span><span className="muted"><Ago at={artifact.created_at} /></span></div>
               </div>
 
               {artifact.asset_manifest.slides?.length ? (
                 <div className="creative-plan">
                   {artifact.asset_manifest.slides.map((slide, index) => (
                     <div key={`${artifact.id}-slide-${index}`}>
-                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? `${app?.name ?? 'App'} proof` : 'real-photo hook'}</strong>
+                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? `${app?.name ?? 'App'} proof` : slide.role === 'editorial' ? 'fishing advice' : 'real-photo hook'}</strong>
                       <p>“{slide.overlay}”</p>
-                      <span>{slide.asset_query ?? slide.app_asset_key}</span>
+                      <span>{slide.body ?? slide.asset_query ?? slide.app_asset_key}</span>
                     </div>
                   ))}
                   <p className="muted" style={{ margin: 0 }}>
