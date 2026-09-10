@@ -76,7 +76,7 @@ describe('native creative quality gate', () => {
     expect(result.blockers.join(' ')).toMatch(/person-walking-to-a-car visual template/i);
   });
 
-  it('accepts the saved Deadset car-walk template marker', () => {
+  it('does not release an old Deadset template marker without current visual review', () => {
     const result = assessCreativeQuality({
       hook: 'What can twelve weeks actually change?',
       caption: 'I wanted the progress to be easy to see. Deadset on the App Store.',
@@ -93,7 +93,8 @@ describe('native creative quality gate', () => {
       photoUrls: ['https://media.example/one.jpg', 'https://media.example/two.jpg'],
     });
 
-    expect(result.pass).toBe(true);
+    expect(result.pass).toBe(false);
+    expect(result.blockers.join(' ')).toMatch(/Exact final slides/);
   });
 
   it('blocks a Cast carousel that bypasses the saved fishing-decision template', () => {
@@ -116,7 +117,7 @@ describe('native creative quality gate', () => {
     expect(result.blockers.join(' ')).toMatch(/fishing-decision visual template/i);
   });
 
-  it('accepts the saved Cast fishing-decision template marker', () => {
+  it('does not release an old Cast template marker without current visual review', () => {
     const result = assessCreativeQuality({
       hook: 'Would you fish this spot or keep walking?',
       caption: 'The conditions decide whether I stay. Cast on the App Store.',
@@ -133,10 +134,11 @@ describe('native creative quality gate', () => {
       photoUrls: ['https://media.example/one.jpg', 'https://media.example/two.jpg'],
     });
 
-    expect(result.pass).toBe(true);
+    expect(result.pass).toBe(false);
+    expect(result.blockers.join(' ')).toMatch(/Exact final slides/);
   });
 
-  it('passes the finished Deadset progress-receipts carousel', () => {
+  it('holds the legacy Deadset progress export for visual re-review', () => {
     const result = assessCreativeQuality({
       hook: 'Did the work actually add up?',
       caption: 'Training feels different when the progress is impossible to forget. Deadset on the App Store.',
@@ -153,11 +155,11 @@ describe('native creative quality gate', () => {
       photoUrls: ['deadset-carousel-progress-receipts-slide-1.png', 'deadset-carousel-progress-receipts-slide-2.png'],
     });
 
-    expect(result.pass).toBe(true);
-    expect(result.blockers).toEqual([]);
+    expect(result.pass).toBe(false);
+    expect(result.blockers.join(' ')).toMatch(/Exact final slides/);
   });
 
-  it('passes the rebuilt Cast worth-the-drive carousel', () => {
+  it('holds the legacy Cast export for visual re-review', () => {
     const result = assessCreativeQuality({
       hook: 'Worth the drive tonight?',
       caption: 'I check the live score, tide and recommended hour before I waste the drive. Cast on the App Store.',
@@ -174,7 +176,7 @@ describe('native creative quality gate', () => {
       photoUrls: ['cast-carousel-worth-the-drive-slide-1.png', 'cast-carousel-worth-the-drive-slide-2.png'],
     });
 
-    expect(result.pass).toBe(true);
-    expect(result.blockers).toEqual([]);
+    expect(result.pass).toBe(false);
+    expect(result.blockers.join(' ')).toMatch(/Exact final slides/);
   });
 });

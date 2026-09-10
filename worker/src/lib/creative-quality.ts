@@ -1,5 +1,6 @@
 import { CAST_EDITORIAL_FORMAT } from './cast-editorial';
 import { normalizeHashtags } from './hashtags';
+import { nativeVisualReviewBlocker } from './native-visual-review';
 import {
   CAST_HOOK_VISUAL_TEMPLATE_ID,
   DEADSET_HOOK_VISUAL_TEMPLATE_ID,
@@ -106,6 +107,10 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   }
 
   const manifest = input.assetManifest ?? {};
+  if (input.mediaType === 'photo') {
+    const visualBlocker = nativeVisualReviewBlocker(input);
+    if (visualBlocker) blockers.push(visualBlocker);
+  }
   if (input.mediaType === 'photo' && manifest.format === 'two_slide_photo_carousel') {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
     if (slides.length !== 2) blockers.push('Native carousel format requires exactly two planned slides.');

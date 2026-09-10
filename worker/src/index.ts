@@ -62,7 +62,7 @@ export default {
           log.warn("HQ product snapshot unavailable"),
         ),
       );
-    if (now.getUTCHours() === 8 && now.getUTCMinutes() === 30)
+    if (now.getUTCMinutes() === 30)
       ctx.waitUntil(
         (async () => {
           for (const app of ["deadset", "cast"] as const) {

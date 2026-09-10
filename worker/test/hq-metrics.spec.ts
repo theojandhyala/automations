@@ -97,3 +97,58 @@ describe("App HQ source accounting", () => {
     ).toEqual({ date: "2026-09-01", actions: 0, active_users: null });
   });
 });
+
+import { reportedTotal } from "../src/lib/hq-metrics";
+it("distinguishes missing downloads, true zero and incomplete positive subtotals", () => {
+  expect(reportedTotal([{ date: "2026-09-01" }], "downloads")).toMatchObject({
+    value: null,
+    received: 0,
+    complete: false,
+  });
+  expect(
+    reportedTotal([{ date: "2026-09-01", downloads: 0 }], "downloads"),
+  ).toMatchObject({ value: 0, received: 1, complete: true });
+  expect(
+    reportedTotal(
+      [{ date: "2026-09-01", downloads: 13 }, { date: "2026-09-02" }],
+      "downloads",
+    ),
+  ).toMatchObject({ value: 13, received: 1, expected: 2, complete: false });
+});
+it("rejects a mismatched app SKU or report date instead of silently importing misleading totals", () => {
+  expect(() =>
+    parseSalesReport(
+      header + "\n123456789\tWrongSKU\t\t1F\t10\t0\tGBP\t",
+      settings,
+      "2026-09-01",
+    ),
+  ).toThrow("SKU");
+  expect(() =>
+    parseSalesReport(
+      header +
+        "\tBegin Date\tEnd Date\n123456789\tCastSKU\t\t1F\t10\t0\tGBP\t\t09/02/2026\t09/02/2026",
+      settings,
+      "2026-09-01",
+    ),
+  ).toThrow("date");
+});
+
+import { appleConfirmsNoSales } from "../src/lib/hq-metrics";
+it("accepts only Apple explicit no-sales confirmation as zero activity", () => {
+  const noSales = {
+    errors: [
+      {
+        code: "NOT_FOUND",
+        detail: "There were no sales for the date specified.",
+      },
+    ],
+  };
+  expect(appleConfirmsNoSales(404, noSales)).toBe(true);
+  expect(appleConfirmsNoSales(403, noSales)).toBe(false);
+  expect(
+    appleConfirmsNoSales(404, {
+      errors: [{ code: "NOT_FOUND", detail: "Report not yet available" }],
+    }),
+  ).toBe(false);
+  expect(appleConfirmsNoSales(404, null)).toBe(false);
+});

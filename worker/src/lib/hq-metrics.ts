@@ -146,6 +146,18 @@ export function parseSalesReport(
       row["Parent Identifier"] !== settings.sku
     )
       continue;
+    if (
+      row["Apple Identifier"] === settings.apple_app_id &&
+      row.SKU !== settings.sku
+    )
+      throw new Error("Apple report app ID and SKU do not match");
+    for (const field of ["Begin Date", "End Date"]) {
+      if (!headers.includes(field)) continue;
+      const m = row[field]?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const reportedDate = m ? `${m[3]}-${m[1]}-${m[2]}` : row[field];
+      if (reportedDate !== date)
+        throw new Error("Apple report date does not match requested day");
+    }
     const units = Number(row.Units),
       proceeds = Number(row["Developer Proceeds"]);
     if (!row.Units || !Number.isFinite(units) || !Number.isFinite(proceeds))
@@ -165,4 +177,18 @@ export function parseSalesReport(
   for (const c of Object.keys(result.proceeds!))
     result.proceeds![c] = Math.round(result.proceeds![c]! * 100) / 100;
   return daySchema.parse(result);
+}
+
+export { reportedTotal } from "./hq-report-summary";
+
+/** Only Apple's explicit no-sales response confirms zero; generic 404s do not. */
+export function appleConfirmsNoSales(status: number, body: unknown): boolean {
+  if (status !== 404 || !body || typeof body !== "object") return false;
+  const errors = (body as { errors?: unknown }).errors;
+  return (
+    Array.isArray(errors) &&
+    errors.length === 1 &&
+    errors[0]?.code === "NOT_FOUND" &&
+    errors[0]?.detail === "There were no sales for the date specified."
+  );
 }

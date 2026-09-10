@@ -3,6 +3,8 @@ import { Db } from "./db";
 import { decrypt } from "./crypto";
 import {
   parseSalesReport,
+  appleConfirmsNoSales,
+  type HqDay,
   type AppleSettings,
   type HqApp,
   type StoredDay,
@@ -78,30 +80,47 @@ export async function syncApple(env: Env, app: HqApp) {
           Accept: "application/a-gzip",
         },
         signal: AbortSignal.timeout(20000),
+        redirect: "manual",
       },
     );
+    let data: HqDay;
+    let noSales = false;
     if (!res.ok) {
-      await res.body?.cancel();
+      const detail = await boundedText(res.body, 100000).then((t) => {
+        try {
+          return JSON.parse(t);
+        } catch {
+          return null;
+        }
+      });
       if (res.status === 401 || res.status === 403)
         throw new Error(
           "Apple reporting access was rejected. Check the key role and vendor number.",
         );
-      errors.push(`${date}: report unavailable (${res.status})`);
-      continue;
+      noSales = appleConfirmsNoSales(res.status, detail);
+      if (!noSales) {
+        errors.push(`${date}: report unavailable (${res.status})`);
+        continue;
+      }
+      data = { date, downloads: 0, redownloads: 0, refunds: 0, proceeds: {} };
+    } else {
+      const body =
+        res.body?.pipeThrough(new DecompressionStream("gzip")) ?? null;
+      data = parseSalesReport(await boundedText(body), settings, date);
     }
-    const body = res.body?.pipeThrough(new DecompressionStream("gzip")) ?? null;
-    const data = parseSalesReport(await boundedText(body), settings, date);
     const stored: StoredDay = {
       source: "app_store_connect",
-      description:
-        "Apple daily Summary Sales report; positive first-time app units and estimated proceeds, separated by currency.",
+      description: noSales
+        ? "Apple explicitly confirmed no sales for this vendor/date; zero activity."
+        : "Apple daily Summary Sales report; positive first-time app units and estimated proceeds, separated by currency.",
       captured_at: new Date().toISOString(),
       data,
     };
-    await env.HQ_DATA.put(
-      `${app}/day/app_store_connect/${date}`,
-      JSON.stringify(stored),
-    );
+    const storageKey = `${app}/day/app_store_connect/${date}`;
+    const previous = await env.HQ_DATA.get<StoredDay>(storageKey, "json");
+    // Keep the received-at time stable when Apple returns an unchanged report.
+    if (!previous || JSON.stringify(previous.data) !== JSON.stringify(data))
+      await env.HQ_DATA.put(storageKey, JSON.stringify(stored));
     saved++;
   }
   const result = { saved, errors, at: new Date().toISOString() };

@@ -3,6 +3,7 @@ import { CAST_EDITORIAL_CONCEPTS, CAST_EDITORIAL_FORMAT, editorialSlides, planCa
 import { createCastEditorialDrafts } from '../src/automations/cast-editorial-drafts';
 import { assessCreativeQuality } from '../src/lib/creative-quality';
 import type { RunContext } from '../src/lib/runner';
+import { visualReviewFixture } from './visual-review-fixture';
 
 const row = (c: typeof CAST_EDITORIAL_CONCEPTS[number]) => ({ hook: c.hook, asset_manifest: { format: CAST_EDITORIAL_FORMAT, editorial_id: c.id, promotional: c.promotional } });
 const manifest = (i = 0) => ({ format: CAST_EDITORIAL_FORMAT, app_slug: 'cast', promotional: CAST_EDITORIAL_CONCEPTS[i]!.promotional, slides: editorialSlides(CAST_EDITORIAL_CONCEPTS[i]!), generated_media: false, generated_people: false, fabricated_ui: false, source_policy: 'licensed_real_only' });
@@ -34,7 +35,9 @@ describe('Cast curated editorial route', () => {
     }
   });
   it('rejects missing slides, generated media and promotional copy in editorial content', () => {
-    expect(quality({}, Array(6).fill('https://example.test/image.jpg')).pass).toBe(true);
+    const urls = Array(6).fill('https://example.test/image.jpg');
+    expect(quality({}, urls).pass).toBe(false);
+    expect(quality({native_visual_review: visualReviewFixture(CAST_EDITORIAL_CONCEPTS[0]!.hook, CAST_EDITORIAL_CONCEPTS[0]!.caption, urls)}, urls).pass).toBe(true);
     expect(quality({}, Array(2).fill('https://example.test/image.jpg')).pass).toBe(false);
     expect(quality({generated_media:true}).pass).toBe(false);
     const slides=editorialSlides(CAST_EDITORIAL_CONCEPTS[0]!);

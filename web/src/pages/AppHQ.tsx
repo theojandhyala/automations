@@ -11,6 +11,7 @@ import {
 import { api } from "../lib/supabase";
 import { useData } from "../lib/useData";
 import type { HqPayload } from "../../../worker/src/lib/hq-contract";
+import { reportedTotal } from "../../../worker/src/lib/hq-report-summary";
 import type { HqDay } from "../../../worker/src/lib/hq-metrics";
 import "../app-hq.css";
 function BillingHistory({ data, dates }: { data: HqPayload; dates: string[] }) {
@@ -104,16 +105,18 @@ function Card({
   value,
   note,
   money = false,
+  empty = "—",
 }: {
   label: string;
   value: number | null | undefined;
   note: string;
   money?: boolean;
+  empty?: string;
 }) {
   return (
     <article className="ah-kpi">
       <span>{label}</span>
-      <strong>{fmt(value, money)}</strong>
+      <strong>{value == null ? empty : fmt(value, money)}</strong>
       <small>{note}</small>
     </article>
   );
@@ -153,7 +156,11 @@ function Chart({
           <p className="ah-kicker">PERFORMANCE</p>
           <h2>{title}</h2>
         </div>
-        <span className="ah-chip">{available.length} observations</span>
+        <span className="ah-chip">
+          {available.length
+            ? `${available.length} observations`
+            : "No reports received"}
+        </span>
       </div>
       <p className="ah-note">{note}</p>
       {available.length ? (
@@ -373,7 +380,8 @@ function Connections({
         <h2>Bring downloads into the picture.</h2>
         <p className="ah-note">
           Use an App Store Connect key with reporting access. Keys stay
-          encrypted on the server. Daily reports sync at 08:30 UTC after setup.
+          encrypted on the server. Apple reports are checked hourly after setup;
+          downloads are reported for completed days.
         </p>
         {!data?.apple_configured && (
           <form
@@ -618,7 +626,7 @@ function Workspace({
   const { data, error, loading, refresh } = useData(
     () => api<HqPayload>(`/hq/${app}?days=${days}`),
     [app, days],
-    60000,
+    15000,
   );
   const [busy, setBusy] = useState(""),
     [notice, setNotice] = useState(""),
@@ -642,6 +650,18 @@ function Workspace({
       : null;
   const coverage = (key: keyof HqDay) =>
     `${rows.filter((d) => typeof d[key] === "number").length}/${days} report days`;
+  const appleLinked = !!data?.apple_configured && !!data?.apple_settings;
+  const downloadNote = (key: "downloads" | "redownloads") => {
+    const summary = reportedTotal(rows, key);
+    if (!summary.received)
+      return appleLinked
+        ? "Waiting for Apple reports; this does not mean zero downloads"
+        : "Apple reporting is not connected";
+    return `${summary.complete ? "Complete period" : "Reported subtotal · incomplete period"} · ${summary.received}/${summary.expected} days verified · Apple${appleLinked ? "" : " import"}`;
+  };
+  const appleReports = (data?.records ?? [])
+    .filter((r) => r.source === "app_store_connect")
+    .sort((a, b) => b.data.date.localeCompare(a.data.date));
   const latest = (key: keyof HqDay) =>
     [...(data?.days ?? [])].reverse().find((d) => typeof d[key] === "number");
   const value = (key: keyof HqDay) => {
@@ -688,7 +708,7 @@ function Workspace({
       const r = (await work()) as { saved?: number; errors?: string[] };
       setNotice(
         r?.saved !== undefined
-          ? `${r.saved} daily reports synced.${r.errors?.length ? " " + r.errors.join("; ") : ""}`
+          ? `${r.saved} daily results synced.${r.errors?.length ? " " + r.errors.join("; ") : ""}`
           : "Saved.",
       );
       refresh();
@@ -926,6 +946,49 @@ function Workspace({
               {dates[0]} — {dates.at(-1)} · UTC
             </span>
           </div>
+          {(section === "store" || section === "overview") && (
+            <section
+              className="ah-callout"
+              aria-label="Apple download reporting status"
+              aria-live="polite"
+            >
+              <div>
+                <h3>
+                  {!appleLinked
+                    ? "Apple downloads: not connected"
+                    : appleReports.length
+                      ? `Apple downloads verified through ${appleReports[0].data.date}`
+                      : "Apple connected · awaiting reports"}
+                </h3>
+                <p>
+                  {!appleLinked
+                    ? "Download totals are unavailable until Apple reporting is connected. This is not zero downloads."
+                    : "Apple supplies daily download reports, not an event for each download. Reports are checked hourly; this page refreshes automatically."}
+                </p>
+                {data?.apple_sync && (
+                  <p>
+                    Last Apple check:{" "}
+                    {new Date(data.apple_sync.at).toLocaleString()} ·{" "}
+                    {data.apple_sync.saved} daily results checked.
+                  </p>
+                )}
+                {appleReports[0] && (
+                  <p>
+                    Latest report received:{" "}
+                    {new Date(appleReports[0].captured_at).toLocaleString()}.
+                    Today's downloads are not yet final.
+                  </p>
+                )}
+                <p>
+                  Recorded app activity and subscription updates are separate
+                  signals. They are never counted as downloads.
+                </p>
+              </div>
+              <Link to={`/hq/${app}/sources`}>
+                {appleLinked ? "Connection details →" : "Connect Apple →"}
+              </Link>
+            </section>
+          )}
           {data?.product && (
             <p className="ah-note">
               Product source collected{" "}
@@ -962,8 +1025,9 @@ function Workspace({
               <div className="ah-kpis">
                 <Card
                   label="First-time downloads"
-                  value={total("downloads")}
-                  note={coverage("downloads")}
+                  value={reportedTotal(rows, "downloads").value}
+                  empty={appleLinked ? "Awaiting report" : "Not connected"}
+                  note={downloadNote("downloads")}
                 />
                 <Card
                   label={
@@ -1117,13 +1181,15 @@ function Workspace({
               <div className="ah-kpis">
                 <Card
                   label="First-time downloads"
-                  value={total("downloads")}
-                  note={coverage("downloads")}
+                  value={reportedTotal(rows, "downloads").value}
+                  empty={appleLinked ? "Awaiting report" : "Not connected"}
+                  note={downloadNote("downloads")}
                 />
                 <Card
                   label="Re-downloads"
-                  value={total("redownloads")}
-                  note={coverage("redownloads")}
+                  value={reportedTotal(rows, "redownloads").value}
+                  empty={appleLinked ? "Awaiting report" : "Not connected"}
+                  note={downloadNote("redownloads")}
                 />
                 <Card
                   label="Store impressions"
@@ -1141,8 +1207,8 @@ function Workspace({
                   <h3>Apple Sales & Trends</h3>
                   <p>
                     {data?.apple_sync
-                      ? `Last attempt ${new Date(data.apple_sync.at).toLocaleString()} · ${data.apple_sync.saved} daily reports saved`
-                      : "Daily sync is ready once reporting access is connected."}
+                      ? `Last attempt ${new Date(data.apple_sync.at).toLocaleString()} · ${data.apple_sync.saved} daily results checked`
+                      : "Hourly report checks start once Apple reporting is connected."}
                   </p>
                   {data?.apple_sync?.errors.map((e) => (
                     <small key={e}>{e}</small>
@@ -1160,6 +1226,30 @@ function Workspace({
                 </button>
                 <Link to={`/hq/${app}/sources`}>Configure →</Link>
               </div>
+              {appleReports.length > 0 && (
+                <section className="ah-panel" aria-label="Apple report updates">
+                  <p className="ah-kicker">REPORT UPDATES</p>
+                  <h2>Daily download updates from Apple.</h2>
+                  <p className="ah-note">
+                    Grouped by reporting day. These are report arrivals, not
+                    live notifications from individual devices. Revised reports
+                    replace earlier totals.
+                  </p>
+                  <div className="ah-bars">
+                    {appleReports.slice(0, 7).map((r) => (
+                      <div key={r.data.date}>
+                        <span>
+                          {r.data.date}
+                          <b>
+                            {r.data.downloads ?? "Unknown"} first-time ·{" "}
+                            {r.data.redownloads ?? "Unknown"} re-downloads
+                          </b>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
               <Chart
                 title="First-time downloads"
                 note="Positive first-time app units from Apple Sales & Trends. Re-downloads and updates are excluded. Missing reports remain gaps."
