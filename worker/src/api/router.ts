@@ -1,3 +1,4 @@
+import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
 import { Db } from '../lib/db';
 import { nextRun } from '../lib/cron';
 import { claimOne, executeRun } from '../lib/runner';
@@ -177,14 +178,14 @@ async function promotionReadiness(db: Db, env: Env) {
       const rendererAvailable = true;
       const productionReady = producerAvailable
         && Boolean(pexels)
-        && uploadedKeys.size === requiredCount
+        && (app.slug === 'cast' || uploadedKeys.size === requiredCount)
         && rendererAvailable;
       const blockers: string[] = [];
       if (!draftAgent) blockers.push('No drafting agent exists for this app.');
       else if (!draftAvailable) blockers.push('The drafting agent is disabled.');
       if (!producerAgent) blockers.push(`No carousel production agent exists for ${app.name}.`);
       if (!pexels) blockers.push('Connect the free Pexels photo source.');
-      if (uploadedKeys.size < requiredCount) {
+      if (app.slug !== 'cast' && uploadedKeys.size < requiredCount) {
         blockers.push(`Upload ${requiredCount - uploadedKeys.size} remaining exact ${app.name} screen(s).`);
       }
       if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
@@ -194,7 +195,7 @@ async function promotionReadiness(db: Db, env: Env) {
         draft_agent_id: draftAgent?.id ?? null,
         producer_agent_id: producerAgent?.id ?? null,
         publish_agent_id: publishAgent?.id ?? null,
-        playbook_version: playbook.version,
+        playbook_version: app.slug === 'cast' ? CAST_EDITORIAL_VERSION : playbook.version,
         content_domain: playbook.category,
         uploaded_feature_keys: [...uploadedKeys],
         uploaded_feature_count: uploadedKeys.size,
@@ -203,7 +204,7 @@ async function promotionReadiness(db: Db, env: Env) {
         producer_available: producerAvailable,
         renderer_available: rendererAvailable,
         renderer_mode: 'browser_paid_bounded_session',
-        intelligence_mode: 'performance_learning_with_verified_fallbacks',
+        intelligence_mode: app.slug === 'cast' ? 'curated_no_ai' : 'performance_learning_with_verified_fallbacks',
         drafting_ready: draftAvailable,
         production_ready: productionReady,
         publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount && developerAppApproved),
@@ -709,7 +710,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       : [];
     const invalidFeature = featureRotation.find((feature) => !(feature in playbook.features));
     if (invalidFeature) return json({ error: `“${invalidFeature}” is not a verified ${playbook.appName} feature.` }, 400);
-    const selectedFeaturesReady = featureRotation.every((feature) => app.uploaded_feature_keys.includes(feature));
+    const selectedFeaturesReady = app.slug === 'cast' || featureRotation.every((feature) => app.uploaded_feature_keys.includes(feature));
     const selectedProductionReady = Boolean(app.producer_available && app.photo_source_ready && selectedFeaturesReady);
     const mission = await db.insert<PromotionMission>('promotion_missions', {
       app_id: app.id,
@@ -725,7 +726,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       readiness: {
         drafting_ready: app.drafting_ready,
         production_ready: selectedProductionReady,
-        playbook_version: playbook.version,
+        playbook_version: app.slug === 'cast' ? CAST_EDITORIAL_VERSION : playbook.version,
         selected_features_ready: selectedFeaturesReady,
         publishing_ready: app.publishing_ready,
         blockers: app.blockers,
@@ -814,6 +815,15 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
             completed_at: new Date().toISOString(),
           });
           return;
+        }
+        if (app.slug === 'cast') {
+          const created = await db.select<{ id: string }>('artifacts', `run_id=eq.${draftRun.runId}&app_id=eq.${app.id}&select=id`);
+          if (!created.length) {
+            await db.update('promotion_missions', `id=eq.${mission.id}`, { status: 'failed', draft_run_id: draftRun.runId,
+              error: 'No fresh Cast topics remain in the curated bank. Add new reviewed topics before creating another batch.', completed_at: new Date().toISOString() });
+            return;
+          }
+          await db.update('promotion_missions', `id=eq.${mission.id}`, { draft_count: created.length });
         }
         await db.update('promotion_missions', `id=eq.${mission.id}`, { draft_run_id: draftRun.runId });
 

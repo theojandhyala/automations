@@ -105,7 +105,7 @@ export default function PromotionMission() {
     account.status === 'connected' && (!account.app_id || account.app_id === selectedApp?.id)) ?? [], [readiness, selectedApp?.id]);
   const featureLibrary = readiness?.feature_libraries[appSlug] ?? [];
   const audienceOptions = selectedApp?.content_domain === 'fishing' ? FISHING_AUDIENCES : FITNESS_AUDIENCES;
-  const selectedAssetsReady = features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
+  const selectedAssetsReady = appSlug === 'cast' || features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
   const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady && selectedApp.renderer_available);
   const productionStatus = !selectedApp?.producer_available
     ? 'Production agent needs attention'
@@ -113,7 +113,7 @@ export default function PromotionMission() {
       ? 'Finish the selected screens in Creative Studio'
       : !selectedApp.photo_source_ready
         ? 'Connect the free Pexels source in Creative Studio'
-        : 'Local renderer + licensed source + exact screens ready';
+        : appSlug === 'cast' ? 'Real photo source + six-slide renderer ready' : 'Local renderer + licensed source + exact screens ready';
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
   const autonomousRelease = appSlug !== 'cast' && Boolean(readiness && !readiness.review_required);
@@ -179,7 +179,7 @@ export default function PromotionMission() {
           <h2>Tell the system what outcome you want.</h2>
           <p>It turns that into native TikTok concepts, exact product proof and a review-ready handoff.</p>
         </div>
-        <div className="promote-safety"><span>RELEASE AUTHORITY</span><b>{autonomousRelease ? 'AUTONOMOUS QUALITY GATE' : 'TIKTOK APPROVAL GATE'}</b><p>{autonomousRelease ? 'Truth-checked posts release automatically at the configured windows; you can pause the mission at any time.' : appSlug === 'cast' ? 'New Cast editorial posts wait for your exact slide review before release.' : 'Drafting and production can run now. Public delivery unlocks only after TikTok approves the Business Accounts integration.'}</p></div>
+        <div className="promote-safety"><span>RELEASE AUTHORITY</span><b>{appSlug === 'cast' ? 'EDITORIAL REVIEW' : autonomousRelease ? 'AUTONOMOUS QUALITY GATE' : 'TIKTOK APPROVAL GATE'}</b><p>{autonomousRelease ? 'Truth-checked posts release automatically at the configured windows; you can pause the mission at any time.' : appSlug === 'cast' ? 'New Cast editorial posts wait for your exact slide review before release.' : 'Drafting and production can run now. Public delivery unlocks only after TikTok approves the Business Accounts integration.'}</p></div>
       </header>
 
       {message && <div className={`ops-alert ${message.tone}`}>{message.text}</div>}
@@ -245,7 +245,7 @@ export default function PromotionMission() {
             <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `${selectedApp.tiktok_review_state === 'approved' ? 'Learns from live results' : 'Learning framework ready; live metrics begin after TikTok approval'} · rotates fresh proof · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
             <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Business Accounts public publishing is ready' : selectedApp?.manual_post_ready ? 'Manual-post handoff works now; public API delivery awaits TikTok Business review' : 'Drafting still works; finish production setup'}</small></div></div>
-            <div className={`readiness-line ${autonomousRelease ? '' : 'locked'}`}><i className={autonomousRelease ? 'ready' : ''} /><div><b>Autonomous release</b><small>{autonomousRelease ? 'Truth and quality gates approve safe posts into the 12:00, 15:00 and 18:00 windows.' : 'Fail-closed until TikTok approves the Business Accounts integration.'}</small></div></div>
+            <div className={`readiness-line ${autonomousRelease ? '' : 'locked'}`}><i className={autonomousRelease ? 'ready' : ''} /><div><b>Autonomous release</b><small>{autonomousRelease ? 'Truth and quality gates approve safe posts into the 12:00, 15:00 and 18:00 windows.' : appSlug === 'cast' ? 'Exact six-slide review required for this new format.' : 'Fail-closed until TikTok approves the Business Accounts integration.'}</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
             <div className="mission-shortcuts"><Link to={`/studio?app=${appSlug}`}>OPEN STUDIO</Link><Link to={`/accounts?app=${appSlug}`}>OPEN ACCOUNTS</Link></div>
           </section>
