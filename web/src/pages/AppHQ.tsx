@@ -44,7 +44,7 @@ function BillingHistory({ data, dates }: { data: HqPayload; dates: string[] }) {
       {chart && (
         <p className="ah-note">
           Collected {new Date(chart.captured_at).toLocaleString()} ·{" "}
-          {chart.description}
+          {chart.description.split(/(?<=\.)\s/)[0]}
         </p>
       )}
       {Object.entries(charts.errors).map(([id, error]) => (
@@ -95,7 +95,8 @@ const fmt = (v: number | null | undefined, money = false) =>
       ? new Intl.NumberFormat("en-GB", {
           style: "currency",
           currency: "GBP",
-          maximumFractionDigits: 0,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
         }).format(v)
       : v.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 function Card({
