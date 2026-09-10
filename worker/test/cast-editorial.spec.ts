@@ -52,3 +52,13 @@ describe('Cast curated editorial route', () => {
     expect(html).toContain('left:86px;width:778px');
   });
 });
+
+import { produceCarousels } from '../src/automations/tiktok-produce';
+it('lets an explicit mission reach production even when the ordinary ready buffer is full', async () => {
+  const select = vi.fn(async (_table: string, query: string) => query.includes('status=in.(approved,publishing)') ? Array.from({length: 12}, (_, i) => ({id: String(i)})) : []);
+  const selectOne = vi.fn(async (table: string) => table === 'apps' ? {id:'cast'} : {id:'mission', draft_run_id:'requested-run', draft_count:1});
+  const ctx = { trigger:'cron', automation:{config:{app_slug:'cast'}}, env:{}, db:{select,selectOne,update:vi.fn()}, runId:'producer-run' } as unknown as RunContext;
+  const result = await produceCarousels.run(ctx) as {reason?:string};
+  expect(result.reason).not.toBe('Three-day ready buffer is full');
+  expect(select.mock.calls.some(([,q])=>q.includes('run_id=eq.requested-run'))).toBe(true);
+});

@@ -387,10 +387,6 @@ export const produceCarousels: Handler = {
     const maxPerRun = Math.min(Math.max(config.max_per_run ?? 3, 1), 6);
     const app = await ctx.db.selectOne<{ id: string }>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
-    if (ctx.trigger === 'cron' && !config.source_run_id) {
-      const buffer = await ctx.db.select<{ id: string }>('artifacts', `app_id=eq.${app.id}&status=in.(approved,publishing)&select=id&limit=12`);
-      if (buffer.length >= 9) return { produced: 0, reason: 'Three-day ready buffer is full' };
-    }
 
     const activeMission = config.source_run_id
       ? null
@@ -401,6 +397,11 @@ export const produceCarousels: Handler = {
           `app_id=eq.${app.id}&auto_produce=eq.true&content_format=eq.photo_carousel&draft_run_id=not.is.null&status=eq.producing&select=id,draft_run_id,draft_count&order=created_at.desc&limit=1`,
         );
     const sourceRunId = config.source_run_id ?? activeMission?.draft_run_id;
+    if (ctx.trigger === 'cron' && !sourceRunId) {
+      const buffer = await ctx.db.select<{ id: string }>('artifacts', `app_id=eq.${app.id}&status=in.(approved,publishing)&select=id&limit=12`);
+      if (buffer.length >= 9) return { produced: 0, reason: 'Three-day ready buffer is full' };
+    }
+
 
     const candidates = await ctx.db.select<Artifact>(
       'artifacts',
@@ -553,7 +554,7 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
     stages: { ...artifact.stages, assets: { state: 'done', at: now, note: `Real Pexels photo by ${stock.photographer}; source and licence recorded.` },
       edit: { state: 'done', at: now, note: 'Six 1080×1920 JPEG slides; measured text bounds passed.' }, review: { state: 'pending', note: 'Review all six images, source suitability, caption and disclosure.' } },
     asset_manifest: { ...manifest, creative_quality: quality, requires_owner_review: true,
-      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: 'cast-editorial-v1',
+      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: 'cast-editorial-v2',
         stock: { provider: 'pexels', id: stock.id, source_url: stock.url, photographer: stock.photographer, photographer_url: stock.photographer_url, licence_url: 'https://www.pexels.com/license/', alt: stock.alt }, generated_media: false } },
   });
   return { state: 'produced', photo_urls: urls };
