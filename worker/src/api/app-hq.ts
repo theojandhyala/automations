@@ -115,7 +115,7 @@ export async function loadHq(
     safe(
       "TikTok channels",
       db.select<HqPayload["channels"][number]>(
-        "tiktok_accounts_public",
+        "tiktok_accounts",
         `app_id=eq.${id}&select=id,handle,status`,
       ),
       [],
@@ -161,7 +161,7 @@ export async function loadHq(
     postMetrics.length === 1000
   )
     errors.push(
-      "Content charts show a bounded sample of the latest 1,000 records.",
+      "Some content sources are limited to the latest 1,000 records. Older observations may be outside this sample.",
     );
   // Manual reports are explicit sources; API reports take priority for the same Apple date.
   const recent = records

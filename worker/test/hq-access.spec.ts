@@ -1,6 +1,7 @@
-import {describe,it,expect} from 'vitest';
+import {Db} from '../src/lib/db';
+import {describe,it,expect,vi} from 'vitest';
 import {env} from 'cloudflare:test';
-import {handleAppHq} from '../src/api/app-hq';
+import {handleAppHq,loadHq} from '../src/api/app-hq';
 import type {Env} from '../src/types';
 import {boundedText} from '../src/lib/hq-apple';
 describe('HQ private boundary',()=>{
@@ -11,4 +12,14 @@ describe('HQ private boundary',()=>{
  }
  });
  it('enforces streamed report size without relying on Content-Length',async()=>{await expect(boundedText(new Response('a'.repeat(101)).body,100)).rejects.toThrow('Report exceeds');});
+});
+
+it('loads app-scoped channel fields without the owner-JWT-only public view',async()=>{
+ const select=vi.spyOn(Db.prototype,'select').mockImplementation(async (table,query)=>{
+  if(table==='apps')return [{id:'cast-id'}];
+  if(table==='tiktok_accounts'){expect(query).toBe('app_id=eq.cast-id&select=id,handle,status');return [{id:'cast-channel',handle:'cast.fishing.app',status:'connected'}];}
+  if(table==='post_metrics')expect(query).toContain('account_id=in.(cast-channel)');
+  expect(table).not.toBe('tiktok_accounts_public');return [];
+ });
+ try{const data=await loadHq(env as Env,'cast',7);expect(data.channels[0]?.handle).toBe('cast.fishing.app');expect(data.baseline).toBeNull();expect(data.errors).toEqual([]);}finally{select.mockRestore();}
 });

@@ -590,7 +590,7 @@ function Workspace({
   const postPoints = dates.map((date) => ({
     date,
     value:
-      data && !data.errors.some((e) => e.startsWith("Content "))
+      data && !data.errors.some((e) => e.startsWith("Content could not refresh"))
         ? published.filter((p) => p.published_at?.startsWith(date)).length
         : null,
   }));
