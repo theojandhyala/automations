@@ -228,7 +228,7 @@ export async function produceArtifact(
   const hookVisualTemplate = playbook.hookVisualTemplate;
   const query = hookVisualTemplate?.searchQuery ?? playbook.features[featureKey]!.stockDirection;
   const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number } } } }>(
-    'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=created_at.desc&limit=12`,
+    'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=updated_at.desc&limit=12`,
   );
   const excluded = recent.map(item => item.asset_manifest.production?.stock?.id).filter((id): id is number => typeof id === 'number');
   let stock: PexelsPhoto | null = null;
