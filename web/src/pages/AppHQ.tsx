@@ -1,3 +1,5 @@
+import HqBillingConnection from "../components/HqBillingConnection";
+import HqProductConnection from "../components/HqProductConnection";
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import {
   Link,
@@ -11,6 +13,73 @@ import { useData } from "../lib/useData";
 import type { HqPayload } from "../../../worker/src/lib/hq-contract";
 import type { HqDay } from "../../../worker/src/lib/hq-metrics";
 import "../app-hq.css";
+function BillingHistory({ data, dates }: { data: HqPayload; dates: string[] }) {
+  const [selected, setSelected] = useState("trials");
+  const charts = data.billing_charts;
+  if (!charts) return null;
+  const chart =
+    charts.charts.find((c) => c.id === selected) ?? charts.charts[0];
+  return (
+    <section className="ah-panel">
+      <p className="ah-kicker">REVENUECAT HISTORY</p>
+      <h2>Follow the subscription journey.</h2>
+      <p className="ah-note">
+        Daily provider reports, collected hourly. Incomplete days remain gaps.
+        Trial conversion is grouped by trial-start day; pending trials can still
+        change the result.
+      </p>
+      <label className="ah-form">
+        Report
+        <select
+          value={chart?.id ?? ""}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          {charts.charts.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {chart && (
+        <p className="ah-note">
+          Collected {new Date(chart.captured_at).toLocaleString()} ·{" "}
+          {chart.description.split(/(?<=\.)\s/)[0]}
+        </p>
+      )}
+      {Object.entries(charts.errors).map(([id, error]) => (
+        <p key={id} role="alert">
+          {id}: {error}. Last good data is retained.
+        </p>
+      ))}
+      <div className="ah-two">
+        {chart?.series.map((series, i) =>
+          series.points.length ? (
+            <Chart
+              key={chart.id + i}
+              title={series.label + (series.unit === "%" ? " (%)" : "")}
+              note={series.description}
+              money={series.unit === "$"}
+              points={dates.map((date) => ({
+                date,
+                value:
+                  series.points.find((p) => p.date === date)?.value ?? null,
+              }))}
+            />
+          ) : (
+            <Card
+              key={chart.id + i}
+              label={series.label}
+              value={series.current}
+              money={series.unit === "$"}
+              note={series.description + (series.unit === "%" ? " · %" : "")}
+            />
+          ),
+        )}
+      </div>
+    </section>
+  );
+}
 const sections = [
   ["overview", "Overview", "◈"],
   ["store", "App Store", "↗"],
@@ -26,7 +95,8 @@ const fmt = (v: number | null | undefined, money = false) =>
       ? new Intl.NumberFormat("en-GB", {
           style: "currency",
           currency: "GBP",
-          maximumFractionDigits: 0,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
         }).format(v)
       : v.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 function Card({
@@ -251,12 +321,14 @@ function Connections({
           {[
             [
               "Product database",
-              data?.baseline
-                ? "Connected · synced workouts"
-                : "Report import available",
+              data?.product
+                ? "Connected · live collection"
+                : data?.baseline
+                  ? "Snapshot only"
+                  : "Source key required",
               app === "deadset"
                 ? "Profiles, workout activity and Stripe subscription snapshots."
-                : "Connect verified Cast activity exports for users, sessions and catches.",
+                : "Live profiles, recorded catches and started fishing sessions.",
             ],
             [
               "App Store Connect",
@@ -276,9 +348,11 @@ function Connections({
             ],
             [
               "Billing & retention",
-              data?.records.some((r) => r.source === "billing_export")
-                ? "Imported reports"
-                : "Report import available",
+              data?.billing
+                ? "Connected · RevenueCat"
+                : data?.records.some((r) => r.source === "billing_export")
+                  ? "Imported reports"
+                  : "Report import available",
               "MRR, renewals, trials, cancellations and mature retention cohorts.",
             ],
           ].map(([name, status, detail]) => (
@@ -292,6 +366,8 @@ function Connections({
           ))}
         </div>
       </section>
+      <HqProductConnection app={app} data={data} onChange={onChange} />
+      <HqBillingConnection app={app} data={data} onChange={onChange} />
       <section className="ah-panel">
         <p className="ah-kicker">APPLE REPORTING</p>
         <h2>Bring downloads into the picture.</h2>
@@ -590,7 +666,8 @@ function Workspace({
   const postPoints = dates.map((date) => ({
     date,
     value:
-      data && !data.errors.some((e) => e.startsWith("Content could not refresh"))
+      data &&
+      !data.errors.some((e) => e.startsWith("Content could not refresh"))
         ? published.filter((p) => p.published_at?.startsWith(date)).length
         : null,
   }));
@@ -617,6 +694,26 @@ function Workspace({
       refresh();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy("");
+    }
+  }
+  async function refreshSources() {
+    setBusy("refresh");
+    setNotice("");
+    try {
+      const result = await api<{
+        product: { status: string; at?: string; error?: string };
+        billing: { status: string; error?: string };
+        analytics: string;
+        apple: string;
+      }>(`/hq/${app}/refresh`, { method: "POST" });
+      setNotice(
+        `Product: ${result.product.status}${result.product.at ? " · " + new Date(result.product.at).toLocaleTimeString() : ""}${result.product.error ? " · " + result.product.error : ""}. Billing: ${result.billing.status}${result.billing.error ? " · " + result.billing.error : ""}. TikTok: ${result.analytics}. Apple: ${result.apple}.`,
+      );
+      refresh();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Could not refresh providers");
     } finally {
       setBusy("");
     }
@@ -675,7 +772,7 @@ function Workspace({
             ? "Publishing rhythm"
             : chartMetric === "downloads"
               ? "Downloads over time"
-              : "Daily active users"
+              : "Recorded activity users / day"
         }
         note={
           chartMetric === "posts"
@@ -807,8 +904,8 @@ function Workspace({
                 ))}
               </div>
               <div className="ah-buttons">
-                <button onClick={refresh} disabled={loading}>
-                  ↻ Refresh
+                <button onClick={refreshSources} disabled={loading || !!busy}>
+                  {busy === "refresh" ? "Checking sources…" : "↻ Refresh"}
                 </button>
                 <button onClick={exportCsv} disabled={!data}>
                   Export CSV ↓
@@ -829,6 +926,22 @@ function Workspace({
               {dates[0]} — {dates.at(-1)} · UTC
             </span>
           </div>
+          {data?.product && (
+            <p className="ah-note">
+              Product source collected{" "}
+              {new Date(data.product.captured_at).toLocaleString()} · updates
+              every five minutes. {data.product.definition}{" "}
+              {Date.now() - Date.parse(data.product.captured_at) > 15 * 60000
+                ? "Source delayed — use Refresh and check Connections."
+                : ""}
+            </p>
+          )}
+          {data?.product_status?.error && (
+            <p role="alert" className="ah-notice">
+              Product sync failed: {data.product_status.error} Previous
+              successful data is preserved.
+            </p>
+          )}
           {error && (
             <p role="alert" className="ah-notice">
               {error} Displayed data may be from the last successful refresh.
@@ -853,18 +966,34 @@ function Workspace({
                   note={coverage("downloads")}
                 />
                 <Card
-                  label="Monthly recurring revenue"
+                  label={
+                    data?.billing
+                      ? "RevenueCat MRR"
+                      : "Monthly recurring revenue"
+                  }
                   value={value("mrr_gbp")}
                   money
                   note={dated("mrr_gbp")}
                 />
                 <Card
-                  label={b ? "Workout-active users / 7D" : "Daily active users"}
-                  value={b?.workout_active_7d ?? value("active_users")}
+                  label={
+                    data?.product
+                      ? "Recorded activity users / 7D"
+                      : b
+                        ? "Workout-active users / 7D"
+                        : "Recorded activity users / day"
+                  }
+                  value={
+                    data?.product?.activity_users_7d ??
+                    b?.workout_active_7d ??
+                    value("active_users")
+                  }
                   note={
-                    b
-                      ? `Synced workouts · ${b.captured_at.slice(0, 10)}`
-                      : dated("active_users")
+                    data?.product
+                      ? `Collected ${new Date(data.product.captured_at).toLocaleTimeString()}`
+                      : b
+                        ? `Synced workouts · ${b.captured_at.slice(0, 10)}`
+                        : dated("active_users")
                   }
                 />
                 <Card
@@ -907,6 +1036,41 @@ function Workspace({
                       <p className="ah-note">
                         All-time observed funnel · {b.captured_at.slice(0, 10)}.
                         Synced records, not cohort conversion.
+                      </p>
+                    </>
+                  ) : data?.product ? (
+                    <>
+                      <div className="ah-bars">
+                        {[
+                          [
+                            "Registered profiles",
+                            data.product.registered_users,
+                          ],
+                          [
+                            "First recorded catch",
+                            data.product.first_action_users,
+                          ],
+                          [
+                            "Second recorded catch",
+                            data.product.second_action_users,
+                          ],
+                        ].map(([label, n]) => (
+                          <div key={label}>
+                            <span>
+                              {label}
+                              <b>{n}</b>
+                            </span>
+                            <i
+                              style={{
+                                width: `${(Number(n) / Math.max(1, data.product!.registered_users)) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="ah-note">
+                        Observed recorded catches, excluding known legacy sample
+                        catches.
                       </p>
                     </>
                   ) : (
@@ -1019,8 +1183,14 @@ function Workspace({
             <>
               <div className="ah-kpis">
                 <Card
-                  label={b ? "Registered profiles" : "New accounts"}
-                  value={b?.registered_users ?? total("signups")}
+                  label={
+                    data?.product || b ? "Registered profiles" : "New accounts"
+                  }
+                  value={
+                    data?.product?.registered_users ??
+                    b?.registered_users ??
+                    total("signups")
+                  }
                   note={b ? "All-time product snapshot" : coverage("signups")}
                 />
                 <Card
@@ -1040,25 +1210,41 @@ function Workspace({
                 />
               </div>
               <Chart
-                title={
-                  b
-                    ? "Workout-active users · rolling 7 days"
-                    : "Daily active users"
-                }
+                title="Recorded activity users / day"
                 note={
-                  b
-                    ? "Historical product snapshots. This measures completed synced workouts, not app opens."
-                    : "Requires a product report with a consistent active-user definition."
+                  data?.product?.definition ??
+                  "Awaiting product activity reports."
                 }
-                points={
-                  b
-                    ? (data?.baseline_history ?? []).map((s) => ({
-                        date: s.captured_at.slice(0, 10),
-                        value: s.workout_active_7d,
-                      }))
-                    : points("active_users")
-                }
+                points={points("active_users")}
               />
+              {data?.product && (
+                <div className="ah-kpis">
+                  <Card
+                    label="Activity users / 24 hours"
+                    value={data.product.activity_users_24h}
+                    note="Live recorded activity"
+                  />
+                  <Card
+                    label="Activity users / 7 days"
+                    value={data.product.activity_users_7d}
+                    note="Rolling seven days"
+                  />
+                  <Card
+                    label={
+                      app === "cast"
+                        ? "Catches recorded today"
+                        : "Workouts completed today"
+                    }
+                    value={data.product.days.at(-1)?.actions}
+                    note="Today · UTC · partial day"
+                  />
+                  <Card
+                    label="New profiles today"
+                    value={data.product.days.at(-1)?.signups}
+                    note="Today · UTC · partial day"
+                  />
+                </div>
+              )}
               <div className="ah-two">
                 <Chart
                   title="D1 retention (%)"
@@ -1100,9 +1286,37 @@ function Workspace({
           )}
           {section === "revenue" && (
             <>
+              {data?.billing && (
+                <section className="ah-panel">
+                  <p className="ah-kicker">LIVE REVENUECAT · GBP</p>
+                  <h2>Your subscription metrics.</h2>
+                  <p className="ah-note">
+                    Production metrics · collected{" "}
+                    {new Date(data.billing.captured_at).toLocaleString()}. Each
+                    metric retains RevenueCat’s own reporting window. Web Stripe
+                    totals are separate.
+                  </p>
+                  <div className="ah-kpis">
+                    {data.billing.metrics.map((m) => (
+                      <Card
+                        key={m.id}
+                        label={m.name}
+                        value={m.value}
+                        money={["£", "GBP", "$"].includes(m.unit)}
+                        note={`${m.description} · ${m.period === "P0D" ? "Current" : m.period === "P28D" ? "28-day window" : m.period}${m.last_updated_at ? " · provider updated " + new Date(m.last_updated_at).toLocaleString() : ""}`}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {data?.billing_status?.error && (
+                <p role="alert" className="ah-notice">
+                  Billing sync: {data.billing_status.error}
+                </p>
+              )}
               <div className="ah-kpis">
                 <Card
-                  label="MRR"
+                  label={data?.billing ? "RevenueCat MRR" : "MRR"}
                   value={value("mrr_gbp")}
                   money
                   note={dated("mrr_gbp")}
@@ -1113,7 +1327,7 @@ function Workspace({
                     value("mrr_gbp") === null ? null : value("mrr_gbp")! * 12
                   }
                   money
-                  note="12 × latest verified MRR"
+                  note="12 × latest RevenueCat MRR · excludes web Stripe"
                 />
                 <Card
                   label={b ? "Live Stripe subscribers" : "Paying subscribers"}
@@ -1129,12 +1343,13 @@ function Workspace({
               <Chart
                 title="Monthly recurring revenue (GBP)"
                 money
-                note="Billing snapshots. Estimated Apple proceeds are separate and are never labelled MRR."
+                note="RevenueCat daily MRR in GBP. Web Stripe and Apple estimated proceeds are separate."
                 points={points("mrr_gbp")}
               />
+              {data && <BillingHistory data={data} dates={dates} />}
               <div className="ah-kpis">
                 <Card
-                  label="New subscribers"
+                  label="New subscriptions"
                   value={total("new_subscribers")}
                   note={coverage("new_subscribers")}
                 />

@@ -14,6 +14,8 @@ import ArcReactorMark from './components/ArcReactorMark';
 import Legal from './pages/Legal';
 import LiveTelemetryBadge from './components/LiveTelemetryBadge';
 import { LiveSyncProvider } from './lib/liveSync';
+import { useData } from './lib/useData';
+import type { Account, App as AppRecord } from './lib/types';
 
 const WORKSPACE_ROUTES = [
   { to: '/hq/deadset/overview', index: 'HQ', label: 'DEADSET HQ', short: 'DEADSET', detail: 'Downloads, product and revenue' },
@@ -39,6 +41,14 @@ const WORKSPACE_META: Record<string, { code: string; title: string; detail: stri
  */
 function Shell({ session }: { session: Session }) {
   const location = useLocation();
+  const { data: channels, error: channelError } = useData(async () => {
+    const [accounts, apps] = await Promise.all([
+      supabase.from('tiktok_accounts_public').select('*'),
+      supabase.from('apps').select('*').in('slug', ['deadset', 'cast']),
+    ]);
+    if (accounts.error || apps.error) throw accounts.error || apps.error;
+    return (apps.data as AppRecord[]).map(app => ({ app, account: (accounts.data as Account[]).find(a => a.app_id === app.id) }));
+  }, [], 15000);
   const meta = WORKSPACE_META[location.pathname] ?? WORKSPACE_META['/promote']!;
 
   return (
@@ -69,8 +79,8 @@ function Shell({ session }: { session: Session }) {
           ))}
         </nav>
         <div className="sidebar-channels" aria-label="Mission channel state">
-          <article className="online"><i /><span><b>DEADSET</b><small>3/day · channel linked</small></span></article>
-          <article className="attention"><i /><span><b>CAST</b><small>3/day · uplink action</small></span></article>
+          {channels?.map(({ app, account }) => <article key={app.id} className={account?.status === 'connected' ? 'online' : 'attention'}><i /><span><b>{app.name}</b><small>{account ? `${account.daily_post_limit}/day · ${account.status}` : 'No channel connected'}</small></span></article>)}
+          {channelError && <small>Channel status unavailable</small>}
           <article className="locked"><i /><span><b>LIFESCORE</b><small>release lock engaged</small></span></article>
         </div>
         <div className="foot">
@@ -84,7 +94,7 @@ function Shell({ session }: { session: Session }) {
           <div className="workspace-telemetry">
             <LiveTelemetryBadge compact />
             <span><i /> SECURE</span>
-            <span>POST WINDOWS <b>12 · 15 · 18</b></span>
+            <NavLink to="/accounts">CHANNEL SETTINGS</NavLink>
             <span>UK TIME</span>
           </div>
         </header>

@@ -53,6 +53,15 @@ interface CarouselManifest extends Record<string, unknown> {
   content_lane?: { id?: string };
 }
 
+const DEADSET_REACTIONS: Record<string, string> = {
+  muscle_diagram: 'Know what you’re training.',
+  training_heatmap: 'Every logged session.',
+  pr_wall: 'Kept the receipts.',
+  progression_board: 'No more guessing.',
+  workout_plan: 'Already planned.',
+  live_logger: 'No more mental notes.',
+};
+
 async function approvalVarietyError(db: Db, artifact: Artifact): Promise<string | null> {
   if (!artifact.account_id) return 'Assign this draft to its owned TikTok account before approval.';
   const previous = await db.select<{ hook: string | null }>('artifacts',
@@ -219,7 +228,7 @@ export async function produceArtifact(
   const hookVisualTemplate = playbook.hookVisualTemplate;
   const query = hookVisualTemplate?.searchQuery ?? playbook.features[featureKey]!.stockDirection;
   const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number } } } }>(
-    'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=created_at.desc&limit=12`,
+    'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=updated_at.desc&limit=12`,
   );
   const excluded = recent.map(item => item.asset_manifest.production?.stock?.id).filter((id): id is number => typeof id === 'number');
   let stock: PexelsPhoto | null = null;
@@ -237,7 +246,7 @@ export async function produceArtifact(
   }
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
   const featureOverlay = appSlug === 'deadset'
-    ? playbook.features[featureKey]!.fallbackProofOverlay
+    ? DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay
     : contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay;
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
@@ -255,6 +264,7 @@ export async function produceArtifact(
       overlay: featureOverlay,
       role: 'feature',
       appSlug,
+      featureKey,
       finished: isFinishedSlidePath(feature.storage_path),
     },
     renderer,
@@ -276,7 +286,7 @@ export async function produceArtifact(
   });
   const varietyError = quality.pass && unattendedPublishingEnabled(env) && artifact.account_id
     ? await approvalVarietyError(db, { ...artifact, hook: hookOverlay }) : null;
-  const unattended = automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(env) && Boolean(artifact.account_id) && quality.pass && !varietyError;
+  const unattended = !manifest.requires_owner_review && automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(env) && Boolean(artifact.account_id) && quality.pass && !varietyError;
   await db.update('artifacts', `id=eq.${artifact.id}`, {
     status: unattended ? 'approved' : 'draft',
     hook: hookOverlay,
@@ -303,7 +313,7 @@ export async function produceArtifact(
         ? { state: 'done', at: now, note: 'Autonomous quality and truth gates passed for the owned account.' }
         : { state: 'pending' },
       ...(unattended ? {
-        schedule: { state: 'pending', at: now, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+        schedule: { state: 'pending', at: now, note: 'Queued for the next 12:00, 15:00, 18:00 or 21:00 Europe/London slot.' },
       } : {}),
     },
     asset_manifest: {
@@ -418,7 +428,8 @@ export const produceCarousels: Handler = {
     let autoApproved = 0;
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
-        .filter((artifact) => !artifact.asset_manifest.requires_owner_review && artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35);
+        .filter((artifact) => !artifact.asset_manifest.requires_owner_review && artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35)
+        .filter((artifact) => appSlug !== 'deadset' || (artifact.asset_manifest.production as { caption_renderer?: string } | undefined)?.caption_renderer === CAPTION_RENDERER_VERSION);
       for (const artifact of renderedDrafts) {
         if (autoApproved >= maxPerRun) break;
         const quality = assessCreativeQuality({
@@ -451,7 +462,7 @@ export const produceCarousels: Handler = {
           stages: {
             ...artifact.stages,
             review: { state: 'done', at: approvedAt, note: 'Autonomous quality and truth gates passed for the owned account.' },
-            schedule: { state: 'pending', at: approvedAt, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+            schedule: { state: 'pending', at: approvedAt, note: 'Queued for the next 12:00, 15:00, 18:00 or 21:00 Europe/London slot.' },
           },
         });
         autoApproved++;

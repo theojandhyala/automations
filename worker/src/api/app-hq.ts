@@ -1,3 +1,18 @@
+import {
+  normalizeBillingCharts,
+  billingChartDays,
+} from "../lib/hq-billing-charts";
+import {
+  connectBilling,
+  refreshBilling,
+  billingKeySchema,
+} from "../lib/hq-billing";
+import {
+  connectProduct,
+  refreshProduct,
+  productKeySchema,
+} from "../lib/hq-product";
+import { claimOne, executeRun } from "../lib/runner";
 import type { HqPayload } from "../lib/hq-contract";
 import { ownerFromRequest } from "../lib/auth";
 import { Db } from "../lib/db";
@@ -62,6 +77,25 @@ export async function loadHq(
     `slug=eq.${app}&select=id`,
   );
   if (!row) throw new Error("App is unavailable");
+  const [product, productStatus, productKey] = await Promise.all([
+    env.HQ_DATA.get<HqPayload["product"]>(`${app}/product/current`, "json"),
+    env.HQ_DATA.get<HqPayload["product_status"]>(
+      `${app}/product/status`,
+      "json",
+    ),
+    env.HQ_DATA.get(`${app}/product-key`),
+  ]);
+  const [billing, billingStatus, billingKey] = await Promise.all([
+    env.HQ_DATA.get<HqPayload["billing"]>(`${app}/billing/current`, "json"),
+    env.HQ_DATA.get<HqPayload["billing_status"]>(
+      `${app}/billing/status`,
+      "json",
+    ),
+    env.HQ_DATA.get(`${app}/billing-key`),
+  ]);
+  const billingCharts = normalizeBillingCharts(
+    await env.HQ_DATA.get(`${app}/billing/charts`, "json"),
+  );
   const id = row.id,
     errors: string[] = [];
   const start = new Date(Date.now() - days * 86400000)
@@ -175,6 +209,12 @@ export async function loadHq(
   const daily = new Map<string, HqDay>();
   for (const r of recent)
     daily.set(r.data.date, { ...daily.get(r.data.date), ...r.data });
+  for (const d of product?.days ?? [])
+    if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
+  for (const d of billingChartDays(billingCharts))
+    if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
+  for (const d of billing?.days ?? [])
+    if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
   if (baseline && !history.some((b) => b.captured_at === baseline.captured_at))
     history.push(baseline);
   return {
@@ -182,7 +222,15 @@ export async function loadHq(
     refreshed_at: new Date().toISOString(),
     days: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     records: recent,
-    baseline,
+    billing,
+    billing_charts: billingCharts,
+    billing_configured: !!billingKey,
+    billing_status: billingStatus,
+    product,
+    product_configured:
+      !!productKey || (app === "deadset" && !!env.DEADSET_PRODUCT_KEY),
+    product_status: productStatus,
+    baseline: product?.baseline ?? baseline,
     baseline_history: history
       .filter((b) => b.captured_at.slice(0, 10) >= start)
       .sort((a, b) => a.captured_at.localeCompare(b.captured_at)),
@@ -197,13 +245,17 @@ export async function loadHq(
     errors,
   };
 }
-export async function handleAppHq(req: Request, env: Env): Promise<Response> {
+export async function handleAppHq(
+  req: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
   try {
     if (!(await ownerFromRequest(req, env)))
       return reply({ error: "Owner sign-in required" }, 401);
     const url = new URL(req.url),
       match = url.pathname.match(
-        /^\/api\/hq\/([^/]+)(?:\/(settings|sync|import|catalog))?$/,
+        /^\/api\/hq\/([^/]+)(?:\/(settings|sync|import|catalog|product|billing|refresh))?$/,
       );
     const slug = appSlugSchema.safeParse(match?.[1]);
     if (!slug.success) return reply({ error: "Unknown app workspace" }, 404);
@@ -219,6 +271,87 @@ export async function handleAppHq(req: Request, env: Env): Promise<Response> {
             : 30,
         ),
       );
+    if (action === "billing" && req.method === "PUT") {
+      const parsed = billingKeySchema.safeParse(await readJson(req));
+      if (!parsed.success)
+        return reply(
+          { error: "A RevenueCat secret reporting key is required." },
+          400,
+        );
+      try {
+        const billing = await connectBilling(env, app, parsed.data.key);
+        return reply({
+          connected: true,
+          captured_at: billing.captured_at,
+          metrics: billing.metrics,
+        });
+      } catch (e) {
+        return reply(
+          {
+            error: e instanceof Error ? e.message : "Billing connection failed",
+          },
+          400,
+        );
+      }
+    }
+    if (action === "product" && req.method === "PUT") {
+      const parsed = productKeySchema.safeParse(await readJson(req));
+      if (!parsed.success)
+        return reply({ error: "A server-side source key is required." }, 400);
+      try {
+        const product = await connectProduct(env, app, parsed.data.key);
+        return reply({
+          connected: true,
+          captured_at: product.captured_at,
+          registered_users: product.registered_users,
+        });
+      } catch (e) {
+        return reply(
+          {
+            error: e instanceof Error ? e.message : "Source connection failed",
+          },
+          400,
+        );
+      }
+    }
+    if (action === "refresh" && req.method === "POST") {
+      const [product, billing] = await Promise.all([
+        refreshProduct(env, app, true),
+        refreshBilling(env, app, true),
+      ]);
+      let analytics = "not configured";
+      const db = new Db(env);
+      const agent = await db.selectOne<Automation>(
+        "automations",
+        "handler_key=eq.analytics.sync&select=*&order=created_at.asc",
+      );
+      if (agent && ctx) {
+        const claimed = await claimOne(env, agent.id);
+        if (claimed) {
+          ctx.waitUntil(
+            executeRun(env, claimed, "manual").catch(() => undefined),
+          );
+          analytics = "sync started";
+        } else analytics = "already syncing";
+      }
+      let apple = "not configured";
+      if (await env.HQ_DATA.get(`${app}/apple-settings`)) {
+        const last = await env.HQ_DATA.get<{ at: string }>(
+          `${app}/apple-sync`,
+          "json",
+        );
+        if (last && Date.now() - Date.parse(last.at) < 300000)
+          apple = "checked within five minutes";
+        else
+          try {
+            const result = await syncApple(env, app);
+            apple = `${result.saved} daily reports synced${result.errors.length ? " · " + result.errors.join("; ") : ""}`;
+          } catch (e) {
+            apple = e instanceof Error ? e.message : "sync failed";
+          }
+      }
+      return reply({ product, billing, analytics, apple });
+    }
     if (action === "settings" && req.method === "PUT") {
       const parsed = appleSettingsSchema.safeParse(await readJson(req));
       if (!parsed.success)
