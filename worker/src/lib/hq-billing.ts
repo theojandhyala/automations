@@ -1,3 +1,4 @@
+import { refreshBillingCharts } from "./hq-billing-charts";
 import { z } from "zod";
 import { decrypt, encrypt } from "./crypto";
 import { boundedText } from "./hq-apple";
@@ -106,11 +107,10 @@ export async function refreshBilling(env: Env, app: HqApp, force = false) {
   if (!force && old && Date.now() - Date.parse(old.captured_at) < 5 * 60000)
     return { status: "cached", at: old.captured_at };
   try {
-    const s = await collectBilling(
-      await decrypt(encrypted, env.TOKEN_ENCRYPTION_KEY),
-      app,
-    );
+    const key = await decrypt(encrypted, env.TOKEN_ENCRYPTION_KEY);
+    const s = await collectBilling(key, app);
     await store(env, app, s);
+    await refreshBillingCharts(env, app, RC_PROJECTS[app], key);
     return { status: "connected", at: s.captured_at };
   } catch (e) {
     const error = e instanceof Error ? e.message : "Billing sync failed";
