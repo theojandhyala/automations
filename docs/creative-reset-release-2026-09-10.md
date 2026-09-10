@@ -26,3 +26,13 @@ Documents/ChatGPT/automations/.local/visual-probe/cast-schema-result.json.
 
 Final deployed Worker version: `49fd51d0-e4bb-47ce-8379-f9d8a4c518b0`.
 Final dashboard bundle: `index-BK1dWsno.js`.
+
+## Completed production readback
+
+The live Cast producer run started 2026-09-10T22:38:47Z and succeeded. The queue
+shows six valid per-slide verdicts for EACH of the three curated Cast drafts
+(18 final images total), all still draft/review. It identified low contrast on
+white sea foam in the lure-check post and light fishing-rod/hand areas in the
+notes post, as well as weaker hierarchy/craft scores. The expanded critique
+panel was visually inspected in the live browser. No score threshold or owner
+hold was relaxed. This is completed live model/DB/UI verification, beyond mocks.
