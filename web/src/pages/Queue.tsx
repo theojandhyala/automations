@@ -253,6 +253,14 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                 && artifact.brand_organic_toggle
                 && Boolean(consent[artifact.id]));
           const quality = artifact.asset_manifest.creative_quality;
+          const recordedReview = artifact.asset_manifest.visual_review;
+          // Old queue records used incompatible, unstructured visual-review flags.
+          const imageReview = recordedReview && Array.isArray(recordedReview.slides)
+            && Array.isArray(recordedReview.blockers) && recordedReview.blockers.every(b => typeof b === 'string')
+            && typeof recordedReview.pass === 'boolean'
+            && recordedReview.slides.every(s => s && typeof s.observation === 'string'
+              && [s.hierarchy, s.legibility, s.craft, s.story_match].every(n => typeof n === 'number'))
+            ? recordedReview : null;
 
           return (
             <article className={`card queue-card status-${artifact.status}`} key={artifact.id}>
@@ -297,18 +305,32 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
               {artifact.error && <p className="mono" style={{ color: 'var(--bad)' }}>{artifact.error}</p>}
 
               <div className={`creative-score ${quality?.pass ? 'pass' : quality ? 'fail' : 'pending'}`}>
-                <div><span>NATIVE QUALITY GATE</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
+                <div><span>COPY AND STRUCTURE CHECK</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
                 <p>{quality
                   ? quality.pass
                     ? artifact.asset_manifest.format === 'cast_editorial_carousel'
                       ? 'Copy and structure checks passed. Review all six images, photo suitability and layout before approval.'
-                      : data.tiktokStatus.owner_review_required
-                      ? 'Specific, readable and native enough to continue while TikTok production approval is pending.'
-                      : 'Specific, readable and native enough to enter the autonomous release gate.'
+                      : 'Copy and structure checks passed. This score does not inspect image quality.'
                     : [...quality.blockers, ...quality.warnings].join(' ')
                   : 'This older draft will be scored when you edit it or try to approve it.'}</p>
-                {isEditable && <button type="button" onClick={() => patch(artifact.id, { hook: artifact.hook })}>Recheck quality</button>}
+                {isEditable && <button type="button" onClick={() => patch(artifact.id, { hook: artifact.hook })}>Recheck copy</button>}
               </div>
+
+              {artifact.media_type === 'photo' && (app?.slug === 'cast' || app?.slug === 'deadset') && (
+                <div className={`creative-score ${imageReview?.pass ? 'pass' : 'pending'}`}>
+                  <div><span>RECORDED IMAGE CRITIQUE</span><strong>{imageReview ? imageReview.pass ? 'CRITIC PASSED' : imageReview.slides.length === 0 ? 'CHECK INCOMPLETE' : 'REVISION REQUIRED' : 'NOT INSPECTED'}</strong></div>
+                  <p>{imageReview
+                    ? imageReview.slides.length === 0 ? 'The image check could not complete. Release stays blocked until a valid inspection is recorded.' : 'The production agent inspected the rendered images. Changes need a fresh matching review; source checks and existing holds still apply.'
+                    : 'The production agent must inspect every final slide before release. A copy score cannot grant a visual pass.'}</p>
+                  {imageReview && <details>
+                    <summary>Read the image findings ({imageReview.slides.length} slides)</summary>
+                    <p>{imageReview.blockers.join(' ') || 'No visual defects recorded in this inspection.'}</p>
+                    {imageReview.slides.map((slide, i) => <p key={`${artifact.id}-critique-${i}`}>
+                      <strong>Slide {i + 1}</strong> · Hierarchy {slide.hierarchy}/10 · Readability {slide.legibility}/10 · Craft {slide.craft}/10 · Story {slide.story_match}/10<br />{slide.observation}
+                    </p>)}
+                  </details>}
+                </div>
+              )}
 
               {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
                 <div className="row" style={{ marginBottom: 14 }}>

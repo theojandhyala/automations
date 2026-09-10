@@ -85,6 +85,10 @@ export interface Artifact {
       blockers: string[];
       warnings: string[];
     };
+    visual_review?: {
+      at: string; pass: boolean; blockers: string[];
+      slides: Array<{ observation: string; hierarchy: number; legibility: number; craft: number; story_match: number; blockers: string[] }>;
+    };
     manual_handoff?: boolean;
   };
   error: string | null;

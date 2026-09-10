@@ -78,7 +78,7 @@ export function planCreativeFeatures(
       .filter((metric): metric is CreativeMetricSignal => Boolean(metric));
     const views = measured.reduce((sum, metric) => sum + Math.max(metric.views ?? 0, 0), 0);
     const engagements = measured.reduce(
-      (sum, metric) => sum + Math.max(metric.likes ?? 0, 0) + Math.max(metric.comments ?? 0, 0) * 4 + Math.max(metric.shares ?? 0, 0) * 6,
+      (sum, metric) => sum + Math.max(metric.likes ?? 0, 0) + Math.max(metric.comments ?? 0, 0) + Math.max(metric.shares ?? 0, 0),
       0,
     );
     const engagementRate = views > 0 ? engagements / views : 0;
@@ -93,7 +93,7 @@ export function planCreativeFeatures(
       latest_views: measured.length ? views : null,
       latest_engagements: measured.length ? engagements : null,
       reason: measured.length >= 3
-        ? `24–72h performance signal from ${measured.length} measured posts; balanced with freshness`
+        ? `24–72h reach/engagement signal from ${measured.length} measured posts; internal exploration heuristic, not TikTok ranking weights or install proof`
         : matching.length
           ? 'published result is waiting for analytics; keep testing without over-repeating it'
           : 'exploration slot for verified product proof with no published result yet',

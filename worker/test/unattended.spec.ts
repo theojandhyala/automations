@@ -12,9 +12,10 @@ import { verifyPublishMedia } from '../src/lib/publish-media';
 import { ownerApprovalReceipt, hasExactOwnerApproval, automaticCreativeApprovalAllowed } from '../src/lib/owner-approval';
 import type { Artifact, Automation, Env, TikTokAccount } from '../src/types';
 import { automationRow, jsonResponse, stubFetch, testEnv } from './helpers';
+import * as independentReview from '../src/lib/creative-visual-review';
 import { visualReviewFixture } from './visual-review-fixture';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const env: Env = { ...testEnv, PUBLIC_BASE_URL: 'https://example.test',
   TIKTOK_PUBLISH_PROVIDER: 'business_accounts', TIKTOK_REVIEW_STATE: 'approved',
   TIKTOK_BUSINESS_CLIENT_ID: 'test-client', TIKTOK_BUSINESS_CLIENT_SECRET: 'test-secret',
@@ -75,7 +76,8 @@ describe('unattended safety', () => {
     expect(plan.decisions.every(decision => decision.latest_views === null)).toBe(true);
   });
 
-  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false) {
+  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true) {
+    vi.spyOn(independentReview, 'hasPassingVisualReview').mockResolvedValue(visualPass);
     const channel = await account();
     const artifact: Artifact = {
       id: 'artifact-1', run_id: null, app_id: 'deadset-id', account_id: channel.id, status: 'approved',
@@ -129,6 +131,12 @@ describe('unattended safety', () => {
       runId: 'test-run', trigger: 'manual', log: () => {}, setTask: async () => {} });
     return calls;
   }
+
+  it('does not reserve or publish when the independent visual gate fails', async () => {
+    const calls = await publishingFixture(true, false, false, 'publish', true, false, false);
+    expect(calls.some(c => /reserve_tiktok_delivery|photo\/publish/.test(c.url))).toBe(false);
+    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).toContainEqual(expect.objectContaining({ status: 'draft', error: expect.stringContaining('Visual quality hold') }));
+  });
 
   it('does not submit when the atomic slot reservation refuses it', async () => {
     const calls = await publishingFixture(false);

@@ -1,3 +1,6 @@
+import { CREATIVE_DIRECTION } from './creative-direction';
+import { DEADSET_NATIVE_TEMPLATE } from './creative-photo-templates';
+
 export interface CreativeFeature {
   label: string;
   truth: string;
@@ -60,12 +63,12 @@ export interface CreativePlaybook {
   videoShape: string[];
 }
 
-export const DEADSET_HOOK_VISUAL_TEMPLATE_ID = 'deadset-casual-car-walk-v1';
+export const DEADSET_HOOK_VISUAL_TEMPLATE_ID = DEADSET_NATIVE_TEMPLATE;
 export const CAST_HOOK_VISUAL_TEMPLATE_ID = 'cast-fishing-decision-v2';
 
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-09-03.1',
+    version: 'deadset-2026-09-10.2',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
@@ -74,24 +77,23 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     defaultHashtags: ['gymtok', 'gymprogress', 'workoutplan', 'workoutapp'],
     hookVisualTemplate: {
       id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
-      direction: 'A real, casual phone-style photo of one person seen from behind or at an angle, mid-step toward any parked car in an ordinary car park or roadside setting at evening or night. Keep the lighting naturally low, the framing slightly imperfect and the moment unposed. The car supports the lifestyle setup; it is not a glossy automotive shoot.',
-      searchQuery: 'person walking toward parked car at night casual parking lot',
+      direction: 'A real casual phone-style gym-floor POV, between-set rest, gym-arrival or ordinary car moment. Keep framing naturally imperfect and unposed. Rotate the setting; the photo supports the gym thought, not a glossy fitness or automotive shoot.',
+      searchQuery: 'gym floor shoes dumbbells workout',
       requiredAltTermGroups: [
-        ['car', 'vehicle', 'automobile'],
-        ['person', 'man', 'woman', 'people'],
-        ['walk', 'walking', 'approach', 'enter', 'parking', 'night', 'evening', 'dark'],
+        ['gym', 'fitness', 'workout'],
+        ['person', 'man', 'woman', 'shoe', 'bench', 'dumbbell', 'weight'],
       ],
       captionStyle: 'TikTok Classic-style semi-bold white sans serif at a normal medium-heavy weight, clean 4-5px black outline, no box, no hollow lettering and no oversized cinematic title treatment.',
-      variationRule: 'Vary the person, car, location and hook while keeping the same casual walk-up-at-low-light feeling.',
-      rejectionRule: 'Reject key close-ups, posed portraits, gym stock, glossy car photography, cinematic colour grading and any image without both a person and a car.',
-      gateLabel: 'person-and-car',
+      variationRule: 'Rotate gym-floor POV, between-set rest and casual arrival; avoid repeating the same source, framing or hook.',
+      rejectionRule: 'Reject posed fitness campaigns, glamour portraits, glossy car photography, cinematic grading and photographs unrelated to the hook.',
+      gateLabel: 'native gym moment',
     },
     creativeStrategy: {
       defaultLane: 'car_lifestyle',
       lanes: {
         car_lifestyle: {
           id: 'car_lifestyle',
-          label: 'Car-led relatable gym thought',
+          label: 'Everyday relatable gym thought',
           hookExamples: [
             'What are you training when you get there?',
             'Going in with a plan this time?',
@@ -104,7 +106,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
           soundMood: 'Current UK Commercial Music Library track that feels focused, understated and gym-native; never novelty or shock audio.',
           hashtags: ['gymtok', 'gymprogress', 'workoutplan', 'workoutapp'],
           rules: [
-            'Always use the saved casual person-walking-to-a-car slide-one composition.',
+            'Rotate casual gym-floor, between-set and arrival photos; no compulsory car scene.',
             'Keep the title short, human and readable in one glance.',
             'Resolve the setup with one exact current Deadset feature screen.',
             'Treat slide two like a creator reaction to proof: keep the screenshot untouched, add no more than one short reaction line and use at most two thin hand-drawn callouts around exact displayed values.',
@@ -157,7 +159,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         },
       },
       occasionalRotation: {
-        lanes: ['heartbreak_rebuild', 'villain_arc'],
+        lanes: [], // Legacy drafts remain readable; do not manufacture emotional transformations.
         targetEveryPosts: 6,
         minimumGapPosts: 4,
       },
@@ -183,7 +185,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'candid gym mirror photo or lifter choosing an exercise',
         fallbackHook: 'Which muscle is this exercise actually training?',
         fallbackCaption: 'The screen I check before I commit to an exercise.',
-        fallbackProofOverlay: 'Primary and secondary muscles, shown clearly',
+        fallbackProofOverlay: 'That is what it trains.',
       },
       training_heatmap: {
         label: 'Training heatmap',
@@ -191,7 +193,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'person arriving at the gym or packing a gym bag',
         fallbackHook: 'Did I train consistently or just remember the good weeks?',
         fallbackCaption: 'My training history is much harder to argue with when I can see it.',
-        fallbackProofOverlay: 'Logged sessions become a training heatmap',
+        fallbackProofOverlay: 'One session at a time.',
       },
       pr_wall: {
         label: 'PR wall',
@@ -199,7 +201,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'lifter after a difficult set or looking at the barbell',
         fallbackHook: 'The set was ugly. The number still counts.',
         fallbackCaption: 'Keeping every personal record in one place makes the hard sessions worth remembering.',
-        fallbackProofOverlay: 'Logged personal records, together',
+        fallbackProofOverlay: 'The log kept it.',
       },
       progression_board: {
         label: 'Progression board',
@@ -207,7 +209,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'lifter checking a phone between weighted sets',
         fallbackHook: 'What weight did I use last time?',
         fallbackCaption: 'One less thing to guess between sets.',
-        fallbackProofOverlay: 'See the last load before choosing the next one',
+        fallbackProofOverlay: 'Check the last set.',
       },
       workout_plan: {
         label: 'Workout plan',
@@ -215,7 +217,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'ordinary gym arrival, locker-room mirror or workout preparation',
         fallbackHook: 'Walking into the gym with no plan again?',
         fallbackCaption: 'A clear week makes starting the next session easier.',
-        fallbackProofOverlay: 'A structured week, ready before the session',
+        fallbackProofOverlay: 'Already sorted.',
       },
       live_logger: {
         label: 'Live workout logger',
@@ -223,7 +225,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         stockDirection: 'hands using a phone between sets beside real gym equipment',
         fallbackHook: 'If I do not log the set now, it never happened.',
         fallbackCaption: 'Sets, reps and weight recorded while the workout is still happening.',
-        fallbackProofOverlay: 'Log the working set before the next one',
+        fallbackProofOverlay: 'Saved before the next set.',
       },
     },
     claimsToAvoid: [
@@ -482,11 +484,11 @@ export function photoSystem(playbook: CreativePlaybook): string {
       `  Rules: ${lane.rules.join(' ')}`,
     ].filter(Boolean).join('\n'))
     .join('\n');
-  return `You create original two-slide TikTok photo carousel drafts for ${playbook.appName.toUpperCase()}.
+  return `${CREATIVE_DIRECTION}\n\nYou create original two-slide TikTok photo carousel drafts for ${playbook.appName.toUpperCase()}.
 
 Content grammar:
 1. Slide one is a candid, believable real-life ${playbook.category} photograph with one short relatable question, message or setup in native TikTok text.
-2. Slide two is an exact current screenshot of one real ${playbook.appName} feature that answers the setup. Preserve the UI exactly; add at most one short creator-reaction line and up to two thin hand-drawn callouts around exact displayed proof.
+2. Slide two is an exact current screenshot of one real ${playbook.appName} feature that answers the setup. Preserve the UI exactly; add at most one short creator-reaction line in clear space. No arrows or circles by default.
 
 ${featureTruth}
 ${hookTemplate}
@@ -500,12 +502,12 @@ Sound and trend policy:
 
 Rules:
 - One carousel makes one promise to one audience. The exact app screen is the proof.
-- Slide-two additions must feel like a person annotating a screenshot inside TikTok, never like a redesigned ad: one brief reaction, no more than two thin callouts and no covered UI.
+- Use one brief reaction, zero default callouts and no covered UI. A precomposed promotional image gets no additional overlay.
 - The hook is entertaining native social copy, not an ad headline: under 70 characters and clear in one second.
 - Use creator-owned or explicitly licensed real imagery. Never request an AI person, celebrity, copied social post or Pinterest download. Pinterest is mood-reference only.
 - The payoff must name one exact feature key above. Never fabricate UI, users, statistics, results, catches, strength gains or testimonials.
 - Avoid these claims: ${playbook.claimsToAvoid.join('; ')}.
-- No logo card, App Store badge, watermark or promotional copy burned into either image.
+- No standalone logo card or watermark. An intentionally finished promotional proof composition may use one benefit headline and a discreet brand/CTA; never add another caption on top.
 - Caption: one natural sentence, then "${playbook.captionSuffix}". Use 3-5 relevant lowercase hashtags.
 - On-image caption treatment is mandatory: ${playbook.creativeStrategy.captionTreatment}
 - Do not use these generic engagement-bait hashtags: ${playbook.creativeStrategy.blockedHashtags.map((tag) => `#${tag}`).join(' ')}.

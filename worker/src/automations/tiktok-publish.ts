@@ -1,3 +1,4 @@
+import { hasPassingVisualReview } from '../lib/creative-visual-review';
 import { automaticCreativeApprovalAllowed, hasExactOwnerApproval } from '../lib/owner-approval';
 import {
   accessTokenFor,
@@ -253,6 +254,14 @@ export const publishApproved: Handler = {
           postedThisRun.delete(accountId);
           skipped++;
           continue;
+        }
+        if ((app?.slug === 'cast' || app?.slug === 'deadset') && artifact.media_type === 'photo'
+          && !await hasPassingVisualReview(ctx.env, artifact)) {
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
+            status: 'draft', stage: 'review', error: 'Visual quality hold: these exact images and copy need independent visual review.',
+          });
+          postedThisRun.delete(accountId);
+          skipped++; continue;
         }
         const mediaReady = artifact.media_type === 'photo'
           ? artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35

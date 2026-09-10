@@ -59,42 +59,23 @@ describe('verified creative playbooks', () => {
     expect(truth).toContain('Return to the lifter');
   });
 
-  it('locks every Deadset carousel to the saved casual car-walk template', () => {
+  it('uses a varied casual gym direction for Deadset', () => {
     const deadset = getCreativePlaybook('deadset')!;
     const prompt = photoSystem(deadset);
     const fallback = buildCarouselFallbacks(deadset, ['workout_plan'], 1)[0]!;
 
-    expect(deadset.hookVisualTemplate?.id).toBe('deadset-casual-car-walk-v1');
-    expect(deadset.hookVisualTemplate?.direction).toMatch(/mid-step toward any parked car/i);
+    expect(deadset.hookVisualTemplate?.id).toBe('deadset-casual-gym-v2');
+    expect(deadset.hookVisualTemplate?.direction).toMatch(/gym-floor POV/i);
     expect(deadset.hookVisualTemplate?.captionStyle).toMatch(/TikTok Classic-style semi-bold white/i);
     expect(prompt).toContain('required for every Deadset photo carousel');
-    expect(prompt).toContain('Reject key close-ups');
+    expect(prompt).toContain('Reject posed fitness campaigns');
     expect(fallback.slides?.[0]?.asset_query).toBe(deadset.hookVisualTemplate?.searchQuery);
   });
 
-  it('schedules occasional Deadset heartbreak and villain lanes without running them back-to-back', () => {
+  it('does not automatically force emotional stories onto exercise-target screens', () => {
     const deadset = getCreativePlaybook('deadset')!;
-    const ordinary = Array.from({ length: 5 }, () => ({
-      asset_manifest: { content_lane: { id: 'car_lifestyle' } },
-    }));
-    const heartbreak = planCarouselContentLanes(deadset, ordinary, 3);
-    expect(heartbreak.map((entry) => entry.lane.id)).toEqual([
-      'heartbreak_rebuild', 'car_lifestyle', 'car_lifestyle',
-    ]);
-    expect(heartbreak[0]?.lane.featureKey).toBe('muscle_diagram');
-    expect(heartbreak[0]?.lane.proofOverlay).toBe('Enough.');
-
-    const immediatelyAfter = planCarouselContentLanes(deadset, [
-      { asset_manifest: { content_lane: { id: 'heartbreak_rebuild' } } },
-      ...ordinary,
-    ], 3);
-    expect(immediatelyAfter.every((entry) => entry.lane.id === 'car_lifestyle')).toBe(true);
-
-    const villain = planCarouselContentLanes(deadset, [
-      ...ordinary,
-      { asset_manifest: { content_lane: { id: 'heartbreak_rebuild' } } },
-    ], 3);
-    expect(villain[0]?.lane.id).toBe('villain_arc');
+    const recent = Array.from({ length: 20 }, () => ({ asset_manifest: { content_lane: { id: 'car_lifestyle' } } }));
+    expect(planCarouselContentLanes(deadset, recent, 3).every(entry => entry.lane.id === 'car_lifestyle')).toBe(true);
   });
 
   it('builds the requested emotional payoff from verified Deadset truth', () => {

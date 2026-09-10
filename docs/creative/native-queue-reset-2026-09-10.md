@@ -1,5 +1,7 @@
 # Native-photo queue reset — 10 September 2026
 
+Later update: [the creative reset standard](../creative-standard-2026-09-10.md) replaces the car-only source rule, adds independent final-image analysis and permits intentional generated promotional artwork. The exact native review and existing owner holds described below remain active. Earlier no-AI wording applies to the real-photo editorial lane, not the owner’s later request for generated promotional artwork.
+
 ## Authoritative queue status
 
 The owner explicitly rejected the queued prototypes, generic/stock-looking photography and weak content. The earlier full-frame repair was a layout repair, not a satisfactory creative upgrade.

@@ -121,7 +121,7 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
     const requiredHookTemplate = manifest.app_slug === 'deadset'
       ? {
           id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
-          blocker: 'Deadset slide one must use the saved casual person-walking-to-a-car visual template.',
+          blocker: 'Deadset slide one must use a validated casual gym visual template.',
         }
       : manifest.app_slug === 'cast'
         ? {
@@ -134,7 +134,8 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
       const templateId = visualTemplate && typeof visualTemplate === 'object' && 'id' in visualTemplate
         ? visualTemplate.id
         : null;
-      if (templateId !== requiredHookTemplate.id) {
+      const legacyDeadset = manifest.app_slug === 'deadset' && templateId === 'deadset-casual-car-walk-v1';
+      if (templateId !== requiredHookTemplate.id && !legacyDeadset) {
         blockers.push(requiredHookTemplate.blocker);
       }
     }

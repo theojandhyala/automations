@@ -5,6 +5,9 @@ import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
 import { isFinishedSlidePath } from '../lib/deadset-slide-layout';
+import { CREATIVE_DIRECTION_VERSION, proofReaction } from '../lib/creative-direction';
+import { selectHookTemplate } from '../lib/creative-photo-templates';
+import { classifyProofComposition, creativeFingerprint, hasPassingVisualReview, reviewFinalCarousel } from '../lib/creative-visual-review';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { isRepeatedHook } from '../lib/creative-variety';
 import { unattendedPublishingEnabled } from '../lib/tiktok';
@@ -225,7 +228,7 @@ export async function produceArtifact(
 
   // The verified feature playbook owns the visual search. Model-authored asset
   // queries remain in old manifests for traceability but cannot steer sourcing.
-  const hookVisualTemplate = playbook.hookVisualTemplate;
+  const hookVisualTemplate = selectHookTemplate(playbook, artifact.id);
   const query = hookVisualTemplate?.searchQuery ?? playbook.features[featureKey]!.stockDirection;
   const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number } } } }>(
     'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=updated_at.desc&limit=12`,
@@ -245,9 +248,11 @@ export async function produceArtifact(
     };
   }
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
-  const featureOverlay = appSlug === 'deadset'
-    ? DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay
-    : contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay;
+  const proofComposition = await classifyProofComposition(env, publicMediaUrl(env, feature.storage_path));
+  const featureOverlay = proofComposition === 'finished_promotion' ? ''
+    : proofReaction(featureSlide.overlay, appSlug === 'deadset'
+      ? DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay
+      : contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay);
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
     env,
@@ -265,7 +270,7 @@ export async function produceArtifact(
       role: 'feature',
       appSlug,
       featureKey,
-      finished: isFinishedSlidePath(feature.storage_path),
+      finished: isFinishedSlidePath(feature.storage_path) || proofComposition === 'finished_promotion',
     },
     renderer,
   );
@@ -286,7 +291,7 @@ export async function produceArtifact(
   });
   const varietyError = quality.pass && unattendedPublishingEnabled(env) && artifact.account_id
     ? await approvalVarietyError(db, { ...artifact, hook: hookOverlay }) : null;
-  const unattended = !manifest.requires_owner_review && automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(env) && Boolean(artifact.account_id) && quality.pass && !varietyError;
+  const unattended = false; // Final pixels must pass a separate visual review before any automatic release.
   await db.update('artifacts', `id=eq.${artifact.id}`, {
     status: unattended ? 'approved' : 'draft',
     hook: hookOverlay,
@@ -355,6 +360,7 @@ export async function produceArtifact(
           key: feature.asset_key,
           app_slug: appSlug,
           source_kind: 'owner_upload',
+          composition: proofComposition,
         },
       },
     },
@@ -428,10 +434,26 @@ export const produceCarousels: Handler = {
     let autoApproved = 0;
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
-        .filter((artifact) => !artifact.asset_manifest.requires_owner_review && artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35)
+        .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 2 && artifact.photo_urls.length <= 6)
         .filter((artifact) => appSlug !== 'deadset' || (artifact.asset_manifest.production as { caption_renderer?: string } | undefined)?.caption_renderer === CAPTION_RENDERER_VERSION);
-      for (const artifact of renderedDrafts) {
+      let inspected = 0;
+      for (const original of renderedDrafts) {
+        let artifact = original;
         if (autoApproved >= maxPerRun) break;
+        if (!await hasPassingVisualReview(ctx.env, artifact)) {
+          const previous = artifact.asset_manifest.visual_review as { fingerprint?: string; at?: string; version?: string } | undefined;
+          if (previous?.version === CREATIVE_DIRECTION_VERSION && previous.fingerprint === await creativeFingerprint(artifact)
+            && Date.now() - Date.parse(previous.at ?? '') < 24 * 3600_000) continue;
+          if (inspected >= maxPerRun) break;
+          inspected++;
+          const review = await reviewFinalCarousel(ctx.env, artifact);
+          artifact = { ...artifact, asset_manifest: { ...artifact.asset_manifest, visual_review: review } };
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.draft`, {
+            asset_manifest: artifact.asset_manifest, stage: 'review',
+            error: review.pass ? null : `Visual quality hold: ${review.blockers.join(' ')}`,
+          });
+          if (!review.pass) continue;
+        }
         const quality = assessCreativeQuality({
           hook: artifact.hook,
           caption: artifact.caption,

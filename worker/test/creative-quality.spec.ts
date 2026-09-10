@@ -73,7 +73,7 @@ describe('native creative quality gate', () => {
     });
 
     expect(result.pass).toBe(false);
-    expect(result.blockers.join(' ')).toMatch(/person-walking-to-a-car visual template/i);
+    expect(result.blockers.join(' ')).toMatch(/casual gym visual template/i);
   });
 
   it('does not release an old Deadset template marker without current visual review', () => {

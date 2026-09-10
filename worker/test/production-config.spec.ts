@@ -36,11 +36,11 @@ describe('mission-scoped carousel production', () => {
     })).toThrow(/source_run_id/);
   });
 
-  it('selects only photos that pass the saved Deadset person-and-car vibe gate', () => {
+  it('selects relevant casual gym photos without requiring a car', () => {
     const template = getCreativePlaybook('deadset')!.hookVisualTemplate!;
     const candidates = [
       photo(1, 'Athlete lifting a barbell in a bright gym'),
-      photo(2, 'A person walking toward a parked car in a dark parking lot at night'),
+      photo(2, 'A person resting beside a gym bench between workout sets'),
       photo(3, 'A glossy sports car photographed alone in a studio'),
     ];
 

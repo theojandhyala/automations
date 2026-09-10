@@ -258,6 +258,10 @@ export const generateDrafts: Handler = {
       `app_id=eq.${app.id}&select=id,hook,status,asset_manifest,published_at&order=created_at.desc&limit=60`,
     );
     const recentHooks = recent.map((r) => r.hook).filter(Boolean);
+    const recentVisualFailures = recent.flatMap((artifact) => {
+      const review = artifact.asset_manifest.visual_review as { pass?: boolean; blockers?: string[] } | undefined;
+      return review?.pass === false ? [{ hook: artifact.hook, defects: review.blockers ?? [] }] : [];
+    }).slice(0, 8);
 
     if (ctx.trigger === 'cron') {
       const buffer = await ctx.db.select<{ id: string }>('artifacts', `app_id=eq.${app.id}&status=in.(approved,publishing)&select=id&limit=12`);
@@ -338,6 +342,7 @@ export const generateDrafts: Handler = {
           isCarousel
             ? `Output lane plan: ${outputLanePlan.map((assignment, index) => `${index + 1}=${assignment.lane.id} (${assignment.reason})`).join('; ')}.`
             : null,
+          recentVisualFailures.length ? `Avoid these prior final-image defects: ${JSON.stringify(recentVisualFailures)}` : null,
           config.extra_context ? `Context: ${config.extra_context}` : null,
           config.creative_brief ? `Creative brief: ${JSON.stringify(config.creative_brief)}` : null,
           recentHooks.length ? `Already used, do not repeat:\n- ${recentHooks.join('\n- ')}` : null,
