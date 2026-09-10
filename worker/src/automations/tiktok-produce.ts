@@ -3,6 +3,7 @@ import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
+import { isFinishedSlidePath } from '../lib/deadset-slide-layout';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { isRepeatedHook } from '../lib/creative-variety';
 import { unattendedPublishingEnabled } from '../lib/tiktok';
@@ -227,7 +228,9 @@ export async function produceArtifact(
     };
   }
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
-  const featureOverlay = contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay;
+  const featureOverlay = appSlug === 'deadset'
+    ? playbook.features[featureKey]!.fallbackProofOverlay
+    : contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay;
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
     env,
@@ -235,6 +238,7 @@ export async function produceArtifact(
       imageUrl: stock.src.portrait,
       overlay: hookOverlay,
       role: 'hook',
+      appSlug,
     },
     {
       imageUrl: publicMediaUrl(env, feature.storage_path),
@@ -242,6 +246,8 @@ export async function produceArtifact(
       // drafts also benefit from updated truth and legibility rules.
       overlay: featureOverlay,
       role: 'feature',
+      appSlug,
+      finished: isFinishedSlidePath(feature.storage_path),
     },
     renderer,
   );

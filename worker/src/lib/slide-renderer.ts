@@ -1,14 +1,17 @@
 import puppeteer from '@cloudflare/puppeteer';
 import type { Env } from '../types';
+import { deadsetSlideHtml } from './deadset-slide-layout';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v2';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v3-deadset-safe';
 
 export interface SlideInput {
   imageUrl: string;
   overlay: string;
   role: 'hook' | 'feature';
+  appSlug?: string;
+  finished?: boolean;
 }
 
 function escapeHtml(value: string): string {
@@ -20,7 +23,9 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;');
 }
 
-function slideHtml({ imageUrl, overlay, role }: SlideInput): string {
+function slideHtml(input: SlideInput): string {
+  if (input.appSlug === 'deadset') return deadsetSlideHtml(input);
+  const { imageUrl, overlay, role } = input;
   const hook = role === 'hook';
   const fontSize = hook
     ? overlay.length > 80 ? 62 : overlay.length > 52 ? 66 : 72
@@ -111,6 +116,13 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     'Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0)',
     { timeout: 20_000 },
   );
+  if (input.appSlug === 'deadset' && !input.finished) {
+    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.hook-copy,.benefit,.download')).every(el => {
+      const r=el.getBoundingClientRect();
+      return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1;
+    })`);
+    if (!fits) throw new Error('DEADSET copy exceeds TikTok safe bounds; shorten the copy before approval.');
+  }
   const bytes = await page.screenshot({
     type: 'jpeg',
     // TikTok recompresses uploads. This keeps 1080×1920 text and app proof
