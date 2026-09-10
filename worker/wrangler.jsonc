@@ -16,6 +16,10 @@
 
   // The dispatcher wakes every minute and claims whatever is due. Handlers are
   // expected to be short; anything long-running should chunk itself across runs.
+  "kv_namespaces": [
+    { "binding": "HQ_DATA", "id": "60862cecd4b04329ab0b2ea25e4bcc75" },
+    { "binding": "DEADSET_BASELINE", "id": "48433907f95c443687f31fc2343a8c55" }
+  ],
   "triggers": {
     "crons": ["* * * * *"]
   },
