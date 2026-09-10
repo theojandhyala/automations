@@ -105,7 +105,7 @@ export default function PromotionMission() {
     account.status === 'connected' && (!account.app_id || account.app_id === selectedApp?.id)) ?? [], [readiness, selectedApp?.id]);
   const featureLibrary = readiness?.feature_libraries[appSlug] ?? [];
   const audienceOptions = selectedApp?.content_domain === 'fishing' ? FISHING_AUDIENCES : FITNESS_AUDIENCES;
-  const selectedAssetsReady = features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
+  const selectedAssetsReady = appSlug === 'cast' || features.length > 0 && features.every((key) => selectedApp?.uploaded_feature_keys.includes(key));
   const selectedProductionReady = Boolean(selectedApp?.producer_available && selectedApp.photo_source_ready && selectedAssetsReady && selectedApp.renderer_available);
   const productionStatus = !selectedApp?.producer_available
     ? 'Production agent needs attention'
@@ -113,16 +113,17 @@ export default function PromotionMission() {
       ? 'Finish the selected screens in Creative Studio'
       : !selectedApp.photo_source_ready
         ? 'Connect the free Pexels source in Creative Studio'
-        : 'Local renderer + licensed source + exact screens ready';
+        : appSlug === 'cast' ? 'Real photo source + six-slide renderer ready' : 'Local renderer + licensed source + exact screens ready';
   const appMissions = missions.filter((mission) => mission.app_id === selectedApp?.id).slice(0, 5);
   const canLaunch = Boolean(selectedApp?.drafting_ready && !busy);
-  const autonomousRelease = Boolean(readiness && !readiness.review_required);
+  const autonomousRelease = appSlug !== 'cast' && Boolean(readiness && !readiness.review_required);
 
   function chooseApp(slug: string) {
     setAppSlug(slug);
     setSearchParams({ app: slug }, { replace: true });
     setAccountId('');
     setFeatures(preferredFeatures(readiness?.feature_libraries[slug] ?? [], count));
+    if (slug === 'cast') setCount(current => Math.min(current, 3));
     setAudience(slug === 'cast' ? 'weekend_anglers' : 'consistent_lifters');
     setFormat('photo_carousel');
     setAutoProduce(true);
@@ -148,7 +149,7 @@ export default function PromotionMission() {
           auto_produce: format === 'photo_carousel' && autoProduce && selectedProductionReady,
         }),
       });
-      setMessage({ tone: 'ok', text: autonomousRelease
+      setMessage({ tone: 'ok', text: appSlug === 'cast' ? 'Cast editorial batch started. Six slides per post, real photos, no AI generation. Finished posts wait in review.' : autonomousRelease
         ? `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will pass the truth and quality gates, then enter the next public posting windows automatically.`
         : `Mission launched. ${count} original concept${count === 1 ? '' : 's'} will return here while TikTok production approval remains pending.` });
       await refresh();
@@ -178,16 +179,16 @@ export default function PromotionMission() {
           <h2>Tell the system what outcome you want.</h2>
           <p>It turns that into native TikTok concepts, exact product proof and a review-ready handoff.</p>
         </div>
-        <div className="promote-safety"><span>RELEASE AUTHORITY</span><b>{autonomousRelease ? 'AUTONOMOUS QUALITY GATE' : 'TIKTOK APPROVAL GATE'}</b><p>{autonomousRelease ? 'Truth-checked posts release automatically at the configured windows; you can pause the mission at any time.' : 'Drafting and production can run now. Public delivery unlocks only after TikTok approves the Business Accounts integration.'}</p></div>
+        <div className="promote-safety"><span>RELEASE AUTHORITY</span><b>{appSlug === 'cast' ? 'EDITORIAL REVIEW' : autonomousRelease ? 'AUTONOMOUS QUALITY GATE' : 'TIKTOK APPROVAL GATE'}</b><p>{autonomousRelease ? 'Truth-checked posts release automatically at the configured windows; you can pause the mission at any time.' : appSlug === 'cast' ? 'New Cast editorial posts wait for your exact slide review before release.' : 'Drafting and production can run now. Public delivery unlocks only after TikTok approves the Business Accounts integration.'}</p></div>
       </header>
 
       {message && <div className={`ops-alert ${message.tone}`}>{message.text}</div>}
 
       <section className="mission-flightpath" aria-label={`${selectedApp?.name ?? 'App'} mission readiness`}>
         <article className={selectedApp?.drafting_ready ? 'ready' : ''}><i>01</i><div><span>THINK</span><b>Truth-locked concepts</b></div><em>{selectedApp?.drafting_ready ? 'ONLINE' : 'CHECK'}</em></article>
-        <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>Exact-screen carousels</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
+        <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>{appSlug === 'cast' ? 'Six-slide editorial' : 'Exact-screen carousels'}</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
         <article className={selectedApp?.publishing_ready ? 'ready' : ''}><i>03</i><div><span>ROUTE</span><b>{selectedApp?.name ?? 'App'} TikTok channel</b></div><em>{selectedApp?.publishing_ready ? 'PUBLIC AUTO' : 'BUSINESS REVIEW'}</em></article>
-        <article className={autonomousRelease ? 'ready authority' : 'authority'}><i>04</i><div><span>RELEASE</span><b>{autonomousRelease ? 'Automated truth + quality gates' : 'TikTok approval interlock'}</b></div><em>{autonomousRelease ? 'ONLINE' : 'LOCKED'}</em></article>
+        <article className={autonomousRelease ? 'ready authority' : 'authority'}><i>04</i><div><span>RELEASE</span><b>{appSlug === 'cast' ? 'Exact slide review' : autonomousRelease ? 'Automated truth + quality gates' : 'TikTok approval interlock'}</b></div><em>{autonomousRelease ? 'ONLINE' : 'LOCKED'}</em></article>
       </section>
 
       <form className="mission-layout" onSubmit={launch}>
@@ -224,14 +225,14 @@ export default function PromotionMission() {
           <section className="mission-panel">
             <div className="mission-heading"><b>05</b><div><span>CREATIVE ROUTE</span><h3>What should the agents make?</h3></div></div>
             <div className="format-grid">
-              <button type="button" aria-pressed={format === 'photo_carousel'} className={format === 'photo_carousel' ? 'selected' : ''} onClick={() => { setFormat('photo_carousel'); setAutoProduce(true); }}><strong>Native photo carousel</strong><small>Real licensed lifestyle image → exact {selectedApp?.name ?? 'app'} feature proof. Can be produced automatically when the selected screens are ready.</small></button>
-              <button type="button" aria-pressed={format === 'video_brief'} className={format === 'video_brief' ? 'selected' : ''} onClick={() => { setFormat('video_brief'); setAutoProduce(false); }}><strong>Shoot-ready video brief</strong><small>12–20 second timestamped beat sheet: footage, speech, screen action, caption, sound and purpose.</small></button>
+              <button type="button" aria-pressed={format === 'photo_carousel'} className={format === 'photo_carousel' ? 'selected' : ''} onClick={() => { setFormat('photo_carousel'); setAutoProduce(true); }}><strong>{appSlug === 'cast' ? 'Six-slide fishing carousel' : 'Native photo carousel'}</strong><small>{appSlug === 'cast' ? 'Real fishing photos, useful lists and readable captions. Four editorial posts per Cast story. No AI media or generation.' : `Real licensed lifestyle image → exact ${selectedApp?.name ?? 'app'} feature proof.`}</small></button>
+              <button type="button" disabled={appSlug === 'cast'} aria-pressed={format === 'video_brief'} className={format === 'video_brief' ? 'selected' : ''} onClick={() => { setFormat('video_brief'); setAutoProduce(false); }}><strong>Shoot-ready video brief</strong><small>12–20 second timestamped beat sheet: footage, speech, screen action, caption, sound and purpose.</small></button>
             </div>
 
-            {format === 'photo_carousel' && <div className="feature-selector"><span>ROTATE EXACT {selectedApp?.name.toUpperCase()} PROOF · CHOOSE UP TO {count}</span><div>{featureLibrary.map((feature) => <button type="button" aria-pressed={features.includes(feature.key)} className={features.includes(feature.key) ? 'selected' : ''} onClick={() => toggleFeature(feature.key)} key={feature.key}><i className={feature.uploaded ? 'ready' : ''} /> {feature.label}</button>)}</div></div>}
+            {format === 'photo_carousel' && appSlug !== 'cast' && <div className="feature-selector"><span>ROTATE EXACT {selectedApp?.name.toUpperCase()} PROOF · CHOOSE UP TO {count}</span><div>{featureLibrary.map((feature) => <button type="button" aria-pressed={features.includes(feature.key)} className={features.includes(feature.key) ? 'selected' : ''} onClick={() => toggleFeature(feature.key)} key={feature.key}><i className={feature.uploaded ? 'ready' : ''} /> {feature.label}</button>)}</div></div>}
 
             <div className="mission-controls">
-              <label>CONCEPTS<select value={count} onChange={(event) => { const next = Number(event.target.value); setCount(next); setFeatures((current) => current.slice(0, next)); }}>{[1, 2, 3, 4, 5, 6].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+              <label>CONCEPTS<select value={count} onChange={(event) => { const next = Number(event.target.value); setCount(next); setFeatures((current) => current.slice(0, next)); }}>{(appSlug === 'cast' ? [1, 2, 3] : [1, 2, 3, 4, 5, 6]).map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
               <label>TIKTOK DESTINATION<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Draft without an account</option>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>@{account.handle}{account.display_name ? ` · ${account.display_name}` : ''}</option>)}</select></label>
               {format === 'photo_carousel' && <label className="switch-row"><input type="checkbox" disabled={!selectedProductionReady} checked={autoProduce && selectedProductionReady} onChange={(event) => setAutoProduce(event.target.checked)} /><span>{selectedProductionReady ? 'Produce slides after drafting' : productionStatus}</span></label>}
             </div>
@@ -241,10 +242,10 @@ export default function PromotionMission() {
         <aside className="mission-sidebar">
           <section className="mission-status-card">
             <span>PRE-FLIGHT // {selectedApp?.name.toUpperCase() ?? 'LOADING'}</span><h3>System readiness</h3>
-            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? `${selectedApp.tiktok_review_state === 'approved' ? 'Learns from live results' : 'Learning framework ready; live metrics begin after TikTok approval'} · rotates fresh proof · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
+            <div className="readiness-line"><i className={selectedApp?.drafting_ready ? 'ready' : ''} /><div><b>Creative intelligence</b><small>{selectedApp?.drafting_ready ? appSlug === 'cast' ? 'Curated topics · real photos · no AI generation · 4 editorial posts per Cast story' : `${selectedApp.tiktok_review_state === 'approved' ? 'Learns from live results' : 'Learning framework ready; live metrics begin after TikTok approval'} · rotates fresh proof · ${selectedApp.playbook_version}` : 'Drafting needs attention'}</small></div></div>
             <div className="readiness-line"><i className={selectedProductionReady ? 'ready' : ''} /><div><b>Automatic production</b><small>{format === 'video_brief' ? 'Not required for a shoot brief' : productionStatus}</small></div></div>
             <div className="readiness-line"><i className={selectedApp?.publishing_ready ? 'ready' : ''} /><div><b>TikTok delivery</b><small>{selectedApp?.publishing_ready ? 'Business Accounts public publishing is ready' : selectedApp?.manual_post_ready ? 'Manual-post handoff works now; public API delivery awaits TikTok Business review' : 'Drafting still works; finish production setup'}</small></div></div>
-            <div className={`readiness-line ${autonomousRelease ? '' : 'locked'}`}><i className={autonomousRelease ? 'ready' : ''} /><div><b>Autonomous release</b><small>{autonomousRelease ? 'Truth and quality gates approve safe posts into the 12:00, 15:00 and 18:00 windows.' : 'Fail-closed until TikTok approves the Business Accounts integration.'}</small></div></div>
+            <div className={`readiness-line ${autonomousRelease ? '' : 'locked'}`}><i className={autonomousRelease ? 'ready' : ''} /><div><b>Autonomous release</b><small>{autonomousRelease ? 'Truth and quality gates approve safe posts into the 12:00, 15:00 and 18:00 windows.' : appSlug === 'cast' ? 'Exact six-slide review required for this new format.' : 'Fail-closed until TikTok approves the Business Accounts integration.'}</small></div></div>
             {selectedApp?.blockers.length ? <div className="mission-blockers"><b>WHAT IS STILL MISSING</b>{selectedApp.blockers.map((blocker) => <p key={blocker}>— {blocker}</p>)}</div> : null}
             <div className="mission-shortcuts"><Link to={`/studio?app=${appSlug}`}>OPEN STUDIO</Link><Link to={`/accounts?app=${appSlug}`}>OPEN ACCOUNTS</Link></div>
           </section>

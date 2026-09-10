@@ -1,3 +1,4 @@
+import { createCastEditorialDrafts } from './cast-editorial-drafts';
 import { completeJson } from '../lib/ai';
 import {
   getCreativePlaybook,
@@ -265,6 +266,9 @@ export const generateDrafts: Handler = {
 
     await ctx.setTask(`drafting ${count} concepts for ${app.name}`);
     ctx.log('debug', 'seeded with recent hooks', { recent: recentHooks.length });
+
+    // Cast's owner requested real-media editorial posts with no AI generation.
+    if (appSlug === 'cast') return createCastEditorialDrafts(ctx, app.id, targetAccountId, count, recent);
 
     const isCarousel = config.content_format === 'photo_carousel';
     const featureKeys = Object.keys(playbook.features);

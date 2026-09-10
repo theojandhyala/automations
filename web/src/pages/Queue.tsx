@@ -262,16 +262,16 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   <Dot status={artifact.status} />
                   <span className="queue-title"><small>HOOK SIGNAL</small><strong>{artifact.hook ?? 'Untitled'}</strong></span>
                 </div>
-                <div className="queue-card-meta">{app && <span className="pill">{app.name}</span>}<span className="pill">{artifact.media_type === 'photo' ? '2-SLIDE CAROUSEL' : 'VIDEO'}</span><span className="muted"><Ago at={artifact.created_at} /></span></div>
+                <div className="queue-card-meta">{app && <span className="pill">{app.name}</span>}<span className="pill">{artifact.media_type === 'photo' ? `${artifact.asset_manifest.slides?.length || artifact.photo_urls.length || 2}-SLIDE CAROUSEL` : 'VIDEO'}</span><span className="muted"><Ago at={artifact.created_at} /></span></div>
               </div>
 
               {artifact.asset_manifest.slides?.length ? (
                 <div className="creative-plan">
                   {artifact.asset_manifest.slides.map((slide, index) => (
                     <div key={`${artifact.id}-slide-${index}`}>
-                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? `${app?.name ?? 'App'} proof` : 'real-photo hook'}</strong>
+                      <strong>Slide {index + 1} · {slide.role === 'feature_proof' ? `${app?.name ?? 'App'} proof` : slide.role === 'editorial' ? 'fishing advice' : 'real-photo hook'}</strong>
                       <p>“{slide.overlay}”</p>
-                      <span>{slide.asset_query ?? slide.app_asset_key}</span>
+                      <span>{slide.body ?? slide.asset_query ?? slide.app_asset_key}</span>
                     </div>
                   ))}
                   <p className="muted" style={{ margin: 0 }}>
@@ -300,7 +300,9 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                 <div><span>NATIVE QUALITY GATE</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
                 <p>{quality
                   ? quality.pass
-                    ? data.tiktokStatus.owner_review_required
+                    ? artifact.asset_manifest.format === 'cast_editorial_carousel'
+                      ? 'Copy and structure checks passed. Review all six images, photo suitability and layout before approval.'
+                      : data.tiktokStatus.owner_review_required
                       ? 'Specific, readable and native enough to continue while TikTok production approval is pending.'
                       : 'Specific, readable and native enough to enter the autonomous release gate.'
                     : [...quality.blockers, ...quality.warnings].join(' ')
@@ -317,7 +319,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   >
                     {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
                   </button>
-                  <label className="upload-button">
+                  {artifact.asset_manifest.format !== 'cast_editorial_carousel' && <label className="upload-button">
                     {uploadingSlides === artifact.id ? 'Uploading slides…' : 'Use device renderer'}
                     <input
                       type="file"
@@ -327,8 +329,8 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                       disabled={uploadingSlides === artifact.id}
                       onChange={(event) => uploadRenderedSlides(artifact, event.target.files)}
                     />
-                  </label>
-                  {!mediaReady && <>
+                  </label>}
+                  {!mediaReady && artifact.asset_manifest.format !== 'cast_editorial_carousel' && <>
                     <input
                       aria-label={`Licensed source URL for ${artifact.hook ?? 'draft'}`}
                       placeholder="Licensed source URL"

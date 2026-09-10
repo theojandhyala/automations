@@ -1,3 +1,4 @@
+import { CAST_EDITORIAL_FORMAT } from './cast-editorial';
 import { normalizeHashtags } from './hashtags';
 import {
   CAST_HOOK_VISUAL_TEMPLATE_ID,
@@ -132,6 +133,14 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
         blockers.push(requiredHookTemplate.blocker);
       }
     }
+  }
+  if (manifest.format === CAST_EDITORIAL_FORMAT) {
+    const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
+    if (manifest.app_slug !== 'cast' || input.mediaType !== 'photo') blockers.push('Cast editorial must be a Cast photo carousel.');
+    if (slides.length !== 6 || (input.photoUrls && input.photoUrls.length !== 6)) blockers.push('Cast editorial requires all six slides in order.');
+    if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Cast editorial requires real, sourced media.');
+    if (slides.some(s => !s || typeof s.overlay !== 'string' || !s.overlay.trim() || s.overlay.length > 90 || typeof s.body !== 'string' || s.body.length > 120)) blockers.push('Shorten editorial copy before rendering.');
+    if (manifest.promotional === false && /\b(app store|download|install|subscribe)\b/i.test(caption + ' ' + slides.map(s => `${s.overlay} ${s.body}`).join(' '))) blockers.push('Editorial posts must stand alone without a download pitch.');
   }
   if (input.mediaType === 'video' && input.videoUrl !== undefined && !input.videoUrl) {
     blockers.push('Attach the final reviewed video export.');

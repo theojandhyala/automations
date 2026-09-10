@@ -217,6 +217,10 @@ export const publishApproved: Handler = {
         continue;
       }
 
+      if (artifact.asset_manifest.requires_owner_review === true && !await hasExactOwnerApproval(artifact)) {
+        ctx.log('warn', 'Exact owner review required for the new editorial format', { artifact_id: artifact.id });
+        continue;
+      }
       if (app?.slug === 'deadset' && !(unattended && automaticCreativeApprovalAllowed(app.slug)) && !await hasExactOwnerApproval(artifact)) {
         ctx.log('warn', 'Deadset owner approval required for this exact creative', { artifact_id: artifact.id });
         skipped++;
