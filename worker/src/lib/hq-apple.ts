@@ -78,6 +78,7 @@ export async function syncApple(env: Env, app: HqApp) {
           Accept: "application/a-gzip",
         },
         signal: AbortSignal.timeout(20000),
+        redirect: "manual",
       },
     );
     if (!res.ok) {
@@ -98,10 +99,11 @@ export async function syncApple(env: Env, app: HqApp) {
       captured_at: new Date().toISOString(),
       data,
     };
-    await env.HQ_DATA.put(
-      `${app}/day/app_store_connect/${date}`,
-      JSON.stringify(stored),
-    );
+    const storageKey = `${app}/day/app_store_connect/${date}`;
+    const previous = await env.HQ_DATA.get<StoredDay>(storageKey, "json");
+    // Keep the received-at time stable when Apple returns an unchanged report.
+    if (!previous || JSON.stringify(previous.data) !== JSON.stringify(data))
+      await env.HQ_DATA.put(storageKey, JSON.stringify(stored));
     saved++;
   }
   const result = { saved, errors, at: new Date().toISOString() };
