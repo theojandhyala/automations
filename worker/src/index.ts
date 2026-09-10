@@ -1,3 +1,5 @@
+import {refreshBilling} from './lib/hq-billing';
+import { refreshProduct } from './lib/hq-product';
 import { handleAppHq, captureHqBaseline } from './api/app-hq';
 import { syncApple } from './lib/hq-apple';
 import { handleDeadset } from './api/deadset';
@@ -16,7 +18,7 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
-    if (url.pathname.startsWith('/api/hq/')) return handleAppHq(req, env);
+    if (url.pathname.startsWith('/api/hq/')) return handleAppHq(req, env, ctx);
 
     if (url.pathname === '/api/deadset/baselines') return handleDeadset(req, env);
 
@@ -33,6 +35,7 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const now = new Date();
+    if(now.getUTCMinutes()%5===0) ctx.waitUntil(Promise.all((['deadset','cast'] as const).flatMap(app=>[refreshProduct(env,app),refreshBilling(env,app)])).catch(()=>log.warn('HQ product sync failed')));
     if (now.getUTCMinutes() === 25) ctx.waitUntil(captureHqBaseline(env).catch(() => log.warn('HQ product snapshot unavailable')));
     if (now.getUTCHours() === 8 && now.getUTCMinutes() === 30) ctx.waitUntil((async () => {
       for (const app of ['deadset', 'cast'] as const) {

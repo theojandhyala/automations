@@ -13,6 +13,7 @@ type Widen<T> = { [K in keyof T]: T[K] extends string ? string : T[K] };
 
 /** Secrets a deployment can legitimately be missing. */
 type OptionalSecret =
+  | 'DEADSET_PRODUCT_KEY'
   | 'TIKTOK_CLIENT_KEY'
   | 'TIKTOK_CLIENT_SECRET'
   | 'TIKTOK_REDIRECT_URI'
