@@ -7,7 +7,6 @@ import { LiveSyncProvider } from './lib/liveSync';
 import type { Automation, Run } from './lib/types';
 import type { DeadsetBaseline } from '../../worker/src/lib/deadset-baseline';
 import Queue from './pages/Queue';
-import './deadset-brand.css';
 
 const paths: Record<string, string> = { home: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', chart: 'M3 20h18 M6 16v-5 M12 16V4 M18 16V8', users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 4a4 4 0 0 1 0 8 M20 21v-2a4 4 0 0 0-3-4 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8', play: 'm9 5 11 7-11 7z M3 5v14', coin: 'M12 2v20 M17 5H9a4 4 0 0 0 0 8h6a3 3 0 0 1 0 6H6', bolt: 'm13 2-9 12h7l-1 8 10-13h-8z', refresh: 'M20 7v5h-5 M4 17v-5h5 M5 8a8 8 0 0 1 14-2l1 3 M19 16A8 8 0 0 1 5 18l-1-3', arrow: 'M5 12h14 M13 6l6 6-6 6', logout: 'M9 4H4v16h5 M9 12h12 M16 7l5 5-5 5', shield: 'm12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M8 12l3 3 5-6', data: 'M3 6c0-4 18-4 18 0s-18 4-18 0v12c0 4 18 4 18 0V6 M3 12c0 4 18 4 18 0' };
 function Glyph({ name, className = '' }: { name: string; className?: string }) { return <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.chart} /></svg>; }
