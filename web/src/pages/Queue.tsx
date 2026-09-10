@@ -300,7 +300,9 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                 <div><span>NATIVE QUALITY GATE</span><strong>{quality ? `${quality.score}/100` : 'CHECK REQUIRED'}</strong></div>
                 <p>{quality
                   ? quality.pass
-                    ? data.tiktokStatus.owner_review_required
+                    ? artifact.asset_manifest.format === 'cast_editorial_carousel'
+                      ? 'Copy and structure checks passed. Review all six images, photo suitability and layout before approval.'
+                      : data.tiktokStatus.owner_review_required
                       ? 'Specific, readable and native enough to continue while TikTok production approval is pending.'
                       : 'Specific, readable and native enough to enter the autonomous release gate.'
                     : [...quality.blockers, ...quality.warnings].join(' ')
@@ -317,7 +319,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   >
                     {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
                   </button>
-                  <label className="upload-button">
+                  {artifact.asset_manifest.format !== 'cast_editorial_carousel' && <label className="upload-button">
                     {uploadingSlides === artifact.id ? 'Uploading slides…' : 'Use device renderer'}
                     <input
                       type="file"
@@ -327,8 +329,8 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                       disabled={uploadingSlides === artifact.id}
                       onChange={(event) => uploadRenderedSlides(artifact, event.target.files)}
                     />
-                  </label>
-                  {!mediaReady && <>
+                  </label>}
+                  {!mediaReady && artifact.asset_manifest.format !== 'cast_editorial_carousel' && <>
                     <input
                       aria-label={`Licensed source URL for ${artifact.hook ?? 'draft'}`}
                       placeholder="Licensed source URL"

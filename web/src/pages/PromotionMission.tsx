@@ -186,9 +186,9 @@ export default function PromotionMission() {
 
       <section className="mission-flightpath" aria-label={`${selectedApp?.name ?? 'App'} mission readiness`}>
         <article className={selectedApp?.drafting_ready ? 'ready' : ''}><i>01</i><div><span>THINK</span><b>Truth-locked concepts</b></div><em>{selectedApp?.drafting_ready ? 'ONLINE' : 'CHECK'}</em></article>
-        <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>Exact-screen carousels</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
+        <article className={selectedProductionReady ? 'ready' : ''}><i>02</i><div><span>BUILD</span><b>{appSlug === 'cast' ? 'Six-slide editorial' : 'Exact-screen carousels'}</b></div><em>{selectedProductionReady ? 'ONLINE' : 'CHECK'}</em></article>
         <article className={selectedApp?.publishing_ready ? 'ready' : ''}><i>03</i><div><span>ROUTE</span><b>{selectedApp?.name ?? 'App'} TikTok channel</b></div><em>{selectedApp?.publishing_ready ? 'PUBLIC AUTO' : 'BUSINESS REVIEW'}</em></article>
-        <article className={autonomousRelease ? 'ready authority' : 'authority'}><i>04</i><div><span>RELEASE</span><b>{autonomousRelease ? 'Automated truth + quality gates' : 'TikTok approval interlock'}</b></div><em>{autonomousRelease ? 'ONLINE' : 'LOCKED'}</em></article>
+        <article className={autonomousRelease ? 'ready authority' : 'authority'}><i>04</i><div><span>RELEASE</span><b>{appSlug === 'cast' ? 'Exact slide review' : autonomousRelease ? 'Automated truth + quality gates' : 'TikTok approval interlock'}</b></div><em>{autonomousRelease ? 'ONLINE' : 'LOCKED'}</em></article>
       </section>
 
       <form className="mission-layout" onSubmit={launch}>
