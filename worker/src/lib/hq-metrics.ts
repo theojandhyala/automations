@@ -180,3 +180,15 @@ export function parseSalesReport(
 }
 
 export { reportedTotal } from "./hq-report-summary";
+
+/** Only Apple's explicit no-sales response confirms zero; generic 404s do not. */
+export function appleConfirmsNoSales(status: number, body: unknown): boolean {
+  if (status !== 404 || !body || typeof body !== "object") return false;
+  const errors = (body as { errors?: unknown }).errors;
+  return (
+    Array.isArray(errors) &&
+    errors.length === 1 &&
+    errors[0]?.code === "NOT_FOUND" &&
+    errors[0]?.detail === "There were no sales for the date specified."
+  );
+}

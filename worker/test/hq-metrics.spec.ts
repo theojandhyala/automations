@@ -132,3 +132,23 @@ it("rejects a mismatched app SKU or report date instead of silently importing mi
     ),
   ).toThrow("date");
 });
+
+import { appleConfirmsNoSales } from "../src/lib/hq-metrics";
+it("accepts only Apple explicit no-sales confirmation as zero activity", () => {
+  const noSales = {
+    errors: [
+      {
+        code: "NOT_FOUND",
+        detail: "There were no sales for the date specified.",
+      },
+    ],
+  };
+  expect(appleConfirmsNoSales(404, noSales)).toBe(true);
+  expect(appleConfirmsNoSales(403, noSales)).toBe(false);
+  expect(
+    appleConfirmsNoSales(404, {
+      errors: [{ code: "NOT_FOUND", detail: "Report not yet available" }],
+    }),
+  ).toBe(false);
+  expect(appleConfirmsNoSales(404, null)).toBe(false);
+});

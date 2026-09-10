@@ -657,7 +657,7 @@ function Workspace({
       return appleLinked
         ? "Waiting for Apple reports; this does not mean zero downloads"
         : "Apple reporting is not connected";
-    return `${summary.complete ? "Complete period" : "Reported subtotal · incomplete period"} · ${summary.received}/${summary.expected} daily reports · Apple${appleLinked ? "" : " import"}`;
+    return `${summary.complete ? "Complete period" : "Reported subtotal · incomplete period"} · ${summary.received}/${summary.expected} days verified · Apple${appleLinked ? "" : " import"}`;
   };
   const appleReports = (data?.records ?? [])
     .filter((r) => r.source === "app_store_connect")
@@ -708,7 +708,7 @@ function Workspace({
       const r = (await work()) as { saved?: number; errors?: string[] };
       setNotice(
         r?.saved !== undefined
-          ? `${r.saved} daily reports synced.${r.errors?.length ? " " + r.errors.join("; ") : ""}`
+          ? `${r.saved} daily results synced.${r.errors?.length ? " " + r.errors.join("; ") : ""}`
           : "Saved.",
       );
       refresh();
@@ -969,7 +969,7 @@ function Workspace({
                   <p>
                     Last Apple check:{" "}
                     {new Date(data.apple_sync.at).toLocaleString()} ·{" "}
-                    {data.apple_sync.saved} reports received.
+                    {data.apple_sync.saved} daily results checked.
                   </p>
                 )}
                 {appleReports[0] && (
@@ -1207,7 +1207,7 @@ function Workspace({
                   <h3>Apple Sales & Trends</h3>
                   <p>
                     {data?.apple_sync
-                      ? `Last attempt ${new Date(data.apple_sync.at).toLocaleString()} · ${data.apple_sync.saved} daily reports received`
+                      ? `Last attempt ${new Date(data.apple_sync.at).toLocaleString()} · ${data.apple_sync.saved} daily results checked`
                       : "Hourly report checks start once Apple reporting is connected."}
                   </p>
                   {data?.apple_sync?.errors.map((e) => (
@@ -1229,7 +1229,7 @@ function Workspace({
               {appleReports.length > 0 && (
                 <section className="ah-panel" aria-label="Apple report updates">
                   <p className="ah-kicker">REPORT UPDATES</p>
-                  <h2>Latest downloads reported by Apple.</h2>
+                  <h2>Daily download updates from Apple.</h2>
                   <p className="ah-note">
                     Grouped by reporting day. These are report arrivals, not
                     live notifications from individual devices. Revised reports
