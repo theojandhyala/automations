@@ -264,6 +264,7 @@ export async function produceArtifact(
       overlay: featureOverlay,
       role: 'feature',
       appSlug,
+      featureKey,
       finished: isFinishedSlidePath(feature.storage_path),
     },
     renderer,

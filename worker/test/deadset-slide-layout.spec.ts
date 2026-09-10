@@ -33,6 +33,12 @@ describe('DEADSET slide composition', () => {
     expect(deadsetSourceFits(300, 650)).toBe(false);
     expect(deadsetSourceFits(1320, 2868, true)).toBe(false);
   });
+  it('places reactions in measured gaps, not over existing app labels', () => {
+    for (const [featureKey, top] of [['workout_plan', 980], ['live_logger', 590]] as const) {
+      const html = deadsetSlideHtml({ imageUrl: 'https://media.example/screen.png', overlay: 'No more mental notes.', role: 'feature', featureKey });
+      expect(html).toContain(`top:${top}px;width:778px;max-height:64px`);
+    }
+  });
   it('escapes source and caption HTML', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/" onerror="alert(1)', overlay: '<img src=x onerror=alert(1)>', role: 'hook' });
     expect(html).toContain('&lt;img');

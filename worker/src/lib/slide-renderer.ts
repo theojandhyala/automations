@@ -5,7 +5,7 @@ import { deadsetSlideHtml, deadsetSourceFits } from './deadset-slide-layout';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v4-deadset-fullframe';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v4.1-deadset-fullframe';
 
 export interface SlideInput {
   imageUrl: string;
@@ -13,6 +13,7 @@ export interface SlideInput {
   role: 'hook' | 'feature';
   appSlug?: string;
   finished?: boolean;
+  featureKey?: string;
   editorial?: { body: string; kicker: string };
 }
 
