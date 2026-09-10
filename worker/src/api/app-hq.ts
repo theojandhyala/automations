@@ -1,4 +1,8 @@
 import {
+  normalizeBillingCharts,
+  billingChartDays,
+} from "../lib/hq-billing-charts";
+import {
   connectBilling,
   refreshBilling,
   billingKeySchema,
@@ -89,6 +93,9 @@ export async function loadHq(
     ),
     env.HQ_DATA.get(`${app}/billing-key`),
   ]);
+  const billingCharts = normalizeBillingCharts(
+    await env.HQ_DATA.get(`${app}/billing/charts`, "json"),
+  );
   const id = row.id,
     errors: string[] = [];
   const start = new Date(Date.now() - days * 86400000)
@@ -204,6 +211,8 @@ export async function loadHq(
     daily.set(r.data.date, { ...daily.get(r.data.date), ...r.data });
   for (const d of product?.days ?? [])
     if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
+  for (const d of billingChartDays(billingCharts))
+    if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
   for (const d of billing?.days ?? [])
     if (d.date >= start) daily.set(d.date, { ...daily.get(d.date), ...d });
   if (baseline && !history.some((b) => b.captured_at === baseline.captured_at))
@@ -214,6 +223,7 @@ export async function loadHq(
     days: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     records: recent,
     billing,
+    billing_charts: billingCharts,
     billing_configured: !!billingKey,
     billing_status: billingStatus,
     product,

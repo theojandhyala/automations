@@ -2,6 +2,7 @@ import type { DeadsetBaseline } from "./deadset-baseline";
 import type { HqApp, HqDay, StoredDay, AppleSettings } from "./hq-metrics";
 export interface HqPayload {
   billing: BillingSnapshot | null;
+  billing_charts: BillingCharts | null;
   billing_configured: boolean;
   billing_status: { at: string; status: string; error: string | null } | null;
   product: ProductSnapshot | null;
@@ -81,5 +82,23 @@ export interface BillingSnapshot {
     period: string;
     value: number;
     last_updated_at?: number | null;
+  }>;
+}
+
+export interface BillingCharts {
+  captured_at: string;
+  errors: Record<string, string>;
+  charts: Array<{
+    id: string;
+    title: string;
+    description: string;
+    captured_at: string;
+    series: Array<{
+      label: string;
+      description: string;
+      unit: string;
+      current: number | null;
+      points: Array<{ date: string; value: number | null }>;
+    }>;
   }>;
 }

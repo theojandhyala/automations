@@ -13,6 +13,73 @@ import { useData } from "../lib/useData";
 import type { HqPayload } from "../../../worker/src/lib/hq-contract";
 import type { HqDay } from "../../../worker/src/lib/hq-metrics";
 import "../app-hq.css";
+function BillingHistory({ data, dates }: { data: HqPayload; dates: string[] }) {
+  const [selected, setSelected] = useState("trials");
+  const charts = data.billing_charts;
+  if (!charts) return null;
+  const chart =
+    charts.charts.find((c) => c.id === selected) ?? charts.charts[0];
+  return (
+    <section className="ah-panel">
+      <p className="ah-kicker">REVENUECAT HISTORY</p>
+      <h2>Follow the subscription journey.</h2>
+      <p className="ah-note">
+        Daily provider reports, collected hourly. Incomplete days remain gaps.
+        Trial conversion is grouped by trial-start day; pending trials can still
+        change the result.
+      </p>
+      <label className="ah-form">
+        Report
+        <select
+          value={chart?.id ?? ""}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          {charts.charts.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {chart && (
+        <p className="ah-note">
+          Collected {new Date(chart.captured_at).toLocaleString()} ·{" "}
+          {chart.description}
+        </p>
+      )}
+      {Object.entries(charts.errors).map(([id, error]) => (
+        <p key={id} role="alert">
+          {id}: {error}. Last good data is retained.
+        </p>
+      ))}
+      <div className="ah-two">
+        {chart?.series.map((series, i) =>
+          series.points.length ? (
+            <Chart
+              key={chart.id + i}
+              title={series.label + (series.unit === "%" ? " (%)" : "")}
+              note={series.description}
+              money={series.unit === "$"}
+              points={dates.map((date) => ({
+                date,
+                value:
+                  series.points.find((p) => p.date === date)?.value ?? null,
+              }))}
+            />
+          ) : (
+            <Card
+              key={chart.id + i}
+              label={series.label}
+              value={series.current}
+              money={series.unit === "$"}
+              note={series.description + (series.unit === "%" ? " · %" : "")}
+            />
+          ),
+        )}
+      </div>
+    </section>
+  );
+}
 const sections = [
   ["overview", "Overview", "◈"],
   ["store", "App Store", "↗"],
@@ -898,7 +965,11 @@ function Workspace({
                   note={coverage("downloads")}
                 />
                 <Card
-                  label="Monthly recurring revenue"
+                  label={
+                    data?.billing
+                      ? "RevenueCat MRR"
+                      : "Monthly recurring revenue"
+                  }
                   value={value("mrr_gbp")}
                   money
                   note={dated("mrr_gbp")}
@@ -1231,7 +1302,7 @@ function Workspace({
                         label={m.name}
                         value={m.value}
                         money={["£", "GBP", "$"].includes(m.unit)}
-                        note={`${m.description} · ${m.period}${m.last_updated_at ? " · provider updated " + new Date(m.last_updated_at).toLocaleString() : ""}`}
+                        note={`${m.description} · ${m.period === "P0D" ? "Current" : m.period === "P28D" ? "28-day window" : m.period}${m.last_updated_at ? " · provider updated " + new Date(m.last_updated_at).toLocaleString() : ""}`}
                       />
                     ))}
                   </div>
@@ -1244,7 +1315,7 @@ function Workspace({
               )}
               <div className="ah-kpis">
                 <Card
-                  label="MRR"
+                  label={data?.billing ? "RevenueCat MRR" : "MRR"}
                   value={value("mrr_gbp")}
                   money
                   note={dated("mrr_gbp")}
@@ -1255,7 +1326,7 @@ function Workspace({
                     value("mrr_gbp") === null ? null : value("mrr_gbp")! * 12
                   }
                   money
-                  note="12 × latest verified MRR"
+                  note="12 × latest RevenueCat MRR · excludes web Stripe"
                 />
                 <Card
                   label={b ? "Live Stripe subscribers" : "Paying subscribers"}
@@ -1271,12 +1342,13 @@ function Workspace({
               <Chart
                 title="Monthly recurring revenue (GBP)"
                 money
-                note="Billing snapshots. Estimated Apple proceeds are separate and are never labelled MRR."
+                note="RevenueCat daily MRR in GBP. Web Stripe and Apple estimated proceeds are separate."
                 points={points("mrr_gbp")}
               />
+              {data && <BillingHistory data={data} dates={dates} />}
               <div className="ah-kpis">
                 <Card
-                  label="New subscribers"
+                  label="New subscriptions"
                   value={total("new_subscribers")}
                   note={coverage("new_subscribers")}
                 />
