@@ -216,6 +216,7 @@ describe('validation', () => {
 describe('artifact transitions', () => {
   it('approves a passing draft for manual TikTok handoff without OAuth', async () => {
     let patch: Record<string, unknown> | null = null;
+    const accountId = '44444444-4444-4444-8444-444444444444';
     stubFetch([
       authRoute,
       {
@@ -228,6 +229,7 @@ describe('artifact transitions', () => {
           return jsonResponse([{
             id: ARTIFACT_ID,
             status: 'draft',
+            account_id: accountId,
             stages: { edit: { state: 'done' } },
             media_type: 'photo',
             photo_urls: [
@@ -257,7 +259,7 @@ describe('artifact transitions', () => {
     expect(res.status).toBe(200);
     expect(patch).toMatchObject({
       status: 'approved',
-      account_id: null,
+      account_id: accountId,
       posting_consent_at: null,
       stage: 'schedule',
       asset_manifest: { manual_handoff: true, creative_quality: { pass: true } },
@@ -304,8 +306,8 @@ describe('artifact transitions', () => {
         body: JSON.stringify({ status: 'draft' }),
       }),
     );
-    expect(res.status).toBe(400);
-    expect((await res.json() as { error: string }).error).toMatch(/cannot move published -> draft/);
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: string }).error).toMatch(/Submitted content is immutable/);
   });
 
   it('records the review stage when a draft is approved', async () => {

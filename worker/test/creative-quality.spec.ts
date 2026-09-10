@@ -135,4 +135,46 @@ describe('native creative quality gate', () => {
 
     expect(result.pass).toBe(true);
   });
+
+  it('passes the finished Deadset progress-receipts carousel', () => {
+    const result = assessCreativeQuality({
+      hook: 'Did the work actually add up?',
+      caption: 'Training feels different when the progress is impossible to forget. Deadset on the App Store.',
+      hashtags: ['gymtok', 'gymprogress', 'workouttracker', 'workoutapp'],
+      mediaType: 'photo',
+      assetManifest: {
+        app_slug: 'deadset',
+        format: 'two_slide_photo_carousel',
+        hook_visual_template: { id: 'deadset-casual-car-walk-v1' },
+        slides: [{ role: 'hook' }, { role: 'feature_proof' }],
+        generated_people: false,
+        fabricated_ui: false,
+      },
+      photoUrls: ['deadset-carousel-progress-receipts-slide-1.png', 'deadset-carousel-progress-receipts-slide-2.png'],
+    });
+
+    expect(result.pass).toBe(true);
+    expect(result.blockers).toEqual([]);
+  });
+
+  it('passes the rebuilt Cast worth-the-drive carousel', () => {
+    const result = assessCreativeQuality({
+      hook: 'Worth the drive tonight?',
+      caption: 'I check the live score, tide and recommended hour before I waste the drive. Cast on the App Store.',
+      hashtags: ['fishingtok', 'ukfishing', 'angling', 'fishingapp'],
+      mediaType: 'photo',
+      assetManifest: {
+        app_slug: 'cast',
+        format: 'two_slide_photo_carousel',
+        hook_visual_template: { id: 'cast-fishing-decision-v2' },
+        slides: [{ role: 'hook' }, { role: 'feature_proof' }],
+        generated_people: false,
+        fabricated_ui: false,
+      },
+      photoUrls: ['cast-carousel-worth-the-drive-slide-1.png', 'cast-carousel-worth-the-drive-slide-2.png'],
+    });
+
+    expect(result.pass).toBe(true);
+    expect(result.blockers).toEqual([]);
+  });
 });

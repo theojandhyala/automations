@@ -42,6 +42,10 @@ describe('verified creative playbooks', () => {
     expect(prompt).toContain('required for every Cast photo carousel');
     expect(prompt).toContain('Reject posed trophy shots');
     expect(prompt).toContain('catalogue-style walking shots');
+    expect(prompt).toContain('Do not use a phone mockup');
+    expect(prompt).toContain('score, recommended window, target species and tide');
+    expect(cast.claimsToAvoid).toContain('know when the fish will bite');
+    expect(cast.features.bite_forecast?.fallbackHook).toBe('Worth the drive tonight?');
     expect(prompt).not.toContain('image without both a person and a car');
 
     const fallback = buildCarouselFallbacks(cast, ['bite_forecast'], 1)[0]!;
@@ -164,16 +168,17 @@ describe('verified creative playbooks', () => {
     const plan = planCreativeFeatures(
       deadset,
       ['progression_board', 'live_logger', 'workout_plan'],
-      [published],
-      [{ artifact_id: 'published-1', captured_at: '2026-08-31T10:00:00Z', views: 12_000, likes: 800, comments: 90, shares: 140 }],
+      [1, 2, 3].map(index => ({ ...published, id: `published-${index}` })),
+      [1, 2, 3].map(index => ({ artifact_id: `published-${index}`, captured_at: '2026-08-31T10:00:00Z', views: 12_000, likes: 800, comments: 90, shares: 140 })),
       3,
+      Date.parse('2026-09-01T10:00:00Z'),
     );
 
     expect(plan.mode).toBe('performance_informed');
-    expect(plan.measured_posts).toBe(1);
+    expect(plan.measured_posts).toBe(3);
     expect(plan.decisions.map((decision) => decision.feature)).toEqual(expect.arrayContaining([
       'progression_board', 'live_logger', 'workout_plan',
     ]));
-    expect(plan.decisions.find((decision) => decision.feature === 'progression_board')?.latest_views).toBe(12_000);
+    expect(plan.decisions.find((decision) => decision.feature === 'progression_board')?.latest_views).toBe(36_000);
   });
 });

@@ -5,24 +5,44 @@ import { useData } from '../lib/useData';
 import { Ago, Dot, Empty } from '../components/bits';
 import type { Account, App } from '../lib/types';
 
+interface AccountHealth {
+  id: string;
+  handle: string;
+  health: null | { checked_at: string; posting_ready: boolean; analytics_ready: boolean; username: string | null; errors: string[] };
+}
+
 export default function Accounts() {
   const [searchParams] = useSearchParams();
   const [handle, setHandle] = useState('');
   const [appId, setAppId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [propertyBusy, setPropertyBusy] = useState(false);
+  const [propertyResult, setPropertyResult] = useState('');
+
+  async function checkProperty(action: 'list' | 'add' | 'verify') {
+    setPropertyBusy(true);
+    try {
+      const result = await api('/tiktok/media-property', { method: 'POST', body: JSON.stringify({ action }) });
+      setPropertyResult(JSON.stringify(result, null, 2));
+    } catch (err) { setPropertyResult(err instanceof Error ? err.message : String(err)); }
+    finally { setPropertyBusy(false); }
+  }
 
   const { data, refresh } = useData(async () => {
-    const [accounts, apps, status, readiness] = await Promise.all([
+    const [accounts, apps, status, readiness, health] = await Promise.all([
       supabase.from('tiktok_accounts_public').select('*').order('handle'),
       supabase.from('apps').select('*').eq('promotion_enabled', true).order('name'),
       api<{ developer_app_configured: boolean; provider: 'content_posting' | 'business_accounts'; production_provider: 'business_accounts'; redirect_uri: string | null; scopes: string[]; review_state: string; direct_post_test_ready: boolean; sandbox_private_only: boolean; public_direct_post_ready: boolean; autonomous_public_post_ready: boolean; owner_review_required: boolean }>('/tiktok/status'),
       api<{ apps: Array<{ id: string; slug: string; uploaded_feature_count: number; feature_count: number; photo_source_ready: boolean; drafting_ready: boolean; production_ready: boolean; publishing_ready: boolean; sandbox_publishing_ready: boolean; renderer_available: boolean }> }>('/promotion/readiness'),
+      api<{ accounts: AccountHealth[] }>('/tiktok/health'),
     ]);
     return {
       accounts: (accounts.data ?? []) as Account[],
       apps: (apps.data ?? []) as App[],
       status,
       readiness,
+      health,
     };
   }, [], 10000);
 
@@ -34,6 +54,17 @@ export default function Accounts() {
       ?? data.apps[0];
     if (preferred) setAppId(preferred.id);
   }, [appId, data, searchParams]);
+
+  async function checkAccess() {
+    setChecking(true);
+    setError(null);
+    try {
+      await api('/tiktok/health-check', { method: 'POST' });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally { setChecking(false); }
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -122,12 +153,34 @@ export default function Accounts() {
       </section>
 
       <section className="account-link-core">
-        <div className={autonomousReady ? 'online' : ''}><span>PUBLIC AUTOMATION BRIDGE</span><b>{autonomousReady ? 'ONLINE' : businessMode ? `ACCOUNTS API ${data.status.review_state.toUpperCase()}` : 'ACCOUNTS API REQUIRED'}</b><small>{businessScopes.join(' · ')}</small></div>
+        <div className={autonomousReady ? 'online' : ''}><span>PUBLIC AUTOMATION BRIDGE</span><b>{autonomousReady ? 'CONFIGURED' : businessMode ? `ACCOUNTS API ${data.status.review_state.toUpperCase()}` : 'ACCOUNTS API REQUIRED'}</b><small>{businessScopes.join(' · ')}</small></div>
         {data.apps.map((app) => {
           const account = data.accounts.find((item) => item.app_id === app.id);
           return <article key={app.id}><i className={autonomousReady && account?.status === 'connected' ? 'ready' : ''} /><div><span>{app.name.toUpperCase()} CHANNEL</span><b>{account ? `@${account.handle}` : 'NO ACCOUNT ADDED'}</b><small>{account?.status === 'connected' ? autonomousReady ? 'Owned Business Account authorised for public automation' : businessMode ? 'Reconnect after Accounts API approval is active' : 'Consumer login detected; Business Accounts authorisation still required' : 'Add the account below, then authorise it through TikTok Business'}</small></div></article>;
         })}
-        <p>{autonomousReady ? 'Each owned account authorises once. Quality-passed posts can then publish publicly at 12:00, 15:00 and 18:00 Europe/London.' : 'Real accounts stay public. TikTok Business Accounts API approval and credentials are the remaining gate; the consumer Sandbox is test-only and is not the production route.'}</p>
+        <p>{autonomousReady ? 'Tokens renew automatically while TikTok keeps the account grant valid. Quality-passed posts use 12:00, 15:00, 18:00 and 21:00 Europe/London slots, with a hard maximum of four per account per day. A revoked grant requires reconnection.' : 'Real accounts stay public. TikTok Business Accounts API approval and credentials are the remaining gate; the consumer Sandbox is test-only and is not the production route.'}</p>
+        <section aria-label="Media ownership verification">
+          <h3>Media ownership verification</h3>
+          <p>Technical verification for this media host. This does not submit a post.</p>
+          <button disabled={propertyBusy} onClick={() => checkProperty('list')}>Check media properties</button>
+          <button disabled={propertyBusy} onClick={() => checkProperty('add')}>Register media prefix</button>
+          <button disabled={propertyBusy} onClick={() => checkProperty('verify')}>Verify media prefix</button>
+          <pre role="status" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{propertyBusy ? 'Checking…' : propertyResult}</pre>
+        </section>
+      </section>
+
+      <section className="card" aria-label="Live TikTok access">
+        <h3>Live TikTok access</h3>
+        <p>Checked hourly in the cloud, independently of this browser. A saved connection is not proof that posting works.</p>
+        <button disabled={checking} onClick={checkAccess}>{checking ? 'Checking TikTok…' : 'Check live TikTok access'}</button>
+        {data.health.accounts.map(account => <div key={account.id} style={{ marginTop: 16 }}>
+          <b>@{account.handle}</b>
+          {account.health ? <>
+            <p>Posting: {account.health.posting_ready ? 'TikTok access verified' : 'not ready'} · Analytics: {account.health.analytics_ready ? 'API verified' : 'unavailable'} · Checked <Ago at={account.health.checked_at} /></p>
+            {Date.now() - Date.parse(account.health.checked_at) > 2 * 3600_000 ? <p role="status">Health check is stale; unattended operation is not currently verified.</p> : null}
+            {account.health.errors.map((message, index) => <p key={index} style={{ color: 'var(--bad)' }}>{message}</p>)}
+          </> : <p>Not yet checked against the live TikTok API.</p>}
+        </div>)}
       </section>
 
       {!autonomousReady && (

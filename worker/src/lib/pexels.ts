@@ -18,14 +18,15 @@ interface SearchResponse {
 }
 
 /** Finds portrait-oriented real stock while retaining full source provenance. */
-export async function searchPexels(apiKey: string, query: string): Promise<PexelsPhoto[]> {
+export async function searchPexels(apiKey: string, query: string, page = 1): Promise<PexelsPhoto[]> {
   const url = new URL('https://api.pexels.com/v1/search');
   url.searchParams.set('query', query.slice(0, 120));
   url.searchParams.set('orientation', 'portrait');
   url.searchParams.set('size', 'large');
-  url.searchParams.set('per_page', '12');
+  url.searchParams.set('per_page', '40');
+  url.searchParams.set('page', String(Math.max(1, Math.min(page, 3))));
 
-  const response = await fetch(url, { headers: { Authorization: apiKey } });
+  const response = await fetch(url, { headers: { Authorization: apiKey }, signal: AbortSignal.timeout(15_000) });
   if (!response.ok) {
     const message = await response.text();
     throw new Error(`Pexels search failed (${response.status}): ${message.slice(0, 300)}`);
@@ -33,4 +34,3 @@ export async function searchPexels(apiKey: string, query: string): Promise<Pexel
   const data = (await response.json()) as SearchResponse;
   return Array.isArray(data.photos) ? data.photos : [];
 }
-

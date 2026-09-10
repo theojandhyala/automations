@@ -48,11 +48,21 @@ export function planCreativeFeatures(
   artifacts: CreativeArtifactSignal[],
   metrics: CreativeMetricSignal[],
   count: number,
+  now = Date.now(),
 ): CreativePlan {
   const allowed = allowedFeatures.filter((feature) => feature in playbook.features);
   const latestMetric = new Map<string, CreativeMetricSignal>();
   for (const metric of [...metrics].sort((a, b) => Date.parse(b.captured_at) - Date.parse(a.captured_at))) {
-    if (metric.artifact_id && !latestMetric.has(metric.artifact_id)) latestMetric.set(metric.artifact_id, metric);
+    const artifact = artifacts.find(item => item.id === metric.artifact_id && item.status === 'published');
+    const published = Date.parse(artifact?.published_at ?? '');
+    const captured = Date.parse(metric.captured_at);
+    // Compare a similar maturity window, not an hour-old post with a month-old
+    // one. Missing metrics are not zero, and unrelated artifacts cannot teach.
+    if (artifact && metric.views !== null && metric.views >= 0 && metric.likes !== null
+      && metric.comments !== null && metric.shares !== null
+      && captured - published >= 24 * 3600_000 && captured - published <= 72 * 3600_000
+      && now - captured <= 30 * 86400_000 && captured <= now
+      && !latestMetric.has(artifact.id)) latestMetric.set(artifact.id, metric);
   }
 
   const recentPosition = new Map<string, number>();
@@ -72,30 +82,39 @@ export function planCreativeFeatures(
       0,
     );
     const engagementRate = views > 0 ? engagements / views : 0;
-    const performance = measured.length ? Math.log10(views + 10) + Math.min(engagementRate * 18, 4) : 0;
+    const performance = measured.length >= 3 ? Math.log10(views / measured.length + 10) + Math.min(engagementRate * 18, 4) : 0;
     const exploration = 2.5 / (1 + matching.length);
     const recencyIndex = recentPosition.get(feature);
     const freshness = recencyIndex === undefined ? 2 : Math.min(recencyIndex / 8, 2);
     return {
       feature,
       score: performance + exploration + freshness,
-      published_samples: matching.length,
+      published_samples: measured.length,
       latest_views: measured.length ? views : null,
       latest_engagements: measured.length ? engagements : null,
-      reason: measured.length
-        ? `performance signal from ${measured.length} published post${measured.length === 1 ? '' : 's'}; balanced with freshness`
+      reason: measured.length >= 3
+        ? `24–72h performance signal from ${measured.length} measured posts; balanced with freshness`
         : matching.length
           ? 'published result is waiting for analytics; keep testing without over-repeating it'
           : 'exploration slot for verified product proof with no published result yet',
     };
   }).sort((a, b) => b.score - a.score || a.feature.localeCompare(b.feature));
 
+  // Reserve one slot per batch for an under-tested feature. Never let a lucky
+  // early winner eliminate exploration or force the same proof every day.
+  if (candidates.length > 1 && count > 1) {
+    const exploration = [...candidates].sort((a, b) => a.published_samples - b.published_samples
+      || b.score - a.score)[0]!;
+    candidates.splice(candidates.indexOf(exploration), 1);
+    candidates.splice(Math.min(count - 1, candidates.length), 0, exploration);
+  }
+
   const decisions: FeatureDecision[] = [];
   for (let index = 0; index < count && candidates.length; index += 1) {
     decisions.push({ ...candidates[index % candidates.length]! });
   }
   return {
-    mode: metrics.some((metric) => metric.artifact_id !== null) ? 'performance_informed' : 'learning',
+    mode: candidates.some(candidate => candidate.published_samples >= 3) ? 'performance_informed' : 'learning',
     decisions,
     measured_posts: latestMetric.size,
     analysis_window: artifacts.length,

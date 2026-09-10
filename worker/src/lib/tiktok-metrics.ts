@@ -23,6 +23,7 @@ async function apiCall<T>(
   init: { method: 'GET' | 'POST'; body?: unknown },
 ): Promise<{ data: T | null; scopeMissing: boolean }> {
   const res = await fetch(`${API}${path}`, {
+    signal: AbortSignal.timeout(20_000),
     method: init.method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,7 +71,7 @@ interface BusinessEnvelope<T> {
 async function businessGet<T>(token: string, path: string, query: Record<string, string>): Promise<T> {
   const url = new URL(`${BUSINESS_API}${path}`);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
-  const res = await fetch(url, { headers: { 'Access-Token': token } });
+  const res = await fetch(url, { headers: { 'Access-Token': token }, signal: AbortSignal.timeout(20_000) });
   const json = (await res.json()) as BusinessEnvelope<T>;
   if (!res.ok || json.code !== 0 || !json.data) {
     throw new Error(`tiktok business ${path}: ${json.code ?? res.status} ${json.message ?? ''}`.trim());
@@ -88,16 +89,16 @@ export async function accountStatsFor(
   const data = await businessGet<{
     followers_count?: number;
     following_count?: number;
-    total_likes?: number;
+    likes?: number;
     videos_count?: number;
   }>(token, '/business/get/', {
     business_id: account.open_id,
-    fields: JSON.stringify(['followers_count', 'following_count', 'total_likes', 'videos_count']),
+    fields: JSON.stringify(['followers_count', 'likes']),
   });
   return {
     follower_count: data.followers_count,
     following_count: data.following_count,
-    likes_count: data.total_likes,
+    likes_count: data.likes,
     video_count: data.videos_count,
     scopeMissing: false,
   };

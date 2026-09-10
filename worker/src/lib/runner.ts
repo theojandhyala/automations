@@ -6,6 +6,7 @@ import { getHandler } from '../automations/registry';
 
 /** After this many consecutive failures the dispatcher stops picking it up. */
 const FAILURE_BREAKER = 5;
+const RECOVERABLE_PIPELINE = new Set(['tiktok.generate', 'tiktok.produce', 'tiktok.publish', 'tiktok.reconcile', 'analytics.sync']);
 
 export interface RunContext {
   env: Env;
@@ -150,10 +151,15 @@ export async function executeRun(
   });
 
   const failureStreak = status === 'failed' ? automation.failure_streak + 1 : 0;
-  const tripped = failureStreak >= FAILURE_BREAKER;
-  const next = automation.cron && automation.enabled && !tripped
+  const recoverable = RECOVERABLE_PIPELINE.has(automation.handler_key);
+  const tripped = failureStreak >= FAILURE_BREAKER && !recoverable;
+  let next = automation.cron && automation.enabled && !tripped
     ? nextRun(automation.cron)
     : null;
+  if (next && recoverable && failureStreak >= FAILURE_BREAKER) {
+    // Cool down, but never permanently kill the pipeline after an outage.
+    next = new Date(Math.max(next.getTime(), Date.now() + Math.min(2 ** Math.min(failureStreak, 10), 60) * 60_000));
+  }
 
   // Releases the claim: running_since goes back to null and the status leaves
   // 'running', which is what makes the row eligible for the next claim.

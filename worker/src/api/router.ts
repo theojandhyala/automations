@@ -17,6 +17,9 @@ import {
   unattendedPublishingEnabled,
 } from '../lib/tiktok';
 import { assessCreativeQuality } from '../lib/creative-quality';
+import { activeTikTokAccounts, checkAccountAccess } from '../lib/tiktok-health';
+import { ownerApprovalReceipt } from '../lib/owner-approval';
+import { mediaProperty } from '../lib/tiktok-property';
 import { normalizeHashtags } from '../lib/hashtags';
 import { log, errorFields } from '../lib/log';
 import { decrypt, encrypt } from '../lib/crypto';
@@ -305,12 +308,27 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   const owner = await ownerFromRequest(req, env);
   if (!owner) return json({ error: 'unauthorized' }, 401);
 
+  if (path === '/tiktok/media-property' && req.method === 'POST') {
+    const { action } = await req.json() as { action?: string };
+    if (action !== 'list' && action !== 'add' && action !== 'verify') return json({ error: 'Invalid action' }, 400);
+    return json({ result: await mediaProperty(env, action) });
+  }
+
   if (path === '/me' && req.method === 'GET') {
     return json({ email: owner });
   }
 
   if (path === '/handlers' && req.method === 'GET') {
     return json({ handlers: listHandlers() });
+  }
+
+  if (path === '/tiktok/health' && req.method === 'GET') {
+    return json({ accounts: await db.select('tiktok_accounts', 'select=id,handle,health&order=handle.asc') });
+  }
+  if (path === '/tiktok/health-check' && req.method === 'POST') {
+    const accounts = await activeTikTokAccounts(db);
+    const checks = await Promise.all(accounts.map(account => checkAccountAccess(env, db, account, 20, true)));
+    return json({ accounts: checks.map(({ account_id, handle, health }) => ({ id: account_id, handle, health })) });
   }
 
   if (path === '/tiktok/status' && req.method === 'GET') {
@@ -1005,14 +1023,22 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const now = new Date().toISOString();
     const [updated] = await db.update('artifacts', `id=eq.${id}`, {
       status: 'approved',
-      account_id: null,
+      // Keep the app-owned destination attached. Scheduled publishing is
+      // still fail-closed while Business Accounts access is pending, but the
+      // approved queue can begin flowing through the normal 12/15/18 slots as
+      // soon as that provider is commissioned instead of becoming orphaned.
+      account_id: artifact.account_id,
       posting_consent_at: null,
       asset_manifest: { ...artifact.asset_manifest, creative_quality: quality, manual_handoff: true },
       stage: 'schedule',
       stages: {
         ...artifact.stages,
         review: { state: 'done', at: now, note: 'Owner approved the exact media and copy for manual TikTok posting.' },
-        schedule: { state: 'manual', at: now, note: 'Ready for owner download and TikTok handoff.' },
+        schedule: {
+          state: 'manual',
+          at: now,
+          note: 'Ready for owner download now and retained for scheduled release after TikTok Business approval.',
+        },
       },
     });
     return json(updated);
@@ -1165,11 +1191,14 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     const id = artifactMatch[1]!;
     const body = await parseBody(req, updateArtifactSchema);
 
-    const current = await db.selectOne<Artifact>(
+    const current = await db.selectOne<Artifact & { updated_at?: string }>(
       'artifacts',
       `id=eq.${id}&select=*`,
     );
     if (!current) return json({ error: 'not found' }, 404);
+    if (current.status === 'publishing' || current.status === 'published') {
+      return json({ error: 'Submitted content is immutable; reconcile it before making another post.' }, 409);
+    }
 
     let selectedAccount: TikTokAccount | null = null;
     if (body.account_id) {
@@ -1271,7 +1300,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
 
         patch.posting_consent_at = unattendedPublishingEnabled(env) ? null : new Date().toISOString();
         patch.stage = 'schedule';
-        patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString() } };
+        patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString(),
+          note: await ownerApprovalReceipt({ ...current, ...patch } as Artifact) } };
       } else if (body.status === 'draft') {
         patch.stage = 'concept';
         patch.stages = { ...current.stages, review: { state: 'pending' } };
@@ -1282,7 +1312,7 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       const consentSensitive = [
         'caption', 'hook', 'hashtags', 'video_url', 'photo_urls', 'media_type', 'account_id',
         'tiktok_privacy_level', 'disable_comment', 'auto_add_music', 'brand_organic_toggle',
-        'brand_content_toggle', 'is_aigc',
+        'brand_content_toggle', 'is_aigc', 'asset_manifest', 'script', 'shot_notes',
       ].some((field) => field in body);
       if (consentSensitive) {
         patch.status = 'draft';
@@ -1292,7 +1322,9 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       }
     }
 
-    const [updated] = await db.update('artifacts', `id=eq.${id}`, patch);
+    const [updated] = await db.update('artifacts', `id=eq.${id}&status=eq.${current.status}` +
+      (current.updated_at ? `&updated_at=eq.${encodeURIComponent(current.updated_at)}` : ''), patch);
+    if (!updated) return json({ error: 'Post changed during review; reload and review again.' }, 409);
     return json(updated);
   }
 

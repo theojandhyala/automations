@@ -1,8 +1,10 @@
 import { decrypt } from '../lib/crypto';
+import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
 import { searchPexels, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
 import { assessCreativeQuality } from '../lib/creative-quality';
+import { isRepeatedHook } from '../lib/creative-variety';
 import { unattendedPublishingEnabled } from '../lib/tiktok';
 import {
   CAPTION_RENDERER_VERSION,
@@ -48,6 +50,15 @@ interface CarouselManifest extends Record<string, unknown> {
   content_lane?: { id?: string };
 }
 
+async function approvalVarietyError(db: Db, artifact: Artifact): Promise<string | null> {
+  if (!artifact.account_id) return 'Assign this draft to its owned TikTok account before approval.';
+  const previous = await db.select<{ hook: string | null }>('artifacts',
+    `account_id=eq.${artifact.account_id}&id=neq.${artifact.id}&status=in.(approved,publishing,published)&select=hook&order=created_at.desc&limit=90`);
+  return isRepeatedHook(artifact.hook ?? '', previous.map(item => item.hook ?? ''))
+    ? 'Creative variety hold: this hook repeats queued or recent account content; replace the concept.'
+    : null;
+}
+
 export interface ProductionResult {
   state: 'produced' | 'blocked';
   reason?: string;
@@ -59,7 +70,9 @@ export function choosePhoto(
   artifactId: string,
   category: 'fitness' | 'fishing',
   requiredAltTermGroups: string[][] = [],
+  excludedIds: number[] = [],
 ): PexelsPhoto | null {
+  photos = photos.filter(photo => !excludedIds.includes(photo.id));
   if (photos.length === 0) return null;
   const categoryTerms = category === 'fitness'
     ? ['gym', 'fitness', 'workout', 'weight', 'barbell', 'lifter', 'athlete', 'exercise', 'training']
@@ -77,7 +90,8 @@ export function choosePhoto(
   });
   // Pexels orders by relevance. Prefer results whose alt text confirms the app
   // category, then vary only among the first six strong matches.
-  const pool = (templateMatches.length ? templateMatches : relevant.length ? relevant : photos).slice(0, 6);
+  const pool = (templateMatches.length ? templateMatches : relevant).slice(0, 30);
+  if (!pool.length) return null;
   const seed = [...artifactId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return pool[seed % pool.length] ?? null;
 }
@@ -195,12 +209,15 @@ export async function produceArtifact(
   // queries remain in old manifests for traceability but cannot steer sourcing.
   const hookVisualTemplate = playbook.hookVisualTemplate;
   const query = hookVisualTemplate?.searchQuery ?? playbook.features[featureKey]!.stockDirection;
-  const stock = choosePhoto(
-    await searchPexels(key, query),
-    artifact.id,
-    playbook.category,
-    hookVisualTemplate?.requiredAltTermGroups,
+  const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number } } } }>(
+    'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=created_at.desc&limit=12`,
   );
+  const excluded = recent.map(item => item.asset_manifest.production?.stock?.id).filter((id): id is number => typeof id === 'number');
+  let stock: PexelsPhoto | null = null;
+  for (let page = 1; page <= 3 && !stock; page++) {
+    stock = choosePhoto(await searchPexels(key, query, page), artifact.id, playbook.category,
+      hookVisualTemplate?.requiredAltTermGroups, excluded);
+  }
   if (!stock) {
     return {
       state: 'blocked',
@@ -238,12 +255,19 @@ export async function produceArtifact(
 
   const now = new Date().toISOString();
   const photoUrls = [publicMediaUrl(env, hookPath), publicMediaUrl(env, featurePath)];
-  const unattended = unattendedPublishingEnabled(env) && Boolean(artifact.account_id);
+  const quality = assessCreativeQuality({
+    hook: hookOverlay, caption: artifact.caption, hashtags: artifact.hashtags,
+    mediaType: 'photo', photoUrls,
+    assetManifest: { ...manifest, app_slug: appSlug, hook_visual_template: hookVisualTemplate },
+  });
+  const varietyError = quality.pass && unattendedPublishingEnabled(env) && artifact.account_id
+    ? await approvalVarietyError(db, { ...artifact, hook: hookOverlay }) : null;
+  const unattended = automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(env) && Boolean(artifact.account_id) && quality.pass && !varietyError;
   await db.update('artifacts', `id=eq.${artifact.id}`, {
     status: unattended ? 'approved' : 'draft',
     hook: hookOverlay,
     photo_urls: photoUrls,
-    error: null,
+    error: quality.pass ? varietyError : `Creative quality hold: ${[...quality.blockers, ...quality.warnings].join(' ')}`,
     stage: unattended ? 'schedule' : 'review',
     ...(unattended ? {
       tiktok_privacy_level: 'PUBLIC_TO_EVERYONE',
@@ -270,6 +294,7 @@ export async function produceArtifact(
     },
     asset_manifest: {
       ...manifest,
+      creative_quality: quality,
       app_slug: appSlug,
       caption_treatment: playbook.creativeStrategy.captionTreatment,
       ...(hookVisualTemplate
@@ -348,6 +373,10 @@ export const produceCarousels: Handler = {
     const maxPerRun = Math.min(Math.max(config.max_per_run ?? 3, 1), 6);
     const app = await ctx.db.selectOne<{ id: string }>('apps', `slug=eq.${encodeURIComponent(appSlug)}&select=id`);
     if (!app) throw new Error(`no app with slug "${appSlug}"`);
+    if (ctx.trigger === 'cron' && !config.source_run_id) {
+      const buffer = await ctx.db.select<{ id: string }>('artifacts', `app_id=eq.${app.id}&status=in.(approved,publishing)&select=id&limit=12`);
+      if (buffer.length >= 9) return { produced: 0, reason: 'Three-day ready buffer is full' };
+    }
 
     const activeMission = config.source_run_id
       ? null
@@ -367,16 +396,16 @@ export const produceCarousels: Handler = {
         'media_type=eq.photo',
         sourceRunId ? `run_id=eq.${encodeURIComponent(sourceRunId)}` : null,
         'select=*',
-        'order=created_at.asc',
+        'order=updated_at.asc',
         'limit=30',
       ].filter(Boolean).join('&'),
     );
     let autoApproved = 0;
-    if (unattendedPublishingEnabled(ctx.env)) {
+    if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
-        .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35)
-        .slice(0, maxPerRun);
+        .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35);
       for (const artifact of renderedDrafts) {
+        if (autoApproved >= maxPerRun) break;
         const quality = assessCreativeQuality({
           hook: artifact.hook,
           caption: artifact.caption,
@@ -386,10 +415,18 @@ export const produceCarousels: Handler = {
           photoUrls: artifact.photo_urls,
         });
         if (!quality.pass) continue;
+        const varietyError = await approvalVarietyError(ctx.db, artifact);
+        if (varietyError) {
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.draft`, {
+            stage: 'review', error: varietyError,
+          });
+          continue;
+        }
         const approvedAt = new Date().toISOString();
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
+        await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.draft`, {
           status: 'approved',
           stage: 'schedule',
+          error: null,
           tiktok_privacy_level: 'PUBLIC_TO_EVERYONE',
           disable_comment: false,
           auto_add_music: true,
@@ -405,7 +442,7 @@ export const produceCarousels: Handler = {
         autoApproved++;
       }
     }
-    const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0).slice(0, maxPerRun);
+    const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0);
     if (pending.length === 0) {
       if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
       return { produced: 0, auto_approved: autoApproved, blocked: 0, message: 'No unrendered photo drafts.' };
@@ -416,6 +453,7 @@ export const produceCarousels: Handler = {
     const blocked: Array<{ id: string; reason: string }> = [];
     const ready: Artifact[] = [];
     for (const artifact of pending) {
+      if (ready.length >= maxPerRun) break;
       const reason = await preflightArtifact(ctx.env, ctx.db, artifact, appSlug);
       if (reason) {
         blocked.push({ id: artifact.id, reason });

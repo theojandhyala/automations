@@ -63,7 +63,17 @@ export default function AgentBrain({
     const events = latest
       ? await supabase.from('run_events').select('*').eq('run_id', latest.id).order('id').limit(60)
       : { data: [] };
+    const deliveryRun = automation.handler_key === 'tiktok.publish'
+      ? await supabase.from('runs').select('*').eq('automation_id', automation.id)
+        .neq('status', 'running').is('result->>outside_posting_window', null)
+        .order('started_at', { ascending: false }).limit(1)
+      : { data: [] };
+    const delivery = (deliveryRun.data as Run[] | null)?.[0];
+    const deliveryEvents = delivery
+      ? await supabase.from('run_events').select('*').eq('run_id', delivery.id).order('id').limit(100)
+      : { data: [] };
     return {
+      delivery, deliveryEvents: (deliveryEvents.data ?? []) as RunEvent[],
       runs: (runs.data ?? []) as Run[],
       outputs: (outputs.data ?? []) as Artifact[],
       events: (events.data ?? []) as RunEvent[],
@@ -230,6 +240,13 @@ export default function AgentBrain({
               )}
             </div>
           </section>
+
+          {data?.delivery && <section className="brain-section">
+            <h4>Latest delivery-window run</h4>
+            <p>{data.delivery.started_at} · {data.delivery.status}</p>
+            <pre>{JSON.stringify(data.delivery.result, null, 2)}</pre>
+            {data.deliveryEvents.map(e => <p key={e.id}>{e.at} · {e.message}</p>)}
+          </section>}
 
           {automation.app_id && (
             <section className="brain-section">

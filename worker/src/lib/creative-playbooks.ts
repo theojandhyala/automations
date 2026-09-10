@@ -65,7 +65,7 @@ export const CAST_HOOK_VISUAL_TEMPLATE_ID = 'cast-fishing-decision-v2';
 
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-09-02.1',
+    version: 'deadset-2026-09-03.1',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
@@ -107,6 +107,8 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
             'Always use the saved casual person-walking-to-a-car slide-one composition.',
             'Keep the title short, human and readable in one glance.',
             'Resolve the setup with one exact current Deadset feature screen.',
+            'Treat slide two like a creator reaction to proof: keep the screenshot untouched, add no more than one short reaction line and use at most two thin hand-drawn callouts around exact displayed values.',
+            'Never cover the feature, rebuild the UI or turn the payoff into an App Store card.',
           ],
         },
         heartbreak_rebuild: {
@@ -238,7 +240,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     ],
   },
   cast: {
-    version: 'cast-2026-09-02.1',
+    version: 'cast-2026-09-03.2',
     appSlug: 'cast',
     appName: 'Cast',
     category: 'fishing',
@@ -256,7 +258,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
       ],
       captionStyle: 'TikTok Classic-style semi-bold white sans serif at a normal medium-heavy weight, clean 4-5px black outline, no box, no hollow lettering and no oversized cinematic title treatment.',
       variationRule: 'Vary the angler, water, weather, location, action and hook while preserving a clear real-world decision about whether and when to fish.',
-      rejectionRule: 'Reject posed trophy shots, fish close-ups, empty landscapes, glossy outdoor advertising, catalogue-style walking shots, cinematic colour grading and any image without an angler, fishing gear and visible water.',
+      rejectionRule: 'Reject posed trophy shots, fish close-ups, empty landscapes, glossy outdoor advertising, catalogue-style walking shots, cinematic colour grading and any image without an angler, fishing gear and visible water. Reject generic scenery that could belong to any outdoor app.',
       gateLabel: 'angler-and-water',
     },
     creativeStrategy: {
@@ -266,19 +268,23 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
           id: 'fishing_decision',
           label: 'Real fishing decision',
           hookExamples: [
-            'Worth fishing this mark tonight?',
-            'Would you cast here right now?',
-            'What would you check before the first cast?',
+            'Worth the drive tonight?',
+            'Would you leave now or wait?',
+            'Looks perfect. Is it the right hour?',
           ],
           captionExamples: [
-            'The decision before the first cast matters more than the scenic shot.',
-            'I would rather read the conditions than guess the session.',
+            'I check the live score, tide and recommended hour before I waste the drive.',
+            'The water can look perfect and still not be the window.',
           ],
           soundMood: 'Current UK Commercial Music Library track that fits the field footage: calm or reflective for waiting, dynamic for action, never novelty or shock audio.',
           hashtags: ['fishingtok', 'ukfishing', 'angling', 'fishingapp'],
           rules: [
             'Open on a real angler, visible fishing gear and visible water.',
             'Choose the hook from the actual fishing decision and prove it with one exact Cast screen.',
+            'For bite forecasts, fill slide two with the exact current home screen so the score, recommended window, target species and tide are all readable.',
+            'Do not use a phone mockup, benefit title card, logo card or vague promotional slogan as product proof.',
+            'Treat slide two like an angler reacting to a result: keep the screenshot untouched, add no more than one short reaction line and use at most two thin turquoise hand-drawn callouts around exact displayed values.',
+            'Use the annotation to focus the score or recommended window; never cover the target species, tide, location controls or core navigation.',
             'Never expose an exact private mark or imply that conditions guarantee a catch.',
           ],
         },
@@ -303,11 +309,11 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
         label: 'Bite forecast',
         truth: 'CAST combines solunar windows, tide state, pressure trend and weather at the selected mark into one fishing score and exposes the underlying signals.',
         stockDirection: 'angler checking conditions by a lake, river or coast before fishing',
-        fallbackHook: 'Worth going fishing tonight?',
-        fallbackCaption: 'I check the live score and best fishing window before I waste the trip.',
-        // The exact home capture already states the score, recommended window,
-        // target species and tide. Extra text would cover the product proof.
-        fallbackProofOverlay: '',
+        fallbackHook: 'Worth the drive tonight?',
+        fallbackCaption: 'I check the live score, tide and recommended hour before I waste the drive.',
+        // The exact home capture already carries the product detail. This is a
+        // short creator reaction, not a second marketing headline.
+        fallbackProofOverlay: 'it literally picked the window.',
       },
       fishkey: {
         label: 'FishKey',
@@ -352,6 +358,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     },
     claimsToAvoid: [
       'guaranteed catch', 'guaranteed catches', 'guaranteed fish', 'exact secret spots',
+      'know when the fish will bite', 'the fish will bite',
       'automatic fish identification', 'ai identifies every fish', 'every fish', 'every water',
       'live moderation', 'always accurate',
     ],
@@ -479,7 +486,7 @@ export function photoSystem(playbook: CreativePlaybook): string {
 
 Content grammar:
 1. Slide one is a candid, believable real-life ${playbook.category} photograph with one short relatable question, message or setup in native TikTok text.
-2. Slide two is an exact current screenshot of one real ${playbook.appName} feature that answers the setup.
+2. Slide two is an exact current screenshot of one real ${playbook.appName} feature that answers the setup. Preserve the UI exactly; add at most one short creator-reaction line and up to two thin hand-drawn callouts around exact displayed proof.
 
 ${featureTruth}
 ${hookTemplate}
@@ -493,6 +500,7 @@ Sound and trend policy:
 
 Rules:
 - One carousel makes one promise to one audience. The exact app screen is the proof.
+- Slide-two additions must feel like a person annotating a screenshot inside TikTok, never like a redesigned ad: one brief reaction, no more than two thin callouts and no covered UI.
 - The hook is entertaining native social copy, not an ad headline: under 70 characters and clear in one second.
 - Use creator-owned or explicitly licensed real imagery. Never request an AI person, celebrity, copied social post or Pinterest download. Pinterest is mood-reference only.
 - The payoff must name one exact feature key above. Never fabricate UI, users, statistics, results, catches, strength gains or testimonials.

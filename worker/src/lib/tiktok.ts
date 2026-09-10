@@ -81,6 +81,7 @@ interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  refresh_token_expires_in?: number;
   open_id: string;
   scope?: string;
   error?: string;
@@ -103,6 +104,7 @@ async function businessTokenRequest(
     throw new Error('TikTok Business Accounts client credentials are not configured');
   }
   const res = await fetch(`${BUSINESS_API}${path}`, {
+    signal: AbortSignal.timeout(15_000),
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -125,6 +127,7 @@ async function tokenRequest(env: Env, body: Record<string, string>): Promise<Tok
     throw new Error('TikTok client credentials are not configured');
   }
   const res = await fetch(`${API}/oauth/token/`, {
+    signal: AbortSignal.timeout(15_000),
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -162,12 +165,22 @@ export async function storeTokens(
   accountId: string,
   tokens: TokenResponse,
 ): Promise<void> {
+  if (!tokens.access_token || !tokens.refresh_token || !tokens.open_id
+    || !Number.isFinite(tokens.expires_in) || tokens.expires_in <= 0) {
+    throw new Error('TikTok returned an incomplete token response; existing credentials were preserved');
+  }
   await db.update('tiktok_accounts', `id=eq.${accountId}`, {
     open_id: tokens.open_id,
     access_token_enc: await encrypt(tokens.access_token, env.TOKEN_ENCRYPTION_KEY),
     refresh_token_enc: await encrypt(tokens.refresh_token, env.TOKEN_ENCRYPTION_KEY),
     token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
     status: 'connected',
+    token_provider: publishProvider(env),
+    granted_scopes: tokens.scope ?? null,
+    refresh_locked_until: null,
+    ...(tokens.refresh_token_expires_in ? {
+      refresh_token_expires_at: new Date(Date.now() + tokens.refresh_token_expires_in * 1000).toISOString(),
+    } : {}),
   });
 }
 
@@ -176,18 +189,28 @@ export async function storeTokens(
  * expires within five minutes. Marks the account 'expired' and throws if the
  * refresh token is no longer accepted -- that needs a human to reconnect.
  */
-export async function accessTokenFor(env: Env, db: Db, account: TikTokAccount): Promise<string> {
+export async function accessTokenFor(env: Env, db: Db, account: TikTokAccount, minimumTtlMs = 5 * 60 * 1000): Promise<string> {
   if (!account.access_token_enc || !account.refresh_token_enc) {
     throw new Error(`account @${account.handle} is not connected`);
   }
 
   const expiresAt = account.token_expires_at ? Date.parse(account.token_expires_at) : 0;
-  if (expiresAt - Date.now() > 5 * 60 * 1000) {
+  if (account.token_provider && account.token_provider !== publishProvider(env)) {
+    throw new Error(`@${account.handle} must reconnect to the configured TikTok provider`);
+  }
+  if (expiresAt - Date.now() > minimumTtlMs) {
     return decrypt(account.access_token_enc, env.TOKEN_ENCRYPTION_KEY);
   }
 
-  const refreshToken = await decrypt(account.refresh_token_enc, env.TOKEN_ENCRYPTION_KEY);
+  const [claimed] = await db.rpc<TikTokAccount[]>('claim_tiktok_refresh', { p_account_id: account.id });
+  if (!claimed) throw new Error(`@${account.handle} token renewal is already in progress; retry shortly`);
   try {
+    // Another job may have rotated this token since our original account read.
+    Object.assign(account, claimed);
+    if (Date.parse(claimed.token_expires_at ?? '') - Date.now() > minimumTtlMs) {
+      return await decrypt(claimed.access_token_enc!, env.TOKEN_ENCRYPTION_KEY);
+    }
+    const refreshToken = await decrypt(claimed.refresh_token_enc!, env.TOKEN_ENCRYPTION_KEY);
     const tokens = publishProvider(env) === 'business_accounts'
       ? await businessTokenRequest(env, '/tt_user/oauth2/refresh_token/', {
           grant_type: 'refresh_token',
@@ -197,11 +220,20 @@ export async function accessTokenFor(env: Env, db: Db, account: TikTokAccount): 
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
         });
+    if (claimed.open_id && tokens.open_id !== claimed.open_id) throw new Error('TikTok refresh identity changed; reconnect required');
     await storeTokens(env, db, account.id, tokens);
+    account.token_expires_at = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+    account.open_id = tokens.open_id;
     return tokens.access_token;
   } catch (err) {
-    await db.update('tiktok_accounts', `id=eq.${account.id}`, { status: 'expired' });
-    throw new Error(`@${account.handle} needs reconnecting: ${err instanceof Error ? err.message : err}`);
+    const message = err instanceof Error ? err.message : String(err);
+    // Network errors, 429 and upstream outages do not revoke a valid grant.
+    if (/invalid_grant|refresh.{0,25}(invalid|expired|revoked)|(invalid|expired|revoked).{0,25}refresh|identity changed/i.test(message)) {
+      await db.update('tiktok_accounts', `id=eq.${account.id}`, { status: 'expired' });
+    }
+    throw new Error(`@${account.handle} token renewal failed: ${message}`);
+  } finally {
+    await db.update('tiktok_accounts', `id=eq.${account.id}`, { refresh_locked_until: null });
   }
 }
 
@@ -222,6 +254,8 @@ async function apiPost<T>(token: string, path: string, body: unknown): Promise<T
   return json.data as T;
 }
 
+export class TikTokMediaOwnershipRejected extends Error {}
+
 async function businessApi<T>(
   token: string,
   path: string,
@@ -230,6 +264,7 @@ async function businessApi<T>(
   const url = new URL(`${BUSINESS_API}${path}`);
   for (const [key, value] of Object.entries(init.query ?? {})) url.searchParams.set(key, value);
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(20_000),
     method: init.method,
     headers: {
       'Access-Token': token,
@@ -238,6 +273,12 @@ async function businessApi<T>(
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   });
   const json = (await res.json()) as BusinessEnvelope<T>;
+  if (res.ok && path === '/business/photo/publish/' && json.code === 40002
+    && json.message?.includes('URL ownership verification')) {
+    // Explicit unsuccessful parameter validation, not a lost/ambiguous response.
+    // Do not retry this artifact; retain its delivery reservation for audit.
+    throw new TikTokMediaOwnershipRejected(`TikTok rejected media ownership: ${json.message}`);
+  }
   if (!res.ok || json.code !== 0 || !json.data) {
     throw new Error(
       `tiktok business ${path}: ${json.code ?? res.status} ${json.message ?? ''}`.trim(),
@@ -269,6 +310,12 @@ export function creatorInfo(token: string): Promise<CreatorInfo> {
 export async function postingInfo(env: Env, token: string, account: TikTokAccount): Promise<CreatorInfo> {
   if (publishProvider(env) !== 'business_accounts') return creatorInfo(token);
   if (!account.open_id) throw new Error(`@${account.handle} needs reconnecting to TikTok Accounts API`);
+  const identity = await businessApi<{ username?: string; display_name?: string }>(token, '/business/get/', {
+    method: 'GET', query: { business_id: account.open_id, fields: JSON.stringify(['username', 'display_name']) },
+  });
+  if (!identity.username || identity.username.replace(/^@/, '').toLowerCase() !== account.handle.replace(/^@/, '').toLowerCase()) {
+    throw new Error(`TikTok account identity does not match @${account.handle}; reconnect the correct account`);
+  }
   const settings = await businessApi<Omit<CreatorInfo, 'creator_username' | 'creator_nickname'>>(
     token,
     '/business/video/settings/',
@@ -276,8 +323,8 @@ export async function postingInfo(env: Env, token: string, account: TikTokAccoun
   );
   return {
     ...settings,
-    creator_username: account.handle,
-    creator_nickname: account.display_name ?? account.handle,
+    creator_username: identity.username,
+    creator_nickname: identity.display_name ?? identity.username,
   };
 }
 

@@ -59,6 +59,10 @@ export interface TikTokAccount {
   token_expires_at: string | null;
   status: 'connected' | 'expired' | 'revoked' | 'error';
   daily_post_limit: number;
+  token_provider?: string | null;
+  granted_scopes?: string | null;
+  refresh_token_expires_at?: string | null;
+  health?: Record<string, unknown> | null;
 }
 
 export interface Artifact {

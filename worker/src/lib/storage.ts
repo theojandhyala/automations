@@ -43,7 +43,7 @@ export async function streamMedia(env: Env, path: string, req: Request): Promise
   const range = req.headers.get('Range');
   if (range) headers.Range = range;
 
-  const upstream = await fetch(objectUrl(env, path, true), { headers });
+  const upstream = await fetch(objectUrl(env, path, true), { headers, signal: req.signal, redirect: 'manual' });
   if (!upstream.ok) return new Response('not found', { status: upstream.status === 404 ? 404 : 502 });
 
   const out = new Headers();
@@ -53,6 +53,7 @@ export async function streamMedia(env: Env, path: string, req: Request): Promise
   }
   out.set('Cache-Control', 'public, max-age=31536000, immutable');
   out.set('X-Content-Type-Options', 'nosniff');
+  if (req.method === 'HEAD') await upstream.body?.cancel();
   return new Response(req.method === 'HEAD' ? null : upstream.body, {
     status: upstream.status,
     headers: out,

@@ -8,6 +8,7 @@ import {
   unattendedPublishingEnabled,
 } from '../src/lib/tiktok';
 import { isPostingSlot, missionRoutingError, startOfLocalDay } from '../src/automations/tiktok-publish';
+import { isVerifiedPublished } from '../src/automations/tiktok-reconcile';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -204,5 +205,18 @@ describe('TikTok mission routing interlock', () => {
       { app_id: 'lifescore-app' },
       { id: 'lifescore-app', slug: 'lifescore', promotion_enabled: false },
     )).toMatch(/publishing is locked/);
+  });
+});
+
+describe('TikTok publish reconciliation', () => {
+  it('waits for a public post id before calling an Accounts API submission published', () => {
+    expect(isVerifiedPublished('business_accounts', {
+      status: 'PUBLISH_COMPLETE',
+      publicaly_available_post_id: [],
+    })).toBe(false);
+    expect(isVerifiedPublished('business_accounts', {
+      status: 'PUBLISH_COMPLETE',
+      publicaly_available_post_id: ['7480000000000000000'],
+    })).toBe(true);
   });
 });

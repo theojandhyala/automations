@@ -1,9 +1,23 @@
-import { accessTokenFor, publishStatusFor } from '../lib/tiktok';
+import { accessTokenFor, publishProvider, publishStatusFor } from '../lib/tiktok';
+import type { PublishStatus, TikTokPublishProvider } from '../lib/tiktok';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
 /** How long a publish may sit in TikTok's queue before we call it stuck. */
 const STALE_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * Accounts API can report PUBLISH_COMPLETE shortly before post_ids is
+ * populated.  Treating that transient state as published would make the
+ * dashboard claim a post is live without a public TikTok ID to prove it.
+ */
+export function isVerifiedPublished(
+  provider: TikTokPublishProvider,
+  status: PublishStatus,
+): boolean {
+  return status.status === 'PUBLISH_COMPLETE'
+    && (provider !== 'business_accounts' || Boolean(status.publicaly_available_post_id?.[0]));
+}
 
 /**
  * Polls TikTok for artifacts left in 'publishing' and settles them. Without
@@ -38,12 +52,13 @@ export const reconcilePublishing: Handler = {
         const token = await accessTokenFor(ctx.env, ctx.db, account);
         const status = await publishStatusFor(ctx.env, token, account, artifact.publish_id!);
 
-        if (status.status === 'PUBLISH_COMPLETE') {
+        if (isVerifiedPublished(publishProvider(ctx.env), status)) {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
             status: 'published',
             stage: 'analytics',
             published_at: new Date().toISOString(),
             tiktok_post_id: status.publicaly_available_post_id?.[0] ?? null,
+            error: null,
           });
           settled++;
           ctx.log('info', `published to @${account.handle}`);
@@ -56,11 +71,11 @@ export const reconcilePublishing: Handler = {
           ctx.log('error', `TikTok rejected ${artifact.id}`, { reason: status.fail_reason });
         } else if (Date.now() - Date.parse(artifact.updated_at) > STALE_AFTER_MS) {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-            status: 'failed',
-            error: `stuck in ${status.status} for over an hour`,
+            error: `Still awaiting TikTok reconciliation (${status.status}); automatic resubmission is locked.`,
           });
-          failed++;
-          ctx.log('warn', `giving up on ${artifact.id}`, { last_status: status.status });
+          ctx.log('warn', `retaining uncertain delivery ${artifact.id}`, { last_status: status.status });
+        } else if (status.status === 'PUBLISH_COMPLETE') {
+          ctx.log('debug', `${artifact.id} passed TikTok processing and is awaiting a public post id`);
         } else {
           ctx.log('debug', `${artifact.id} still ${status.status}`);
         }

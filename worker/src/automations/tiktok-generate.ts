@@ -14,6 +14,7 @@ import {
 } from '../lib/creative-intelligence';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { normalizeHashtags } from '../lib/hashtags';
+import { isRepeatedHook } from '../lib/creative-variety';
 import type { Handler } from './registry';
 
 interface App {
@@ -155,7 +156,7 @@ export function buildCarouselFallbacks(
           `${spec.label}: the part I want saved for next time`,
         ];
     const hook = candidates[variant];
-    if (!hook || hook.length > 120 || usedHooks.has(hook.toLowerCase())) continue;
+    if (!hook || hook.length > 90 || isRepeatedHook(hook, [...usedHooks])) continue;
     usedHooks.add(hook.toLowerCase());
     fallbacks.push({
       hook,
@@ -257,13 +258,19 @@ export const generateDrafts: Handler = {
     );
     const recentHooks = recent.map((r) => r.hook).filter(Boolean);
 
+    if (ctx.trigger === 'cron') {
+      const buffer = await ctx.db.select<{ id: string }>('artifacts', `app_id=eq.${app.id}&status=in.(approved,publishing)&select=id&limit=12`);
+      if (buffer.length >= 9) return { created: 0, reason: 'Three-day ready buffer is full; preserve freshness and budget' };
+    }
+
     await ctx.setTask(`drafting ${count} concepts for ${app.name}`);
     ctx.log('debug', 'seeded with recent hooks', { recent: recentHooks.length });
 
     const isCarousel = config.content_format === 'photo_carousel';
     const featureKeys = Object.keys(playbook.features);
+    const assets = isCarousel ? await ctx.db.select<{ asset_key: string }>('creative_assets', `app_slug=eq.${encodeURIComponent(appSlug)}&select=asset_key`) : [];
     const allowedFeatures = (config.feature_rotation?.length ? config.feature_rotation : featureKeys)
-      .filter((key) => key in playbook.features);
+      .filter((key) => key in playbook.features && (!isCarousel || assets.some(asset => asset.asset_key === key)));
     if (isCarousel && allowedFeatures.length === 0) throw new Error('no verified feature keys are enabled for this carousel');
     // Ask for spare candidates because the deterministic truth gate may reject
     // a structurally valid model response. This is especially important for a
@@ -373,6 +380,7 @@ export const generateDrafts: Handler = {
       };
     });
     const seenFeatures = new Set<string>();
+    const seenHooks = recentHooks.filter((hook): hook is string => Boolean(hook));
     const validIdeas = normalizedIdeas.filter((idea) => {
       const combined = `${idea.hook ?? ''} ${idea.caption ?? ''} ${idea.single_promise ?? ''}`;
       const forbidden = containsForbiddenClaim(combined, playbook.claimsToAvoid);
@@ -387,6 +395,7 @@ export const generateDrafts: Handler = {
       if (!idea.hook?.trim() || idea.hook.trim().length > 120 || !hasMeaningfulHook(idea.hook)) {
         reason = 'hook is missing, meaningless or too long';
       }
+      else if (isRepeatedHook(idea.hook, seenHooks)) reason = 'hook repeats recent content';
       else if (!quality.pass) reason = `native quality gate: ${[...quality.blockers, ...quality.warnings].join(' ')}`;
       else if (!idea.caption?.trim()) reason = 'caption is missing';
       else if (!Array.isArray(idea.hashtags) || idea.hashtags.length < 3) reason = 'fewer than three hashtags';
@@ -408,6 +417,7 @@ export const generateDrafts: Handler = {
         return false;
       }
       if (idea.feature) seenFeatures.add(idea.feature);
+      seenHooks.push(idea.hook);
       return true;
     });
     const acceptedIdeas: DraftIdea[] = [];

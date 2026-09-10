@@ -1,6 +1,5 @@
-import { accessTokenFor } from '../lib/tiktok';
-import { accountStatsFor, recentVideosFor } from '../lib/tiktok-metrics';
-import type { Artifact, TikTokAccount } from '../types';
+import { activeTikTokAccounts, checkAccountAccess } from '../lib/tiktok-health';
+import type { Artifact } from '../types';
 import type { Handler } from './registry';
 
 /**
@@ -21,10 +20,7 @@ export const analyticsSync: Handler = {
     const config = ctx.automation.config as { lookback_posts?: number };
     const lookback = Math.min(Math.max(config.lookback_posts ?? 20, 1), 100);
 
-    const accounts = await ctx.db.select<TikTokAccount>(
-      'tiktok_accounts',
-      'status=eq.connected&select=*',
-    );
+    const accounts = await activeTikTokAccounts(ctx.db);
 
     if (accounts.length === 0) {
       ctx.log('warn', 'no connected accounts — analytics is unavailable until one is connected');
@@ -38,12 +34,9 @@ export const analyticsSync: Handler = {
     for (const account of accounts) {
       await ctx.setTask(`reading @${account.handle}`);
       try {
-        const token = await accessTokenFor(ctx.env, ctx.db, account);
-
-        const stats = await accountStatsFor(ctx.env, token, account);
-        const videos = stats.scopeMissing
-          ? { videos: [], scopeMissing: true }
-          : await recentVideosFor(ctx.env, token, account, lookback);
+        const { health, stats, videos } = await checkAccountAccess(ctx.env, ctx.db, account, lookback);
+        if (!health.username) throw new Error(health.errors.join('; '));
+        for (const error of health.errors) ctx.log('warn', `@${account.handle}: ${error}`);
 
         const quality = stats.scopeMissing || videos.scopeMissing ? 'partial' : 'ok';
         if (quality === 'partial') partial++;
@@ -55,11 +48,13 @@ export const analyticsSync: Handler = {
           following: stats.following_count ?? null,
           likes_total: stats.likes_count ?? null,
           video_count: stats.video_count ?? null,
-          views_28d: videos.videos.reduce((sum, v) => sum + (v.view_count ?? 0), 0) || null,
-          comments_28d: videos.videos.reduce((sum, v) => sum + (v.comment_count ?? 0), 0) || null,
-          shares_28d: videos.videos.reduce((sum, v) => sum + (v.share_count ?? 0), 0) || null,
+          // The API returns lifetime counts for a bounded list, not 28-day
+          // account totals. Do not label these as a complete time series.
+          views_28d: null,
+          comments_28d: null,
+          shares_28d: null,
           quality,
-          raw: { stats_scope_missing: stats.scopeMissing, video_scope_missing: videos.scopeMissing },
+          raw: { stats_scope_missing: stats.scopeMissing, video_scope_missing: videos.scopeMissing, coverage: 'latest_posts_lifetime_metrics', sampled_posts: videos.videos.length },
         });
 
         // Tie post metrics back to the artifact that produced them, so the
@@ -67,7 +62,7 @@ export const analyticsSync: Handler = {
         for (const video of videos.videos) {
           const artifact = await ctx.db.selectOne<Artifact>(
             'artifacts',
-            `tiktok_post_id=eq.${video.id}&select=id`,
+            `account_id=eq.${account.id}&tiktok_post_id=eq.${encodeURIComponent(video.id)}&select=id`,
           );
           postRows.push({
             artifact_id: artifact?.id ?? null,
@@ -92,6 +87,7 @@ export const analyticsSync: Handler = {
     }
 
     await ctx.db.insertMany('post_metrics', postRows);
+    if (synced === 0) throw new Error('No active TikTok account passed live identity and analytics checks; inspect Channel uplink health');
     return { accounts: accounts.length, synced, partial, posts: postRows.length };
   },
 };

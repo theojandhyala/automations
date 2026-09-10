@@ -1,3 +1,4 @@
+import { automaticCreativeApprovalAllowed, hasExactOwnerApproval } from '../lib/owner-approval';
 import {
   accessTokenFor,
   initOwnedPhotoPublish,
@@ -7,8 +8,12 @@ import {
   postingInfo,
   publishProvider,
   unattendedPublishingEnabled,
+  TikTokMediaOwnershipRejected,
 } from '../lib/tiktok';
 import { formatHashtags } from '../lib/hashtags';
+import { assessCreativeQuality } from '../lib/creative-quality';
+import { verifyPublishMedia } from '../lib/publish-media';
+import { isRepeatedHook } from '../lib/creative-variety';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
@@ -31,8 +36,8 @@ export function isPostingSlot(at: Date, timezone: string, localHours: number[]):
   const minute = Number(parts.find((part) => part.type === 'minute')?.value);
   // Cloudflare cron triggers can start a little after the nominal second. A
   // five-minute grace window avoids losing a day's post to harmless scheduler
-  // latency; the automation itself has only one due run for each slot, so this
-  // cannot create duplicate submissions inside the window.
+  // latency; the database reserves each account/slot once, so retries inside
+  // this window cannot create duplicate submissions.
   return minute >= 0 && minute < 5 && localHours.includes(hour);
 }
 
@@ -134,7 +139,7 @@ export const publishApproved: Handler = {
       return { submitted: 0, skipped: 0, public_automation_locked: true };
     }
 
-    // The cron contains both GMT and BST candidates. Scheduled runs only
+    // The cron checks every minute. Scheduled runs only
     // continue when the wall-clock time in London is exactly 12, 15 or 18;
     // explicit manual runs remain available to the owner at any time.
     if (
@@ -165,7 +170,6 @@ export const publishApproved: Handler = {
       return { published: 0 };
     }
 
-    const since = startOfLocalDay(nowDate, config.timezone ?? 'UTC').toISOString();
     let published = 0;
     let skipped = 0;
     const postedThisRun = new Set<string>();
@@ -213,17 +217,39 @@ export const publishApproved: Handler = {
         continue;
       }
 
-      const todaysPosts = await ctx.db.select<{ id: string }>(
-        'artifacts',
-        `account_id=eq.${accountId}&status=eq.published&published_at=gte.${since}&select=id`,
-      );
-      if (todaysPosts.length >= account.daily_post_limit) {
-        ctx.log('info', `@${account.handle} hit its daily limit (${account.daily_post_limit})`);
+      if (app?.slug === 'deadset' && !(unattended && automaticCreativeApprovalAllowed(app.slug)) && !await hasExactOwnerApproval(artifact)) {
+        ctx.log('warn', 'Deadset owner approval required for this exact creative', { artifact_id: artifact.id });
         skipped++;
         continue;
       }
-
+      postedThisRun.add(accountId);
+      let attempted = false;
+      let submissionId: string | undefined;
       try {
+        const recentPosts = await ctx.db.select<{ hook: string | null }>('artifacts',
+          `account_id=eq.${accountId}&status=in.(published,publishing)&select=hook&order=created_at.desc&limit=90`);
+        if (isRepeatedHook(artifact.hook ?? '', recentPosts.map(post => post.hook ?? ''))) {
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
+            status: 'draft', stage: 'review', error: 'Creative variety hold: this hook repeats recent account content; replace the concept.',
+          });
+          // A rejected concept made no delivery attempt; let a different,
+          // eligible concept for this account use the same scheduled slot.
+          postedThisRun.delete(accountId);
+          skipped++; continue;
+        }
+        const quality = assessCreativeQuality({
+          hook: artifact.hook, caption: artifact.caption, hashtags: artifact.hashtags,
+          mediaType: artifact.media_type, assetManifest: artifact.asset_manifest,
+          photoUrls: artifact.photo_urls, videoUrl: artifact.video_url,
+        });
+        if (!quality.pass) {
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
+            status: 'draft', stage: 'review', error: `Creative quality hold: ${[...quality.blockers, ...quality.warnings].join(' ')}`,
+          });
+          postedThisRun.delete(accountId);
+          skipped++;
+          continue;
+        }
         const mediaReady = artifact.media_type === 'photo'
           ? artifact.photo_urls.length >= 1 && artifact.photo_urls.length <= 35
           : Boolean(artifact.video_url);
@@ -237,12 +263,7 @@ export const publishApproved: Handler = {
         }
 
         await ctx.setTask(`publishing to @${account.handle}`);
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
-          status: 'publishing',
-          stage: 'publish',
-          error: null,
-        });
-
+        await verifyPublishMedia(ctx.env, artifact);
         const token = await accessTokenFor(ctx.env, ctx.db, account);
         const info = await postingInfo(ctx.env, token, account);
         if (!info.privacy_level_options.includes(privacy)) {
@@ -266,6 +287,22 @@ export const publishApproved: Handler = {
         if (provider === 'business_accounts' && !account.open_id) {
           throw new Error(`@${account.handle} needs reconnecting to TikTok Accounts API`);
         }
+        // Database transaction serializes this account, enforces exact handle,
+        // London slot and daily cap, and holds uncertain attempts indefinitely.
+        const reserved = await ctx.db.rpc<boolean>('reserve_tiktok_delivery', {
+          p_artifact_id: artifact.id, p_scheduled: ctx.trigger === 'cron',
+          p_expected: {
+            app_id: artifact.app_id, account_id: artifact.account_id, hook: artifact.hook,
+            caption: artifact.caption, hashtags: artifact.hashtags, photo_urls: artifact.photo_urls,
+            video_url: artifact.video_url, media_type: artifact.media_type, asset_manifest: artifact.asset_manifest,
+            tiktok_privacy_level: artifact.tiktok_privacy_level, posting_consent_at: artifact.posting_consent_at,
+            disable_comment: artifact.disable_comment, auto_add_music: artifact.auto_add_music,
+            brand_organic_toggle: artifact.brand_organic_toggle, brand_content_toggle: artifact.brand_content_toggle,
+            is_aigc: artifact.is_aigc, stages: artifact.stages,
+          },
+        });
+        if (!reserved) { skipped++; continue; }
+        attempted = true;
         const publish = artifact.media_type === 'photo'
           ? provider === 'business_accounts'
             ? await initOwnedPhotoPublish(token, account.open_id!, {
@@ -298,6 +335,8 @@ export const publishApproved: Handler = {
               isAigc: artifact.is_aigc,
             });
         const { publish_id } = publish;
+        if (!publish_id) throw new Error('TikTok returned no submission ID');
+        submissionId = publish_id;
 
         // TikTok pulls and encodes asynchronously; tiktok.reconcile closes the
         // loop and moves the artifact to 'published'.
@@ -311,8 +350,19 @@ export const publishApproved: Handler = {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, { status: 'failed', error: message });
-        ctx.log('error', `failed to publish ${artifact.id}`, { error: message });
+        await ctx.db.update('artifacts', `id=eq.${artifact.id}`, attempted && !submissionId && err instanceof TikTokMediaOwnershipRejected ? {
+          status: 'failed',
+          error: message,
+        } : attempted ? {
+          status: 'publishing',
+          ...(submissionId ? { publish_id: submissionId } : {}),
+          error: `Delivery outcome uncertain; do not resubmit. ${message}`,
+        } : {
+          // Preflight sent nothing to TikTok; a bounded later check is safe.
+          error: `Publish preflight: ${message}`,
+          scheduled_for: new Date(Date.now() + 120_000).toISOString(),
+        });
+        ctx.log('error', `publish ${attempted ? 'requires reconciliation' : 'preflight failed'} for ${artifact.id}`, { error: message });
       }
     }
 
