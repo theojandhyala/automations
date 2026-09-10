@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import type { Account, App, Automation } from '../lib/types';
 
@@ -57,6 +58,7 @@ export default function JarvisDeck({
   onOpenAgent: (automation: Automation) => void;
   onOpenCore: () => void;
 }) {
+  const navigate = useNavigate();
   const missions = apps
     .filter((app) => ['deadset', 'cast', 'lifescore'].includes(app.slug))
     .sort((a, b) => a.sort_order - b.sort_order);
@@ -119,12 +121,13 @@ export default function JarvisDeck({
                 style={{ '--mission-color': accent, '--mission-index': index } as MissionStyle}
                 type="button"
                 key={app.id}
-                disabled={!primary}
-                onClick={() => primary && onOpenAgent(primary)}
+                disabled={isStandby && !primary}
+                aria-label={isStandby ? `Open ${app.name} controls` : `Open ${app.name} HQ`}
+                onClick={() => isStandby ? primary && onOpenAgent(primary) : navigate(`/hq/${app.slug}/overview`)}
               >
                 <span className="mission-number">0{index + 1}</span>
                 <span className="mission-orb" aria-hidden="true"><i /><i /><i /><b /></span>
-                <span className="mission-copy"><small>{isStandby ? 'FUTURE CHANNEL' : 'AUTONOMOUS POSTING CHANNEL'}</small><strong>{app.name}</strong><em>{app.tagline ?? 'Product promotion intelligence'}</em></span>
+                <span className="mission-copy"><small>{isStandby ? 'FUTURE CHANNEL' : 'OPEN APP HQ · ANALYTICS & GROWTH'}</small><strong>{app.name}</strong><em>{app.tagline ?? 'Product promotion intelligence'}</em></span>
                 <span className="mission-state"><i />{status}</span>
                 <span className="mission-data-grid">
                   <span><small>OUTPUT</small><b>{isStandby ? 'OFF' : `${account?.daily_post_limit ?? 3}/DAY`}</b></span>

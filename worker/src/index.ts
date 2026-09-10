@@ -1,3 +1,5 @@
+import { handleAppHq, captureHqBaseline } from './api/app-hq';
+import { syncApple } from './lib/hq-apple';
 import { handleDeadset } from './api/deadset';
 import { handleApiSafe } from './api/router';
 import { backfillSchedules, dispatchDue } from './lib/runner';
@@ -14,6 +16,8 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
+    if (url.pathname.startsWith('/api/hq/')) return handleAppHq(req, env);
+
     if (url.pathname === '/api/deadset/baselines') return handleDeadset(req, env);
 
     if (url.pathname.startsWith('/api/')) {
@@ -28,6 +32,16 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const now = new Date();
+    if (now.getUTCMinutes() === 25) ctx.waitUntil(captureHqBaseline(env).catch(() => log.warn('HQ product snapshot unavailable')));
+    if (now.getUTCHours() === 8 && now.getUTCMinutes() === 30) ctx.waitUntil((async () => {
+      for (const app of ['deadset', 'cast'] as const) {
+        if (await env.HQ_DATA.get(`${app}/apple-settings`)) {
+          try { await syncApple(env, app); }
+          catch { await env.HQ_DATA.put(`${app}/apple-sync`, JSON.stringify({ saved: 0, errors: ['Scheduled Apple report sync failed. Retry from App Store or check reporting access.'], at: new Date().toISOString() })); }
+        }
+      }
+    })().catch(() => log.warn('HQ reporting schedule failed')));
     ctx.waitUntil(
       (async () => {
         await backfillSchedules(env);

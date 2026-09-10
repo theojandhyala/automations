@@ -14,6 +14,7 @@ export default defineConfig({
         // production uses the newer date declared in wrangler.jsonc.
         compatibilityDate: '2026-08-22',
         compatibilityFlags: ['nodejs_compat'],
+        kvNamespaces: ['HQ_DATA', 'DEADSET_BASELINE'],
         bindings: {
           // Pipeline status only needs to know the binding is configured; AI
           // inference itself remains remote and is not called by unit tests.

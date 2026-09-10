@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import CommandCenter from './pages/CommandCenter';
-import DeadsetHQ from './pages/DeadsetHQ';
+import AppHQ from './pages/AppHQ';
 import Queue from './pages/Queue';
 import Accounts from './pages/Accounts';
 import HudPreview from './pages/HudPreview';
@@ -16,7 +16,8 @@ import LiveTelemetryBadge from './components/LiveTelemetryBadge';
 import { LiveSyncProvider } from './lib/liveSync';
 
 const WORKSPACE_ROUTES = [
-  { to: '/deadset', index: 'HQ', label: 'DEADSET HQ', short: 'DEADSET', detail: 'Growth, retention and revenue' },
+  { to: '/hq/deadset/overview', index: 'HQ', label: 'DEADSET HQ', short: 'DEADSET', detail: 'Downloads, product and revenue' },
+  { to: '/hq/cast/overview', index: 'HQ', label: 'CAST HQ', short: 'CAST', detail: 'Downloads, product and revenue' },
   { to: '/', index: '00', label: 'Command center', short: 'Core', detail: 'Live mission overview', end: true },
   { to: '/promote', index: '01', label: 'App missions', short: 'Missions', detail: 'Create the next batch' },
   { to: '/queue', index: '02', label: 'Review queue', short: 'Review', detail: 'Inspect and authorise' },
@@ -89,7 +90,7 @@ function Shell({ session }: { session: Session }) {
         </header>
         <main>
           <Routes>
-            <Route path="/deadset" element={<DeadsetHQ />} />
+            <Route path="/deadset" element={<Navigate to="/hq/deadset/overview" replace />} />
             <Route path="/promote" element={<PromotionMission />} />
             <Route path="/queue" element={<Queue />} />
             <Route path="/studio" element={<CreativeStudio />} />
@@ -140,7 +141,7 @@ export default function App() {
 
   return (
     <LiveSyncProvider>
-      {location.pathname === '/' ? (
+      {location.pathname.startsWith('/hq/') ? <Routes><Route path="/hq/:app/:section" element={<AppHQ />} /><Route path="/hq/:app" element={<AppHQ />} /></Routes> : location.pathname === '/' ? (
         <>
           <CommandCenter />
           <CommandDock />
