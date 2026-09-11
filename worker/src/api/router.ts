@@ -1,3 +1,4 @@
+import { importNativePost } from '../lib/native-post-import';
 import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
 import { Db } from '../lib/db';
 import { nextRun } from '../lib/cron';
@@ -1118,6 +1119,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     );
     return json({ ok: true, artifact_id: id }, 202);
   }
+
+  if (path === '/artifacts/import-native' && req.method === 'POST') return importNativePost(req, env, db);
 
   const renderedSlidesMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/rendered-slides$/);
   if (renderedSlidesMatch && req.method === 'POST') {

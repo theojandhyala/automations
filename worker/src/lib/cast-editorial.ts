@@ -1,6 +1,6 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-10';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-11-native';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
@@ -71,15 +71,12 @@ export function castEditorialHtml(input: { imageUrl: string; overlay: string; ed
   const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   if (!input.overlay.trim() || input.overlay.length > 90 || input.editorial.body.length > 120) throw new Error('Cast editorial copy exceeds its readable length budget.');
   const hook = input.role === 'hook';
-  const badge = hook ? input.editorial.kicker : input.overlay.match(/^[1-5] · /)?.[0].trim().replace(' ·', '') ?? input.editorial.kicker;
-  const heading = hook ? input.overlay : input.overlay.replace(/^[1-5] · /, '');
+  const heading = input.overlay.replace(/^([1-5]) · /, '$1. ');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#0d191c;color:white;font-family:Arial,Helvetica,sans-serif}
 .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
-.shade{position:absolute;inset:0;background:linear-gradient(180deg,#0002,#0003 35%,#0006 70%,#0002)}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 8%,#0006 24%,#0006 46%,transparent 72%)}
 .copy{position:absolute;left:86px;width:778px;text-align:center;font-weight:700;line-height:1.12;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 3px 6px #0008;overflow-wrap:break-word}
-.head{top:${hook ? 570 : 540}px;font-size:${hook ? 76 : 74}px;max-height:260px;margin:0}.body{top:850px;font-size:58px;max-height:260px;margin:0}
-.kicker{position:absolute;left:${hook ? 86 : 379}px;top:${hook ? 970 : 350}px;width:${hook ? 778 : 192}px;height:${hook ? 50 : 112}px;display:flex;align-items:center;justify-content:center;font-size:${hook ? 34 : 68}px;font-weight:700;background:${hook ? 'transparent' : '#38bdb3'};color:${hook ? '#fff' : '#082522'};border-radius:14px;text-shadow:${hook ? '0 2px 5px #000' : 'none'}}
-.brand{position:absolute;left:86px;top:1230px;font-size:28px;font-weight:700;letter-spacing:3px;text-shadow:0 2px 4px #000}
-</style></head><body><img class="photo" src="${esc(input.imageUrl)}"><div class="shade"></div><div class="kicker">${esc(badge)}</div><h1 class="copy head">${esc(heading)}</h1>${input.editorial.body ? `<p class="copy body">${esc(input.editorial.body)}</p>` : ''}<div class="brand">CAST</div></body></html>`;
+.head{top:${hook ? 375 : 455}px;font-size:68px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;max-height:340px;margin:0}
+</style></head><body><img class="photo" src="${esc(input.imageUrl)}"><div class="shade"></div><h1 class="copy head">${esc(heading)}</h1>${input.editorial.body ? `<p class="copy body">${esc(input.editorial.body)}</p>` : ''}</body></html>`;
 }

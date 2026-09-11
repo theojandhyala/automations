@@ -1,3 +1,4 @@
+import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
 import { CAST_EDITORIAL_FORMAT, type EditorialSlide } from '../lib/cast-editorial';
 import { decrypt } from '../lib/crypto';
 import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
@@ -191,6 +192,7 @@ export async function produceArtifact(
   renderer?: SlideRendererSession,
 ): Promise<ProductionResult> {
   const manifest = artifact.asset_manifest as CarouselManifest;
+  if ((artifact.asset_manifest.production as { renderer?: string } | undefined)?.renderer === NATIVE_IMPORT_RENDERER) return { state: 'blocked', reason: 'Exact imported exports are preserved. Import a revised package to change them.' };
   const playbook = getCreativePlaybook(appSlug);
   if (!playbook) return { state: 'blocked', reason: 'This app has no verified production playbook.' };
   if (appSlug === 'cast' && manifest.format === CAST_EDITORIAL_FORMAT) return produceCastEditorial(env, db, artifact, renderer);
@@ -435,7 +437,7 @@ export const produceCarousels: Handler = {
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
         .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 2 && artifact.photo_urls.length <= 6)
-        .filter((artifact) => appSlug !== 'deadset' || (artifact.asset_manifest.production as { caption_renderer?: string } | undefined)?.caption_renderer === CAPTION_RENDERER_VERSION);
+        .filter((artifact) => appSlug !== 'deadset' || ((artifact.asset_manifest.production as { caption_renderer?: string } | undefined)?.caption_renderer === CAPTION_RENDERER_VERSION || (artifact.asset_manifest.production as { renderer?: string } | undefined)?.renderer === NATIVE_IMPORT_RENDERER));
       let inspected = 0;
       for (const original of renderedDrafts) {
         let artifact = original;

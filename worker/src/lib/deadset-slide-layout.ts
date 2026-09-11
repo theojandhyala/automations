@@ -29,7 +29,7 @@ export function deadsetSlideHtml(input: {
   const isHook = role === 'hook';
   // Measured against the genuine screens in the proof library: use empty gaps,
   // never the existing set values or readiness labels beneath them.
-  const proofCopyTop = input.featureKey === 'workout_plan' ? 980 : input.featureKey === 'live_logger' ? 590 : 1120;
+  const proofCopyTop = input.featureKey === 'workout_plan' ? 974 : input.featureKey === 'live_logger' ? 590 : 1120;
   const body = finished
     ? `<img class="finished" src="${escape(imageUrl)}" alt="Owner-reviewed finished slide">`
     : isHook
@@ -41,7 +41,7 @@ export function deadsetSlideHtml(input: {
 .hook-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 43%}
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,#0002,#0001 45%,#0006)}
 .hook-copy{position:absolute;left:86px;top:350px;width:778px;max-height:500px;margin:0;font-size:68px;line-height:1.12;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
-.proof{position:absolute;inset:0;display:block;width:1080px;height:1920px;object-fit:cover;object-position:center center}
-.proof-copy{position:absolute;left:86px;top:${proofCopyTop}px;width:778px;max-height:${input.featureKey === 'workout_plan' || input.featureKey === 'live_logger' ? 64 : 150}px;margin:0;text-align:center;font-size:52px;font-weight:700;line-height:1.12;text-shadow:0 3px 7px #000;-webkit-text-stroke:4px #000;paint-order:stroke fill;overflow-wrap:break-word}
+.proof{position:absolute;inset:0;display:block;width:1080px;height:1920px;object-fit:${input.featureKey === 'workout_plan' ? 'contain' : 'cover'};object-position:center center}
+.proof-copy{position:absolute;left:86px;top:${proofCopyTop}px;width:778px;max-height:${input.featureKey === 'workout_plan' || input.featureKey === 'live_logger' ? 64 : 150}px;margin:0;text-align:center;font-size:${input.featureKey === 'workout_plan' ? 48 : 52}px;font-weight:700;line-height:1.12;text-shadow:0 3px 7px #000;-webkit-text-stroke:4px #000;paint-order:stroke fill;overflow-wrap:break-word}
 </style></head><body>${body}</body></html>`;
 }

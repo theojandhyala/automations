@@ -11,7 +11,10 @@ copy, product context and destination. Failures must inform later briefs.
 Never weaken the threshold to clear a queue. Keep source provenance and product
 truth separate from aesthetic scores.
 
-Use image generation for intentional promotional artwork when useful. Keep
+Read `docs/native-carousel-correction-2026-09-11.md` for the latest owner correction.
+The September 10 glossy AI posters were rejected. Default to real native photo
+carousels: two Deadset slides, six Cast slides with consistent item layouts.
+Reserve generated promotional artwork for a separately explicit experiment. Keep
 actual UI as first-party product evidence; generated illustrations must not be
 silently registered as exact screenshots. Never stamp another caption over a
 finished promotional image. Inspect final images at full and phone sizes.

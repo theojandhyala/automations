@@ -1,5 +1,9 @@
 # Cast / Deadset creative reset
 
+**September 11 correction supersedes the poster direction below:** read
+[native carousel correction](native-carousel-correction-2026-09-11.md).
+The owner rejected glossy AI posters for these feed posts.
+
 Owner direction, 10 September 2026: stop cheap-looking posts, study the actual
 reference accounts, generate attractive promotional artwork, inspect every
 finished export, learn from mistakes and make Jarvis follow the resulting standard.

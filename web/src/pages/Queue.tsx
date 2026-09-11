@@ -30,6 +30,8 @@ function urlsFromTextarea(value: string): string[] {
 export default function Queue({ appSlug }: { appSlug?: string } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('draft');
+  const [importingPost, setImportingPost] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creatorInfo, setCreatorInfo] = useState<Record<string, CreatorInfo>>({});
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
@@ -70,6 +72,27 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
       tiktokStatus,
     };
   }, [filter, appSlug]);
+
+  async function importPost(files: FileList | null) {
+    if (!files) return;
+    setError(null); setImportNotice(null); setImportingPost(true);
+    try {
+      const list = Array.from(files);
+      const manifests = list.filter(f => f.name.endsWith('.json'));
+      if (manifests.length !== 1 || manifests[0]!.size > 20000) throw new Error('Choose one post.json and its finished JPEG slides.');
+      const post = await manifests[0]!.text();
+      const parsed = JSON.parse(post) as {app_slug?: string};
+      if (appSlug && parsed.app_slug !== appSlug) throw new Error('This package belongs to another app channel.');
+      const images = list.filter(f => !f.name.endsWith('.json')).sort((a,b) => a.name.localeCompare(b.name));
+      const form = new FormData(); form.set('post', post);
+      for (const file of images) form.append('slides', file);
+      const result = await api<Artifact>('/artifacts/import-native', {method:'POST', body:form});
+      setFilter('draft'); setSearchParams({app: parsed.app_slug ?? ''});
+      setImportNotice(`Imported ${result.photo_urls.length} slides for “${result.hook}”. Held for review.`);
+      refresh();
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setImportingPost(false); }
+  }
 
   async function patch(id: string, body: Record<string, unknown>) {
     setError(null);
@@ -233,6 +256,14 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
         </aside>
       )}
 
+      <div className="row" style={{marginBottom: 14}}>
+        <label className="upload-button">{importingPost ? 'Importing post…' : 'Import finished photo post'}
+          <input type="file" accept="image/jpeg,.json" multiple aria-label="Import finished photo post" disabled={importingPost}
+            onChange={event => { void importPost(event.target.files); event.target.value = ''; }} />
+        </label>
+        <span>Select post.json and the numbered JPEG slides. Imports stay in review.</span>
+      </div>
+      {importNotice && <div className="card" role="status">{importNotice}</div>}
       {error && <div className="card jarvis-alert error">{error}</div>}
 
       <div className="grid queue-grid">
