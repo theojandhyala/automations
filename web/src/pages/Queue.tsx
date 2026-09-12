@@ -47,6 +47,8 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
   const [visualNotes, setVisualNotes] = useState<Record<string, string>>({});
   const [visualConfirmed, setVisualConfirmed] = useState<Record<string, string>>({});
   const [visualReviewer, setVisualReviewer] = useState<Record<string, 'owner' | 'agent'>>({});
+  const [booking, setBooking] = useState<string | null>(null);
+  const [deliveryTimes, setDeliveryTimes] = useState<Record<string, string>>({});
 
 
   const { data, refresh } = useData(async () => {
@@ -79,6 +81,18 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
       tiktokStatus,
     };
   }, [filter, appSlug]);
+
+  async function bookDelivery(artifact: Artifact, immediate = false, cancel = false) {
+    setError(null); setBooking(artifact.id);
+    try {
+      const selected = deliveryTimes[artifact.id] ?? artifact.scheduled_for;
+      if (!immediate && !cancel && !selected) throw new Error('Choose a publishing time first.');
+      await api(`/artifacts/${artifact.id}/delivery`, { method: cancel ? 'DELETE' : 'POST',
+        ...(!cancel ? { body: JSON.stringify({ at: immediate ? new Date().toISOString() : new Date(selected!).toISOString() }) } : {}) });
+      refresh();
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBooking(null); }
+  }
 
   async function importPost(files: FileList | null) {
     if (!files) return;
@@ -455,7 +469,18 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
 
               {isEditable && (
                 <div className="review-fields">
-                  <div className="field"><label>Do not publish before (local time)</label><input type="datetime-local" aria-label={`Earliest publishing time for ${artifact.hook}`} defaultValue={artifact.scheduled_for ? new Date(new Date(artifact.scheduled_for).getTime() - new Date(artifact.scheduled_for).getTimezoneOffset()*60000).toISOString().slice(0,16) : ''} onBlur={event => patch(artifact.id,{scheduled_for:event.target.value ? new Date(event.target.value).toISOString() : null})} /><small>Jarvis uses the next eligible posting window after this time. An owner-triggered run can publish an approved, due post immediately.</small></div>
+                  <div className="field"><label>Earliest posting time (local time)</label><input type="datetime-local" aria-label={`Earliest publishing time for ${artifact.hook}`} disabled={artifact.stages?.delivery?.state === 'scheduled'} defaultValue={artifact.scheduled_for ? new Date(new Date(artifact.scheduled_for).getTime() - new Date(artifact.scheduled_for).getTimezoneOffset()*60000).toISOString().slice(0,16) : ''} onChange={event => setDeliveryTimes(previous => ({ ...previous, [artifact.id]: event.target.value }))} onBlur={event => { if (artifact.stages?.delivery?.state !== 'scheduled') void patch(artifact.id,{scheduled_for:event.target.value ? new Date(event.target.value).toISOString() : null}); }} /><small>Without a booking, this waits for the next regular posting window.</small></div>
+                  {artifact.status === 'approved' && <div className="field">
+                    {artifact.stages?.delivery?.state === 'scheduled' ? <>
+                      <strong>Booked for {new Date(artifact.stages.delivery.at!).toLocaleString()} — Cloudflare will launch this exact post automatically.</strong>
+                      <small>No browser or Codex session is needed. Delivery begins on the first available scheduler pass; TikTok processing may take longer.</small>
+                      <button disabled={booking === artifact.id} onClick={() => bookDelivery(artifact, false, true)}>Cancel booking and return to review</button>
+                    </> : <>
+                      <div className="row"><button disabled={booking === artifact.id} onClick={() => bookDelivery(artifact)}>Book this posting time</button>
+                      <button disabled={booking === artifact.id} onClick={() => bookDelivery(artifact, true)}>Publish this exact post now</button></div>
+                      <small>Books only this reviewed post. Existing quality checks and daily limits still apply.</small>
+                    </>}
+                  </div>}
                   <div className="field">
                     <label>Hook / title</label>
                     <input

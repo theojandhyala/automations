@@ -14,8 +14,9 @@ import type { Artifact, Automation, Env, TikTokAccount } from '../src/types';
 import { automationRow, jsonResponse, stubFetch, testEnv } from './helpers';
 import * as independentReview from '../src/lib/creative-visual-review';
 import { visualReviewFixture } from './visual-review-fixture';
+import { timedDeliveryStage } from '../src/lib/timed-delivery';
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 const env: Env = { ...testEnv, PUBLIC_BASE_URL: 'https://example.test',
   TIKTOK_PUBLISH_PROVIDER: 'business_accounts', TIKTOK_REVIEW_STATE: 'approved',
   TIKTOK_BUSINESS_CLIENT_ID: 'test-client', TIKTOK_BUSINESS_CLIENT_SECRET: 'test-secret',
@@ -76,7 +77,8 @@ describe('unattended safety', () => {
     expect(plan.decisions.every(decision => decision.latest_views === null)).toBe(true);
   });
 
-  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true) {
+  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true, booking?: 'valid' | 'expired' | 'changed' | 'none' | 'cancelled') {
+    if (booking) { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T18:58:30Z')); }
     vi.spyOn(independentReview, 'hasPassingVisualReview').mockResolvedValue(visualPass);
     const channel = await account();
     const artifact: Artifact = {
@@ -105,6 +107,12 @@ describe('unattended safety', () => {
     if (approved) for (const item of ready) item.stages = { review: {
       state: 'done', at: new Date().toISOString(), note: await ownerApprovalReceipt(item),
     } };
+    if (booking && booking !== 'none') {
+      artifact.scheduled_for = booking === 'expired' ? '2026-09-12T10:00:00Z' : '2026-09-12T18:58:00Z';
+      artifact.stages.delivery = await timedDeliveryStage(env, artifact, artifact.scheduled_for);
+      if (booking === 'changed') artifact.caption = 'Different content after booking';
+      if (booking === 'cancelled') artifact.stages.delivery.state = 'cancelled';
+    }
     const { calls } = stubFetch([
       { match: /artifacts\?/, respond: call => {
         if (call.method !== 'GET') return jsonResponse([]);
@@ -127,10 +135,35 @@ describe('unattended safety', () => {
       } },
     ]);
     const handler = mode === 'publish' ? publishApproved : produceCarousels;
-    await handler.run({ env, db: new Db(env), automation: automationRow({ handler_key: handler.key, config: { max_per_run: 1, app_slug: mode === 'produce' && approved ? 'cast' : 'deadset' } }) as unknown as Automation,
-      runId: 'test-run', trigger: 'manual', log: () => {}, setTask: async () => {} });
+    await handler.run({ env, db: new Db(env), automation: automationRow({ handler_key: handler.key, config: { max_per_run: 1, app_slug: mode === 'produce' && approved ? 'cast' : 'deadset', ...(booking ? { timezone: 'Europe/London', local_hours: [12,15,18,21] } : {}) } }) as unknown as Automation,
+      runId: 'test-run', trigger: booking ? 'cron' : 'manual', log: () => {}, setTask: async () => {} });
     return calls;
   }
+
+  it('delivers a signed exact-time booking from cron outside ordinary slots', async () => {
+    const calls = await publishingFixture(true, false, false, 'publish', true, false, true, 'valid');
+    expect(calls.filter(c => /photo\/publish/.test(c.url))).toHaveLength(1);
+    expect(calls.find(c => /reserve_tiktok_delivery/.test(c.url))?.body).toMatchObject({
+      p_scheduled: false, p_expected: { scheduled_for: '2026-09-12T18:58:00Z' },
+    });
+  });
+
+  it.each(['expired','changed','none'] as const)('does not deliver %s bookings outside ordinary slots', async booking => {
+    const calls = await publishingFixture(true, false, false, 'publish', true, false, true, booking);
+    expect(calls.some(c => /reserve_tiktok_delivery|photo\/publish/.test(c.url))).toBe(false);
+  });
+
+  it('retains independent review and reservation gates for timed delivery', async () => {
+    const failedVisual = await publishingFixture(true, false, false, 'publish', true, false, false, 'valid');
+    expect(failedVisual.some(c => /reserve_tiktok_delivery|photo\/publish/.test(c.url))).toBe(false);
+    const refusedReservation = await publishingFixture(false, false, false, 'publish', true, false, true, 'valid');
+    expect(refusedReservation.some(c => /photo\/publish/.test(c.url))).toBe(false);
+  });
+
+  it('does not let the producer reapprove a cancelled delivery', async () => {
+    const calls = await publishingFixture(false, false, false, 'produce', false, false, true, 'cancelled');
+    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).not.toContainEqual(expect.objectContaining({ status: 'approved' }));
+  });
 
   it('does not reserve or publish when the independent visual gate fails', async () => {
     const calls = await publishingFixture(true, false, false, 'publish', true, false, false);

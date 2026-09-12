@@ -21,6 +21,8 @@ import {
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { activeTikTokAccounts, checkAccountAccess } from '../lib/tiktok-health';
 import { ownerApprovalReceipt } from '../lib/owner-approval';
+import { timedDeliveryStage } from '../lib/timed-delivery';
+import { hasPassingVisualReview } from '../lib/creative-visual-review';
 import { mediaProperty } from '../lib/tiktok-property';
 import { normalizeHashtags } from '../lib/hashtags';
 import { log, errorFields } from '../lib/log';
@@ -53,6 +55,7 @@ import {
   updateAccountSchema,
   updateArtifactSchema,
   updateAutomationSchema,
+  timedDeliverySchema,
   validateConfig,
 } from '../lib/schemas';
 import type { Artifact, Automation, Env, TikTokAccount } from '../types';
@@ -1200,6 +1203,33 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     return json(updated, 201);
   }
 
+  const timedDeliveryMatch = path.match(/^\/artifacts\/([0-9a-f-]{36})\/delivery$/);
+  if (timedDeliveryMatch && (req.method === 'POST' || req.method === 'DELETE')) {
+    const id = timedDeliveryMatch[1]!;
+    const artifact = await db.selectOne<Artifact & { updated_at?: string }>('artifacts', `id=eq.${id}&select=*`);
+    if (!artifact) return json({ error: 'Post not found.' }, 404);
+    if (artifact.status !== 'approved' || artifact.publish_id) return json({ error: 'Only an approved, unsubmitted post can be scheduled.' }, 409);
+    const query = `id=eq.${id}&status=eq.approved&publish_id=is.null`
+      + (artifact.updated_at ? `&updated_at=eq.${encodeURIComponent(artifact.updated_at)}` : '');
+    if (req.method === 'DELETE') {
+      const [updated] = await db.update('artifacts', query, { status: 'draft', stage: 'review',
+        stages: { ...artifact.stages, delivery: { state: 'cancelled', at: new Date().toISOString() } } });
+      return updated ? json(updated) : json({ error: 'Post changed; reload before cancelling.' }, 409);
+    }
+    const body = await parseBody(req, timedDeliverySchema);
+    const atMs = Date.parse(body.at);
+    if (atMs < Date.now() - 60_000 || atMs > Date.now() + 30 * 86400_000)
+      return json({ error: 'Choose now or a time within the next 30 days.' }, 400);
+    if (!unattendedPublishingEnabled(env)) return json({ error: 'Timed delivery requires the approved TikTok Business connection.' }, 409);
+    const publisher = await db.selectOne<Automation>('automations', 'handler_key=eq.tiktok.publish&enabled=eq.true&select=*');
+    if (!publisher?.cron) return json({ error: 'Enable the scheduled TikTok publisher first.' }, 409);
+    if (!await hasPassingVisualReview(env, artifact)) return json({ error: 'This exact post needs a passing independent image review.' }, 409);
+    const at = new Date(atMs).toISOString();
+    const [updated] = await db.update('artifacts', query, { scheduled_for: at,
+      stages: { ...artifact.stages, delivery: await timedDeliveryStage(env, artifact, at) } });
+    return updated ? json(updated, 202) : json({ error: 'Post changed; reload before scheduling.' }, 409);
+  }
+
   if (artifactMatch && !artifactMatch[2] && req.method === 'PATCH') {
     const id = artifactMatch[1]!;
     const body = await parseBody(req, updateArtifactSchema);
@@ -1314,7 +1344,9 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
         patch.posting_consent_at = unattendedPublishingEnabled(env) ? null : new Date().toISOString();
         patch.stage = 'schedule';
         patch.stages = { ...current.stages, review: { state: 'done', at: new Date().toISOString(),
-          note: await ownerApprovalReceipt({ ...current, ...patch } as Artifact) } };
+          note: await ownerApprovalReceipt({ ...current, ...patch } as Artifact) },
+          ...(['cancelled', 'failed'].includes(current.stages?.delivery?.state ?? '')
+            ? { delivery: { state: 'cleared', at: new Date().toISOString() } } : {}) };
       } else if (body.status === 'draft') {
         patch.stage = 'concept';
         patch.stages = { ...current.stages, review: { state: 'pending' } };
@@ -1335,6 +1367,13 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       }
     }
 
+    // A generic earliest-time edit must never retime a previously signed booking.
+    // The owner can explicitly book the newly reviewed/saved post afterwards.
+    if ('scheduled_for' in body && current.stages?.delivery?.state === 'scheduled') {
+      patch.status = 'draft'; patch.stage = 'review';
+      patch.stages = { ...current.stages, delivery: { state: 'cancelled', at: new Date().toISOString() } };
+      patch.error = 'Timing changed. Book the new time explicitly before release.';
+    }
     const [updated] = await db.update('artifacts', `id=eq.${id}&status=eq.${current.status}` +
       (current.updated_at ? `&updated_at=eq.${encodeURIComponent(current.updated_at)}` : ''), patch);
     if (!updated) return json({ error: 'Post changed during review; reload and review again.' }, 409);

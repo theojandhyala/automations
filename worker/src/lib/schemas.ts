@@ -30,6 +30,8 @@ const tiktokHandle = z
   .transform((value) => value.replace(/^@/, ''))
   .refine((value) => /^[A-Za-z0-9._]+$/.test(value), 'handle may only contain letters, numbers, dots and underscores');
 
+export const timedDeliverySchema = z.object({ at: z.string().datetime({ offset: true }) });
+
 export const createAutomationSchema = z.object({
   handler_key: z.string().min(1),
   name: z.string().min(1).max(120),

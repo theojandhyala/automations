@@ -1,4 +1,5 @@
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
+import { deliveryPaused } from '../lib/timed-delivery';
 import { CAST_EDITORIAL_FORMAT, castPhotoDirection, type EditorialSlide } from '../lib/cast-editorial';
 import { decrypt } from '../lib/crypto';
 import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
@@ -422,7 +423,7 @@ export const produceCarousels: Handler = {
     }
 
 
-    const candidates = await ctx.db.select<Artifact>(
+    const candidates = (await ctx.db.select<Artifact>(
       'artifacts',
       [
         `app_id=eq.${app.id}`,
@@ -433,7 +434,7 @@ export const produceCarousels: Handler = {
         'order=created_at.desc',
         'limit=30',
       ].filter(Boolean).join('&'),
-    );
+    )).filter(artifact => !deliveryPaused(artifact));
     let autoApproved = 0;
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates

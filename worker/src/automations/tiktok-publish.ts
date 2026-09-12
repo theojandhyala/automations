@@ -15,6 +15,7 @@ import { formatHashtags } from '../lib/hashtags';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { verifyPublishMedia } from '../lib/publish-media';
 import { isRepeatedHook } from '../lib/creative-variety';
+import { deliveryPaused, timedDeliveryError } from '../lib/timed-delivery';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
@@ -140,21 +141,12 @@ export const publishApproved: Handler = {
       return { submitted: 0, skipped: 0, public_automation_locked: true };
     }
 
-    // The cron checks every minute. Scheduled runs only
-    // continue when the wall-clock time in London is exactly 12, 15 or 18;
-    // explicit manual runs remain available to the owner at any time.
-    if (
-      ctx.trigger === 'cron'
+    // Ordinary posts use account slots. Explicit signed bookings are picked up
+    // by this same minute cron without a browser or a Codex wake-up.
+    const outsideSlot = ctx.trigger === 'cron'
       && config.timezone
       && config.local_hours?.length
-      && !isPostingSlot(nowDate, config.timezone, config.local_hours)
-    ) {
-      ctx.log('info', 'outside configured local posting window', {
-        timezone: config.timezone,
-        local_hours: config.local_hours,
-      });
-      return { submitted: 0, skipped: 0, outside_posting_window: true };
-    }
+      && !isPostingSlot(nowDate, config.timezone, config.local_hours);
 
     // Look beyond one small page so a backlog for one account cannot hide the
     // next due post for another account. The loop still submits at most one
@@ -163,12 +155,13 @@ export const publishApproved: Handler = {
       'artifacts',
       `status=eq.approved&account_id=not.is.null` +
         `&or=(scheduled_for.is.null,scheduled_for.lte.${now})` +
+        (outsideSlot ? '&stages->delivery->>state=eq.scheduled' : '') +
         `&order=scheduled_for.asc.nullsfirst&limit=${Math.max(maxPerRun * 20, 100)}`,
     );
 
     if (ready.length === 0) {
       ctx.log('info', 'nothing approved and due');
-      return { published: 0 };
+      return outsideSlot ? { submitted: 0, outside_posting_window: true } : { published: 0 };
     }
 
     let published = 0;
@@ -178,6 +171,19 @@ export const publishApproved: Handler = {
     for (const artifact of ready) {
       if (published >= maxPerRun) break;
       const accountId = artifact.account_id!;
+      if (deliveryPaused(artifact)) { skipped++; continue; }
+      const timed = artifact.stages?.delivery?.state === 'scheduled';
+      if (outsideSlot && !timed) continue;
+      if (timed) {
+        const bookingError = await timedDeliveryError(ctx.env, artifact);
+        if (bookingError) {
+          await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
+            status: 'draft', stage: 'review', error: bookingError,
+            stages: { ...artifact.stages, delivery: { ...artifact.stages.delivery, state: 'failed' } },
+          });
+          skipped++; continue;
+        }
+      }
 
       // One post per account per pass keeps a burst of approvals from firing
       // back to back on the same handle.
@@ -303,7 +309,9 @@ export const publishApproved: Handler = {
         // Database transaction serializes this account, enforces exact handle,
         // London slot and daily cap, and holds uncertain attempts indefinitely.
         const reserved = await ctx.db.rpc<boolean>('reserve_tiktok_delivery', {
-          p_artifact_id: artifact.id, p_scheduled: ctx.trigger === 'cron',
+          // A signed owner booking uses the existing explicit-delivery slot.
+          // The same transaction still enforces caps, routing and no duplicates.
+          p_artifact_id: artifact.id, p_scheduled: ctx.trigger === 'cron' && !timed,
           p_expected: {
             app_id: artifact.app_id, account_id: artifact.account_id, hook: artifact.hook,
             caption: artifact.caption, hashtags: artifact.hashtags, photo_urls: artifact.photo_urls,
@@ -312,6 +320,7 @@ export const publishApproved: Handler = {
             disable_comment: artifact.disable_comment, auto_add_music: artifact.auto_add_music,
             brand_organic_toggle: artifact.brand_organic_toggle, brand_content_toggle: artifact.brand_content_toggle,
             is_aigc: artifact.is_aigc, stages: artifact.stages,
+            scheduled_for: artifact.scheduled_for,
           },
         });
         if (!reserved) { skipped++; continue; }
