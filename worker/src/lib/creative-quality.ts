@@ -153,7 +153,12 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
     if (slides.length !== 6 || (input.photoUrls && input.photoUrls.length !== 6)) blockers.push('Cast editorial requires all six slides in order.');
     if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Cast editorial requires real, sourced media.');
     if (slides.some(s => !s || typeof s.overlay !== 'string' || !s.overlay.trim() || s.overlay.length > 90 || typeof s.body !== 'string' || s.body.length > 120)) blockers.push('Shorten editorial copy before rendering.');
-    if (manifest.promotional === false && /\b(app store|download|install|subscribe)\b/i.test(caption + ' ' + slides.map(s => `${s.overlay} ${s.body}`).join(' '))) blockers.push('Editorial posts must stand alone without a download pitch.');
+    const lastSlide = slides[5];
+    const payoff = `${lastSlide?.overlay ?? ''} ${lastSlide?.body ?? ''}`;
+    if (manifest.promotional !== true || !/\bCast\b/.test(payoff) || !/\bapp store\b/i.test(payoff))
+      blockers.push('Every Cast carousel must promote Cast with a truthful product benefit and App Store call to action on the final slide.');
+    if (!/\bCast\b/.test(caption) || !/\bapp store\b/i.test(caption))
+      blockers.push('The caption must name Cast and include its App Store call to action.');
   }
   if (input.mediaType === 'video' && input.videoUrl !== undefined && !input.videoUrl) {
     blockers.push('Attach the final reviewed video export.');

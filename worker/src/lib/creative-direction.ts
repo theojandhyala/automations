@@ -3,7 +3,7 @@ export const CREATIVE_DIRECTION_VERSION = 'cast-deadset-2026-09-12-varied-v5';
 
 export const CREATIVE_DIRECTION = `Creative director standard (${CREATIVE_DIRECTION_VERSION}):
 For a two-slide promotion: one recognisable human situation, one short setup, one visible product answer.
-For Cast six-slide editorial: a concrete useful hook followed by five clear useful items. Educational posts need no app screenshot or App Store CTA. Each item can include a short explanatory sentence.
+For Cast six-slide editorial: a concrete useful hook followed by five clear useful items. Every final slide must connect its last useful item to a truthful Cast benefit and an App Store call to action. An actual app screenshot is optional for this advice format; naming and promoting Cast is mandatory. Each item can include a short explanatory sentence.
 Deadset reference: @strongermobile, inspected in docs/strongermobile-creative-audit-2026-09-10.md.
 The observed grammar is ordinary photo -> short conversation -> app evidence. Use original wording.
 Vary gym-floor POV, between-set details, gym arrival and casual car context; do not repeat one stock scene.

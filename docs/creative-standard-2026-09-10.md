@@ -1,3 +1,5 @@
+> Latest owner correction: [every Cast final slide promotes Cast; audio feedback](cast-promotion-and-audio-2026-09-12.md). This supersedes the older promotional cadence.
+
 > Latest owner correction: [different Cast photos on every slide](cast-varied-slides-2026-09-12.md) supersedes the repeated-background direction below.
 
 # Cast / Deadset creative reset

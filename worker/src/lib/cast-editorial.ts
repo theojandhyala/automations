@@ -1,6 +1,6 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-varied';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-promotional-ending';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
@@ -11,7 +11,7 @@ export interface CastEditorialConcept {
   id: string; hook: string; caption: string; promotional: boolean;
   items: Array<[heading: string, body: string]>;
 }
-export const CAST_EDITORIAL_CONCEPTS: CastEditorialConcept[] = [
+const CURATED_CONCEPTS: CastEditorialConcept[] = [
   { id: 'notes-ranked', hook: 'Fishing notes, ranked from vague to useful', promotional: false,
     caption: 'A catch photo is a memory. A few details make it something you can learn from. Which detail do you always forget?',
     items: [['5 · “Caught one”', 'Nice memory. Not much to compare next time.'], ['4 · Add the species', 'Now you know what the session produced.'], ['3 · Add the time', 'Record when it happened, not when you posted it.'], ['2 · Add the setup', 'Lure, depth and retrieve. Write down what you actually used.'], ['1 · Add the conditions', 'Keep the whole picture together. Blank sessions count too.']] },
@@ -44,6 +44,26 @@ export const CAST_EDITORIAL_CONCEPTS: CastEditorialConcept[] = [
     items: [['The catch', 'Choose the photo and the details you want to share.'], ['A public spot', 'Use this when you want the location visible.'], ['An approximate area', 'Share a broader area instead of an exact mark.'], ['No location', 'Keep the location out of the shared catch.'], ['Your choice', 'Check the audience and location before sharing in Cast.']] },
 ];
 
+export const CAST_STORE_CTA = 'Find Cast Fishing Companion on the App Store.';
+const CAST_PAYOFFS: Record<string, string> = {
+  'notes-ranked': 'Keep your catch conditions together in Cast.',
+  'before-buying': 'Check your past catch records in Cast.',
+  'private-mark': 'Choose how much location you share in Cast.',
+  'blank-session': 'Use your catch history in Cast to plan your next trip.',
+  'cast-catch-context': 'Look back at your own catch records in Cast.',
+  'session-checklist': 'Keep your catch history in Cast for the next trip.',
+  'trip-debrief': 'Look back at your catch records in Cast.',
+  'photo-checklist': 'Save your catch and conditions in Cast.',
+  'one-change': 'Keep catch conditions together in Cast.',
+  'cast-location-choice': 'Choose a public, approximate or hidden location in Cast.',
+};
+/** Every post earns attention with advice and ends with a truthful product action. */
+export const CAST_EDITORIAL_CONCEPTS: CastEditorialConcept[] = CURATED_CONCEPTS.map(concept => ({
+  ...concept, promotional: true,
+  caption: /app store/i.test(concept.caption) ? concept.caption : `${concept.caption} Keep your catch records in Cast. ${CAST_STORE_CTA}`,
+  items: concept.items.map((item, index) => index === 4 ? [item[0], `${CAST_PAYOFFS[concept.id]}\n${CAST_STORE_CTA}`] : item),
+}));
+
 export function editorialSlides(concept: CastEditorialConcept): EditorialSlide[] {
   return [{ role: 'hook', overlay: concept.hook, body: '', kicker: 'Swipe through →' },
     ...concept.items.map(([overlay, body], i) => ({ role: 'editorial' as const, overlay, body,
@@ -54,15 +74,11 @@ export function editorialSlides(concept: CastEditorialConcept): EditorialSlide[]
 export function planCastEditorial(recent: Array<{ hook?: string | null; asset_manifest: Record<string, unknown> }>, count: number): CastEditorialConcept[] {
   const used = new Set(recent.map(r => r.asset_manifest.editorial_id));
   const usedHooks = new Set(recent.map(r => r.hook?.toLowerCase()));
-  const history = recent.filter(r => r.asset_manifest.format === CAST_EDITORIAL_FORMAT);
-  let sincePromo = history.findIndex(r => r.asset_manifest.promotional === true);
-  if (sincePromo < 0) sincePromo = history.length;
   const result: CastEditorialConcept[] = [];
   for (let i = 0; i < count; i++) {
-    const promotional = sincePromo >= 4;
-    const next = CAST_EDITORIAL_CONCEPTS.find(c => c.promotional === promotional && !used.has(c.id) && !usedHooks.has(c.hook.toLowerCase()));
+    const next = CAST_EDITORIAL_CONCEPTS.find(c => !used.has(c.id) && !usedHooks.has(c.hook.toLowerCase()));
     if (!next) break;
-    result.push(next); used.add(next.id); sincePromo = next.promotional ? 0 : sincePromo + 1;
+    result.push(next); used.add(next.id);
   }
   return result;
 }
@@ -77,7 +93,7 @@ export function castEditorialHtml(input: { imageUrl: string; overlay: string; ed
 .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 8%,#0006 24%,#0006 46%,transparent 72%)}
 .copy{position:absolute;left:86px;width:778px;text-align:center;font-weight:700;line-height:1.12;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 3px 6px #0008;overflow-wrap:break-word}
-.head{top:${hook ? 375 : 455}px;font-size:68px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;max-height:340px;margin:0}
+.head{top:${hook ? 375 : 455}px;font-size:68px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;white-space:pre-line;max-height:340px;margin:0}
 </style></head><body><img class="photo" src="${esc(input.imageUrl)}"><div class="shade"></div><h1 class="copy head">${esc(heading)}</h1>${input.editorial.body ? `<p class="copy body">${esc(input.editorial.body)}</p>` : ''}</body></html>`;
 }
 

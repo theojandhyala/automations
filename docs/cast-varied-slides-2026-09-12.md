@@ -1,3 +1,5 @@
+> Latest owner correction: [every Cast final slide promotes Cast; audio feedback](cast-promotion-and-audio-2026-09-12.md). This supersedes the older promotional cadence.
+
 # Cast photo variation correction — 12 September 2026
 
 The owner now requires a different relevant photograph on every Cast slide.

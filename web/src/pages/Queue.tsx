@@ -407,7 +407,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   {artifact.asset_manifest.format === 'cast_editorial_carousel' && <textarea aria-label={`Slide ${index + 1} body`} value={slide.body ?? ''} onChange={event=>editSlide(artifact,index,'body',event.target.value)} />}
                   {(index===0 || artifact.asset_manifest.format === 'cast_editorial_carousel') && <input type="number" min="1" step="1" aria-label={`Slide ${index + 1} Pexels photo ID`} placeholder="Automatic photo selection" value={slide.photo_id ?? ''} onChange={event=>editSlide(artifact,index,'photo_id',event.target.value ? Number(event.target.value) : undefined)} />}
                 </div>)}
-                <button type="button" disabled={!slideEdits[artifact.id]} onClick={()=>patch(artifact.id,{hook:slideEdits[artifact.id]?.[0]?.overlay ?? artifact.hook,asset_manifest:{...artifact.asset_manifest,slides:slideEdits[artifact.id],requires_owner_review:true}})}>Save slide brief</button>
+                <button type="button" disabled={!slideEdits[artifact.id]} onClick={()=>patch(artifact.id,{hook:slideEdits[artifact.id]?.[0]?.overlay ?? artifact.hook,asset_manifest:{...artifact.asset_manifest,slides:slideEdits[artifact.id],...(artifact.asset_manifest.format === 'cast_editorial_carousel' ? {promotional:true} : {}),requires_owner_review:true}})}>Save slide brief</button>
               </details> : null}
 
               {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
