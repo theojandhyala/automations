@@ -8,7 +8,7 @@ import { getCreativePlaybook } from '../lib/creative-playbooks';
 import { isFinishedSlidePath } from '../lib/deadset-slide-layout';
 import { CREATIVE_DIRECTION_VERSION, proofReaction } from '../lib/creative-direction';
 import { selectHookTemplate } from '../lib/creative-photo-templates';
-import { classifyProofComposition, creativeFingerprint, hasPassingVisualReview, reviewFinalCarousel } from '../lib/creative-visual-review';
+import { classifyProofComposition, creativeFingerprint, hasPassingVisualReview, reviewFinalCarousel, visualReviewVersion } from '../lib/creative-visual-review';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { isRepeatedHook } from '../lib/creative-variety';
 import { unattendedPublishingEnabled } from '../lib/tiktok';
@@ -445,7 +445,7 @@ export const produceCarousels: Handler = {
         if (autoApproved >= maxPerRun) break;
         if (!await hasPassingVisualReview(ctx.env, artifact)) {
           const previous = artifact.asset_manifest.visual_review as { fingerprint?: string; at?: string; version?: string } | undefined;
-          if (previous?.version === CREATIVE_DIRECTION_VERSION && previous.fingerprint === await creativeFingerprint(artifact)
+          if (previous?.version === visualReviewVersion(artifact) && previous.fingerprint === await creativeFingerprint(artifact)
             && Date.now() - Date.parse(previous.at ?? '') < 24 * 3600_000) continue;
           if (inspected >= maxPerRun) break;
           inspected++;

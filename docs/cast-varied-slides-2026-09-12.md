@@ -62,3 +62,13 @@ and changed the answer to “It’s in the plan.” over the exact owner REST sc
 Both new 8c0a46be images were inspected at full and phone sizes; a fresh critique
 remains required. The 09:00/16:00 Codex creative automation now carries these
 lessons and the working cloud editing/review workflow.
+
+A further live critic failure labelled the unchanged two-card REST screen a
+stitched composite. Full-size comparison against the owner capture confirmed
+both cards were already present. Final proof reviews now receive the final
+image first and the original owned product capture as a separately labelled
+reference. The reference asset ID, URL and content hash are included in the
+signed review. Missing source evidence fails closed; the original score and
+truth gates are unchanged. Source-backed proof reviews have a new version so
+the previous mistaken assessment cannot be reused. Cast editorial reviews do
+not change. Validation: 180 Worker tests, 13 Node tests and typecheck passed.

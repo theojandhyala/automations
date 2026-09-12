@@ -27,6 +27,30 @@ function fixture(payload: unknown = good) {
   return { env, run };
 }
 describe('independent final-image review', () => {
+  it('compares final proof with the original source and signs that evidence without relaxing the verdict', async () => {
+    const { env, run } = fixture();
+    stubFetch([
+      { match: /rest\/v1\/creative_assets/, respond: () => Response.json([{ storage_path: 'features/deadset/plan/original.png' }]) },
+      { match: /storage\/v1\/object/, respond: () => new Response(new Uint8Array([255, 216, 255, 217]), { headers: { 'Content-Type': 'image/jpeg' } }) },
+    ]);
+    const withProof = { ...artifact, asset_manifest: { ...artifact.asset_manifest, production: { feature_asset: { id: 'proof-id', source_kind: 'owner_upload', composition: 'app_screen' } } } };
+    const review = await reviewFinalCarousel(env, withProof);
+    expect(review.proof_reference?.asset_id).toBe('proof-id');
+    expect(review.proof_reference?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    const content = run.mock.calls[1]![1].messages[0].content;
+    expect(content.filter((part: { type: string }) => part.type === 'image_url')).toHaveLength(2);
+    expect(await hasPassingVisualReview(env, { ...withProof, asset_manifest: { ...withProof.asset_manifest, visual_review: review } })).toBe(true);
+    expect(await hasPassingVisualReview(env, { ...withProof, asset_manifest: { ...withProof.asset_manifest, visual_review: { ...review, proof_reference: { ...review.proof_reference, sha256: '0'.repeat(64) } } } })).toBe(false);
+    run.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ ...good, craft: 7, blockers: ['Final proof is obstructed.'] }) } }] });
+    expect((await reviewFinalCarousel(env, withProof)).pass).toBe(false);
+  });
+  it('fails closed if an expected original product capture cannot be resolved', async () => {
+    const { env, run } = fixture();
+    stubFetch([{ match: /rest\/v1\/creative_assets/, respond: () => Response.json([]) }]);
+    const result = await reviewFinalCarousel(env, { ...artifact, asset_manifest: { ...artifact.asset_manifest, production: { feature_asset: { id: 'missing', source_kind: 'owner_upload', composition: 'app_screen' } } } });
+    expect(result.pass).toBe(false);
+    expect(run).not.toHaveBeenCalled();
+  });
   it('signs a real two-image review and invalidates altered copy, media, order and destination', async () => {
     const { env, run } = fixture();
     const review = await reviewFinalCarousel(env, artifact);
