@@ -1,3 +1,5 @@
+> Latest release restriction, September 12: the new Deadset calendar is unreleased. Pause calendar/heatmap promotion and its daily lane until public App Store release is verified. Promote other verified shipped features instead. Read the saved `cast-deadset-social-marketing` skill for the current audio and publishing requirements.
+
 > Latest September 12 direction: [three varied posts per day on each account](creative-format-library-2026-09-12.md), including the new tier-list reference.
 
 > September 12 daily Deadset addition: [one consistency/heatmap post per day](deadset-daily-consistency-2026-09-12.md), within the existing slots.
