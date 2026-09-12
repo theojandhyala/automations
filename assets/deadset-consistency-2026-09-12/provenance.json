@@ -1,0 +1,34 @@
+{
+  "kind": "first_party_component_demo",
+  "description": "Untouched current Deadset TrainingHeatmap component rendered with explicit fictional local demonstration data. Not a customer result, not a full in-app screenshot, not registered as one.",
+  "source_files": [
+    {
+      "path": "/Users/theojandhyala/deadset/src/components/TrainingHeatmap.tsx",
+      "sha256": "5652293a727815cb118e93fd3a0767a14cf545a3219142bcc44728c0be75cd31"
+    },
+    {
+      "path": "/Users/theojandhyala/deadset/src/lib/training-heatmap.ts",
+      "sha256": "b131b395fba3715379e9e55456be56e636ff66439d45bfb9d26dc5c4d2e5dd8e"
+    },
+    {
+      "path": "/Users/theojandhyala/deadset/src/lib/workout-history.ts",
+      "sha256": "24e9b91d50ad69e043179c2ab03ab54e7ab8e39a51fc4f175f2027ab1fdb1977"
+    },
+    {
+      "path": "/Users/theojandhyala/deadset/public/brand/deadset-lockup.png",
+      "sha256": "ec9e900186a66ac2e4f0a7ebdc0ac61893d65606f5a5d48328e5660a08535e21"
+    },
+    {
+      "path": "app-styles.css",
+      "sha256": "72eb041e411d86a67bc93c27286a67c752e24723976f19af94d58b97ef0a9f4d"
+    }
+  ],
+  "reference": "https://www.tiktok.com/@joshep_aesth/photo/7665151274232401166",
+  "reference_media_reused": false,
+  "photo": {
+    "source_url": "https://www.pexels.com/photo/7690204/",
+    "creator": "cottonbro studio",
+    "licence_url": "https://www.pexels.com/license/",
+    "local_path": "../deadset-longform-2026-09-12/sources/7690204.jpg"
+  }
+}

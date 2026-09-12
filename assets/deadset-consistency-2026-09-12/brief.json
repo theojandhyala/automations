@@ -1,0 +1,28 @@
+{
+  "id": "f2ec0d8f-7d9e-4ceb-b22b-5bc886cf366d",
+  "app_slug": "deadset",
+  "lane": "daily_consistency",
+  "feature": "training_heatmap",
+  "format": "two_slide_photo_carousel",
+  "reference": "https://www.tiktok.com/@joshep_aesth/photo/7665151274232401166",
+  "hook": "It\u2019s just one session.",
+  "payoff": "Now look at the weeks.",
+  "caption": "Every completed session has a place in your training history. See it in Deadset. Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "gymconsistency",
+    "workoutapp",
+    "deadset"
+  ],
+  "source_type": "first_party_component_demo_with_explicit_example_label",
+  "status": "local_preview_reviewed_not_imported",
+  "hashes": {
+    "slide-01.jpg": "6f42fa34c65a52c7114b6e113169f18b6d286727f23a20f7b63b69dc508e01dc",
+    "slide-02.jpg": "02fea99e5ff24f7c2276caa841a738187856bfa4da3403f16bff6d9463610ef5"
+  },
+  "independent_review": null,
+  "artifact_id": null,
+  "server_booking": null,
+  "source_registration": "pending; retain component-demo provenance, not a live account screenshot",
+  "observed_at": "2026-09-12T20:39:30.957714+00:00"
+}

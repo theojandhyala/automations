@@ -1,3 +1,5 @@
+> September 12 daily Deadset addition: [one consistency/heatmap post per day](deadset-daily-consistency-2026-09-12.md), within the existing slots.
+
 > September 12 Deadset addition: [occasional ten-slide rules format](deadset-longform-reference-2026-09-12.md), with genuine app promotion on slide five. Default short posts remain two slides.
 
 > Latest owner correction: [every Cast final slide promotes Cast; audio feedback](cast-promotion-and-audio-2026-09-12.md). This supersedes the older promotional cadence.

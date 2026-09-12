@@ -1,0 +1,16 @@
+import fs from 'node:fs';import{spawn,execFileSync}from'node:child_process';
+const root=new URL('.',import.meta.url).pathname, app='/Users/theojandhyala/deadset/', previous=root+'../deadset-longform-2026-09-12/sources/';
+const data=(p,type)=>`data:${type};base64,${fs.readFileSync(p).toString('base64')}`;
+const appCSS=fs.readFileSync(root+'app-styles.css','utf8');
+const demo=fs.readFileSync(root+'feature-demo.html','utf8');
+const font=data(previous+'oswald-700.ttf','font/ttf');
+const css=`${appCSS}\n@font-face{font-family:Oswald;src:url(${font});font-weight:700}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#090909;color:#f5f5f0}*{box-sizing:border-box}.photo{position:absolute;inset:0;width:1080px;height:1920px;object-fit:cover}.native{position:absolute;left:90px;width:780px;text-align:center;font:700 65px/1.15 Arial;paint-order:stroke fill;-webkit-text-stroke:4px #101010;text-shadow:0 2px 4px #0008;margin:0}.logo{position:absolute;top:210px;left:285px;width:370px}.feature{position:absolute;left:160px;top:570px;width:380px;transform:scale(1.65);transform-origin:top left}.answer{top:425px;font-size:62px}.disclosure{position:absolute;top:505px;left:95px;width:760px;text-align:center;font:500 34px/1.2 Arial;color:#bbb}.cta{top:1390px;font-size:40px}.hook{top:640px}`;
+const html=[`<img class="photo" src="${data(previous+'7690204.jpg','image/jpeg')}"><p class="native hook">It’s just one session.</p>`,`<img class="logo" src="${data(previous+'deadset-lockup.png','image/png')}"><p class="native answer">Now look at the weeks.</p><p class="disclosure">Deadset feature demo · example data</p><section class="feature">${demo}</section><p class="native cta">Deadset on the App Store.</p>`];
+for(let i=0;i<2;i++){
+ const out=root+'slide-0'+(i+1);fs.writeFileSync(out+'.html','<!doctype html><meta charset="utf-8"><style>'+css+'</style>'+html[i]);fs.rmSync(out+'.png',{force:true});
+ const proc=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--hide-scrollbars','--no-first-run','--force-device-scale-factor=1','--window-size=1080,1920','--user-data-dir=/tmp/deadset-daily-render-'+Date.now(),'--screenshot='+out+'.png','file://'+out+'.html'],{stdio:'ignore'});
+ let ready=false;for(let n=0;n<100;n++){await new Promise(r=>setTimeout(r,100));if(fs.existsSync(out+'.png')&&fs.statSync(out+'.png').size>1000){ready=true;break}}proc.kill();if(!ready)throw Error('render timed out');
+ execFileSync('sips',['-s','format','jpeg','-s','formatOptions','92',out+'.png','--out',out+'.jpg'],{stdio:'ignore'});
+ execFileSync('sips',['--resampleWidth','300',out+'.jpg','--out',root+'phone-0'+(i+1)+'.jpg'],{stdio:'ignore'});
+}
+fs.writeFileSync(root+'preview.html','<!doctype html><meta charset="utf-8"><title>Deadset · One session</title><style>body{background:#111;color:#eee;font:16px Arial;margin:25px}main{display:flex;gap:20px;overflow:auto}img{width:300px;height:533px}p{max-width:700px}</style><h1>Deadset · One session</h1><p>Two-slide format draft. Actual Deadset heatmap component with clearly labelled example data. Not uploaded or posted.</p><main><img src="slide-01.jpg"><img src="slide-02.jpg"></main><p>Every completed session has a place in your training history. See it in Deadset. Deadset on the App Store.</p>');
