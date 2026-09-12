@@ -27,14 +27,21 @@ export function deadsetSlideHtml(input: {
     throw new Error('DEADSET slide copy must contain 1–100 characters; shorten it before rendering.');
   }
   const isHook = role === 'hook';
+  // A measured crop of this registered 620×1347 owner capture preserves the
+  // complete exercise and plan, with promotional copy outside the actual UI.
+  // Do not apply these coordinates to other screenshots of the same feature.
+  const focusedLogger = !finished && !isHook && input.featureKey === 'live_logger'
+    && imageUrl.endsWith('/fcb7b786-5459-4edb-b575-7d9932fe7edb.png');
   // Measured against the genuine screens in the proof library: use empty gaps,
   // never the existing set values or readiness labels beneath them.
-  const proofCopyTop = input.featureKey === 'workout_plan' ? 974 : input.featureKey === 'live_logger' ? 590 : 1120;
+  const proofCopyTop = focusedLogger ? 330 : input.featureKey === 'workout_plan' ? 974 : input.featureKey === 'live_logger' ? 590 : 1120;
   const body = finished
     ? `<img class="finished" src="${escape(imageUrl)}" alt="Owner-reviewed finished slide">`
     : isHook
       ? `<img class="hook-photo" src="${escape(imageUrl)}" alt=""><div class="shade"></div><h1 class="hook-copy">${escape(overlay)}</h1>`
-      : `<img class="proof" src="${escape(imageUrl)}" alt="Actual DEADSET screen"><h1 class="proof-copy">${escape(overlay)}</h1>`;
+      : focusedLogger
+        ? `<div class="logger-excerpt"><img src="${escape(imageUrl)}" alt="Actual DEADSET exercise and rep-target plan, cropped from the owner screenshot"></div><h1 class="proof-copy">${escape(overlay)}</h1>`
+        : `<img class="proof" src="${escape(imageUrl)}" alt="Actual DEADSET screen"><h1 class="proof-copy">${escape(overlay)}</h1>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#08090b;color:#fff;font-family:Arial,Helvetica,sans-serif}
 .finished{display:block;width:1080px;height:1920px;object-fit:cover}
@@ -42,6 +49,8 @@ export function deadsetSlideHtml(input: {
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,#0002,#0001 45%,#0006)}
 .hook-copy{position:absolute;left:86px;top:350px;width:778px;max-height:500px;margin:0;font-size:68px;line-height:1.12;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
 .proof{position:absolute;inset:0;display:block;width:1080px;height:1920px;object-fit:${input.featureKey === 'workout_plan' ? 'contain' : 'cover'};object-position:center center}
+.logger-excerpt{position:absolute;left:86px;top:460px;width:778px;height:764px;overflow:hidden}
+.logger-excerpt img{position:absolute;left:0;top:-439px;display:block;width:778px;height:auto}
 .proof-copy{position:absolute;left:86px;top:${proofCopyTop}px;width:778px;max-height:${input.featureKey === 'workout_plan' || input.featureKey === 'live_logger' ? 64 : 150}px;margin:0;text-align:center;font-size:${input.featureKey === 'workout_plan' ? 48 : 52}px;font-weight:700;line-height:1.12;text-shadow:0 3px 7px #000;-webkit-text-stroke:4px #000;paint-order:stroke fill;overflow-wrap:break-word}
 </style></head><body>${body}</body></html>`;
 }
