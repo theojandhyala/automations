@@ -70,6 +70,15 @@ retained both HQ KV bindings. Direct shell HTTP checks returned 403; they are
 not recorded as successful health checks. Browser queue readback remains the
 available live application check.
 
+Post-deploy authenticated Queue readback confirmed both connected channels,
+the import control and normal dashboard. The producer subsequently recorded
+CRITIC PASSED for all six unchanged `ba810eaa` URLs, same copy and Cast account:
+slide 1 scored 9/10/9/10, slide 2 scored 8/9/9/10 and slides 3–6 scored 9/9/9/10
+(hierarchy/readability/craft/story). It remains a draft; exact approval is disabled.
+Some descriptions still loosely claim text spans the upper body, so the model
+is not a pixel-perfect witness. This is live review execution evidence, not
+permission to publish or evidence of improved marketing performance.
+
 ## Exact audited media
 
 URL prefix: `https://automations.theojandhyala.workers.dev/media/outputs/ba810eaa-b602-45c0-b890-624d111e4ff0/`.
