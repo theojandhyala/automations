@@ -172,6 +172,23 @@ describe('UK posting windows', () => {
     expect(isPostingSlot(new Date('2026-12-02T18:00:00Z'), 'Europe/London', slots)).toBe(true);
   });
 
+  it('matches all five minute-level slots in summer and winter with bounded grace', () => {
+    const times = ['10:00', '12:00', '14:00', '16:00', '18:30'];
+    for (const [date, offset] of [['2026-09-13', 1], ['2026-12-13', 0]] as const) {
+      for (const time of times) {
+        const [h, m] = time.split(':').map(Number);
+        const start = new Date(`${date}T${String(h! - offset).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`);
+        expect(isPostingSlot(start, 'Europe/London', times)).toBe(true);
+        expect(isPostingSlot(new Date(+start + 299000), 'Europe/London', times)).toBe(true);
+        expect(isPostingSlot(new Date(+start - 1000), 'Europe/London', times)).toBe(false);
+        expect(isPostingSlot(new Date(+start + 300000), 'Europe/London', times)).toBe(false);
+      }
+    }
+    expect(isPostingSlot(new Date('2026-09-13T17:00:00Z'), 'Europe/London', times)).toBe(false);
+    expect(isPostingSlot(new Date('2026-09-13T14:00:00Z'), 'Europe/London', times)).toBe(false);
+    expect(isPostingSlot(new Date('2026-09-13T17:30:00Z'), 'Europe/London', ['18:99', '18.5', 'bogus'])).toBe(false);
+  });
+
   it('enforces the limit per London calendar day rather than a rolling 24 hours', () => {
     expect(startOfLocalDay(new Date('2026-09-02T19:00:00Z'), 'Europe/London').toISOString())
       .toBe('2026-09-01T23:00:00.000Z');

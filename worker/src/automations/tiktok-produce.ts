@@ -328,7 +328,7 @@ export async function produceArtifact(
         ? { state: 'done', at: now, note: 'Autonomous quality and truth gates passed for the owned account.' }
         : { state: 'pending' },
       ...(unattended ? {
-        schedule: { state: 'pending', at: now, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+        schedule: { state: 'pending', at: now, note: 'Queued for the next 10:00, 12:00, 14:00, 16:00 or 18:30 Europe/London slot.' },
       } : {}),
     },
     asset_manifest: {
@@ -494,7 +494,7 @@ export const produceCarousels: Handler = {
           stages: {
             ...artifact.stages,
             review: { state: 'done', at: approvedAt, note: 'Autonomous quality and truth gates passed for the owned account.' },
-            schedule: { state: 'pending', at: approvedAt, note: 'Queued for the next 12:00, 15:00 or 18:00 Europe/London slot.' },
+            schedule: { state: 'pending', at: approvedAt, note: 'Queued for the next 10:00, 12:00, 14:00, 16:00 or 18:30 Europe/London slot.' },
           },
         });
         autoApproved++;

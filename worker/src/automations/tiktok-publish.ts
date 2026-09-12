@@ -27,7 +27,7 @@ interface PublishMissionApp {
 
 const ACTIVE_PUBLISH_MISSIONS = new Set(['deadset', 'cast']);
 
-export function isPostingSlot(at: Date, timezone: string, localHours: number[]): boolean {
+export function isPostingSlot(at: Date, timezone: string, localTimes: Array<number | string>): boolean {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
     hour: '2-digit',
@@ -40,7 +40,14 @@ export function isPostingSlot(at: Date, timezone: string, localHours: number[]):
   // five-minute grace window avoids losing a day's post to harmless scheduler
   // latency; the database reserves each account/slot once, so retries inside
   // this window cannot create duplicate submissions.
-  return minute >= 0 && minute < 5 && localHours.includes(hour);
+  const minuteOfDay = hour * 60 + minute;
+  return localTimes.some(time => {
+    if (typeof time === 'number') return Number.isInteger(time) && minute < 5 && time === hour;
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) return false;
+    const [h, m] = time.split(':').map(Number);
+    const start = h! * 60 + m!;
+    return minuteOfDay >= start && minuteOfDay < start + 5;
+  });
 }
 
 export function startOfLocalDay(at: Date, timezone: string): Date {
@@ -122,6 +129,7 @@ export const publishApproved: Handler = {
       max_per_run?: number;
       timezone?: string;
       local_hours?: number[];
+      local_times?: string[];
     };
     const maxPerRun = Math.min(Math.max(config.max_per_run ?? 3, 1), 10);
     const unattended = unattendedPublishingEnabled(ctx.env);
@@ -143,10 +151,11 @@ export const publishApproved: Handler = {
 
     // Ordinary posts use account slots. Explicit signed bookings are picked up
     // by this same minute cron without a browser or a Codex wake-up.
+    const localTimes = config.local_times ?? config.local_hours;
     const outsideSlot = ctx.trigger === 'cron'
       && config.timezone
-      && config.local_hours?.length
-      && !isPostingSlot(nowDate, config.timezone, config.local_hours);
+      && localTimes?.length
+      && !isPostingSlot(nowDate, config.timezone, localTimes);
 
     // Look beyond one small page so a backlog for one account cannot hide the
     // next due post for another account. The loop still submits at most one

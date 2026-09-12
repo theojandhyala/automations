@@ -181,6 +181,7 @@ export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
     max_per_run: z.number().int().min(1).max(10).default(3),
     timezone: z.literal('Europe/London').optional(),
     local_hours: z.array(z.number().int().min(0).max(23)).min(1).max(6).optional(),
+    local_times: z.array(z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)).min(1).max(6).optional(),
   }).passthrough(),
   'tiktok.produce': z.object({
     app_slug: z.string().min(1).default('deadset'),

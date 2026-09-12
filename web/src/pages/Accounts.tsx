@@ -57,10 +57,10 @@ export default function Accounts() {
     if (preferred) setAppId(preferred.id);
   }, [appId, data, searchParams]);
 
-  async function setThreeDaily() {
+  async function setFiveDaily() {
     setCadenceBusy(true); setError(null);
     try {
-      const result = await api<{ note: string }>('/tiktok/three-daily', { method: 'POST' });
+      const result = await api<{ note: string }>('/tiktok/five-daily', { method: 'POST' });
       setCadenceResult(result.note); refresh();
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setCadenceBusy(false); }
@@ -169,10 +169,10 @@ export default function Accounts() {
           const account = data.accounts.find((item) => item.app_id === app.id);
           return <article key={app.id}><i className={autonomousReady && account?.status === 'connected' ? 'ready' : ''} /><div><span>{app.name.toUpperCase()} CHANNEL</span><b>{account ? `@${account.handle}` : 'NO ACCOUNT ADDED'}</b><small>{account?.status === 'connected' ? autonomousReady ? 'Owned Business Account authorised for public automation' : businessMode ? 'Reconnect after Accounts API approval is active' : 'Consumer login detected; Business Accounts authorisation still required' : 'Add the account below, then authorise it through TikTok Business'}</small></div></article>;
         })}
-        <p>{autonomousReady ? 'Tokens renew automatically while TikTok keeps the account grant valid. Daily account limits are shown below. Apply the three-post schedule for 12:00, 15:00 and 18:00 Europe/London. Only reviewed posts can publish. A revoked grant requires reconnection.' : 'Real accounts stay public. TikTok Business Accounts API approval and credentials are the remaining gate; the consumer Sandbox is test-only and is not the production route.'}</p>
+        <p>{autonomousReady ? 'Tokens renew automatically while TikTok keeps the account grant valid. Daily account limits are shown below. Apply the five-post schedule for 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London. Only reviewed posts can publish. A revoked grant requires reconnection.' : 'Real accounts stay public. TikTok Business Accounts API approval and credentials are the remaining gate; the consumer Sandbox is test-only and is not the production route.'}</p>
         <section aria-label="Daily posting schedule">
           <h3>Daily posting schedule</h3>
-          <button disabled={cadenceBusy} onClick={setThreeDaily}>Apply three posts per account daily</button>
+          <button disabled={cadenceBusy} onClick={setFiveDaily}>Apply five posts per account daily</button>
           {cadenceResult && <p role="status">{cadenceResult}</p>}
         </section>
         <section aria-label="Media ownership verification">

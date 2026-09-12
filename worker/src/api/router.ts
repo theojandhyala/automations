@@ -1,4 +1,3 @@
-import { applyThreeDaily } from '../lib/three-daily';
 import { importNativePost } from '../lib/native-post-import';
 import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
 import { Db } from '../lib/db';
@@ -1384,7 +1383,10 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // --- tiktok accounts ---
 
   if (path === '/tiktok/three-daily' && req.method === 'POST') {
-    return json(await applyThreeDaily(db));
+    return json({ error: 'The daily schedule is now five posts. Reload the dashboard and use the five-post schedule control.' }, 409);
+  }
+  if (path === '/tiktok/five-daily' && req.method === 'POST') {
+    return json(await db.rpc('configure_five_daily_posting', {}));
   }
 
   if (path === '/tiktok/accounts' && req.method === 'POST') {

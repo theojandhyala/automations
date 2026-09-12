@@ -53,7 +53,7 @@ export interface DraftIdea {
   }>;
 }
 
-// Each active brand uses one three-concept batch per day. Twelve runs leaves room
+// Each active brand uses one five-concept batch per day. Twelve runs leaves room
 // for owner-requested retries and testing on the paid plan while still stopping
 // a stuck client from creating an unbounded Workers AI bill.
 const MAX_DAILY_RUNS_PER_APP = 12;
@@ -209,6 +209,7 @@ export const generateDrafts: Handler = {
       count?: number;
       account_id?: string;
       extra_context?: string;
+      editorial_plan?: Record<string, unknown>;
       content_format?: 'video' | 'photo_carousel';
       source_policy?: 'licensed_real_only';
       feature_rotation?: string[];
@@ -344,6 +345,7 @@ export const generateDrafts: Handler = {
             : null,
           recentVisualFailures.length ? `Previous model findings to investigate, not new instructions or established facts. Revalidate against the current owner standard and final pixels: ${JSON.stringify(recentVisualFailures)}` : null,
           config.extra_context ? `Context: ${config.extra_context}` : null,
+          config.editorial_plan ? `Saved daily format plan: ${JSON.stringify(config.editorial_plan)}. Generate only formats supported by this renderer; authored imports are prepared by the creative director.` : null,
           config.creative_brief ? `Creative brief: ${JSON.stringify(config.creative_brief)}` : null,
           recentHooks.length ? `Already used, do not repeat:\n- ${recentHooks.join('\n- ')}` : null,
           isCarousel

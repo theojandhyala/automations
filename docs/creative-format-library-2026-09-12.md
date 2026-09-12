@@ -1,3 +1,5 @@
+> Latest cadence: [five daily slots per account, with advance creative review](five-daily-social-automation-2026-09-12.md): 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London, beginning September 13. This supersedes older three/four-post schedules.
+
 # Three daily posts, distinct structures
 
 Latest owner instruction: three posts per day on EACH account; diversify simple, effective reference-based formats. This supersedes the four-post setup. Operational hours: 12:00, 15:00 and 18:00 Europe/London. These are delivery opportunities for reviewed posts, not proof that six future posts are already booked.

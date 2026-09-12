@@ -108,7 +108,7 @@ export function stageStatuses(env: Env): StageStatus[] {
     const resolved = unattended && stage.key === 'review'
       ? { ...stage, handler: 'tiktok.produce', manual: false, description: 'Apply deterministic truth, media and native-quality gates before scheduling.' }
       : unattended && stage.key === 'schedule'
-        ? { ...stage, handler: 'tiktok.publish', manual: false, description: 'Release one approved carousel per account at 12:00, 15:00 and 18:00 Europe/London.' }
+        ? { ...stage, handler: 'tiktok.publish', manual: false, description: 'Release one approved carousel per account at 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London.' }
         : stage;
     const isTikTokApiStage = resolved.key === 'publish' || resolved.key === 'analytics';
     const required = isTikTokApiStage && publishProvider(env) === 'business_accounts'

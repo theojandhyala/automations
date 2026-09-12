@@ -1,3 +1,5 @@
+> Latest cadence: [five daily slots per account, with advance creative review](five-daily-social-automation-2026-09-12.md): 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London, beginning September 13. This supersedes older three/four-post schedules.
+
 > Latest release restriction, September 12: the new Deadset calendar is unreleased. Pause calendar/heatmap promotion and its daily lane until public App Store release is verified. Promote other verified shipped features instead. Read the saved `cast-deadset-social-marketing` skill for the current audio and publishing requirements.
 
 > Latest September 12 direction: [three varied posts per day on each account](creative-format-library-2026-09-12.md), including the new tier-list reference.

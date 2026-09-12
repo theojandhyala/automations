@@ -33,7 +33,7 @@ export default function ScheduleStrip({ automations, apps, onOpenAgent }: {
             <span className="sched-index">0{index + 1}</span>
             <span className="when"><span>{!isStandby && primary?.next_run_at ? <Ago at={primary.next_run_at} /> : '—'}</span><span>{status}</span></span>
             <span className="what">{app.name.toUpperCase()} MISSION</span>
-            <span className="note">{isStandby ? 'Locked until App Store release' : '3 posts/day · 12:00 → 15:00 → 18:00 UK'}</span>
+            <span className="note">{isStandby ? 'Locked until App Store release' : '5 posts/day · 10:00 · 12:00 · 14:00 · 16:00 · 18:30 UK'}</span>
           </button>
         );
       })}
