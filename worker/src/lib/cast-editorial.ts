@@ -1,6 +1,6 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-promotional-ending';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-varied-bank';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
@@ -12,6 +12,15 @@ export interface CastEditorialConcept {
   items: Array<[heading: string, body: string]>;
 }
 const CURATED_CONCEPTS: CastEditorialConcept[] = [
+  { id: 'notes-tier-list', hook: 'Fishing notes tier list', promotional: true,
+    caption: 'Our ranking of fishing notes by how much context they keep. What would you move up a tier?',
+    items: [['D · “Caught one”', 'A memory, but almost nothing to compare.'], ['C · Photo only', 'You can see the fish. The setup is still missing.'], ['B · Add time and species', 'A clearer record of what happened and when.'], ['A · Add the setup', 'Lure or bait, depth and retrieve. Record what you used.'], ['S · Keep the context', 'Keep the catch and conditions together in Cast.']] },
+  { id: 'memory-vs-record', hook: 'What you remember vs what you recorded', promotional: true,
+    caption: 'Memory fills in the gaps. A short catch record gives you something concrete to check next time.',
+    items: [['“Some time after lunch”', 'Record the catch time while it is fresh.'], ['“That lure worked”', 'Note the lure and how you retrieved it.'], ['“It was about this big”', 'Save the measurement you actually took.'], ['“The usual spot”', 'Keep the exact location private when appropriate.'], ['A record you can check', 'Keep the catch and conditions together in Cast.']] },
+  { id: 'one-trip-five-decisions', hook: 'One fishing trip. Five decisions.', promotional: true,
+    caption: 'A useful session starts with a few deliberate choices. Keep a record so you can compare what happened.',
+    items: [['Choose your water', 'Check access and local restrictions before you travel.'], ['Choose your first setup', 'Start with tackle you know how to use.'], ['Choose one change', 'Adjust one thing, then pay attention to what happens.'], ['Choose what to record', 'Time, setup, conditions and the measured catch.'], ['Choose what to share', 'Keep control of location details in Cast.']] },
   { id: 'notes-ranked', hook: 'Fishing notes, ranked from vague to useful', promotional: false,
     caption: 'A catch photo is a memory. A few details make it something you can learn from. Which detail do you always forget?',
     items: [['5 · “Caught one”', 'Nice memory. Not much to compare next time.'], ['4 · Add the species', 'Now you know what the session produced.'], ['3 · Add the time', 'Record when it happened, not when you posted it.'], ['2 · Add the setup', 'Lure, depth and retrieve. Write down what you actually used.'], ['1 · Add the conditions', 'Keep the whole picture together. Blank sessions count too.']] },
@@ -46,6 +55,9 @@ const CURATED_CONCEPTS: CastEditorialConcept[] = [
 
 export const CAST_STORE_CTA = 'Find Cast Fishing Companion on the App Store.';
 const CAST_PAYOFFS: Record<string, string> = {
+  'notes-tier-list': 'Keep catch conditions together in Cast.',
+  'memory-vs-record': 'Look back at your catch records in Cast.',
+  'one-trip-five-decisions': 'Choose how much location you share in Cast.',
   'notes-ranked': 'Keep your catch conditions together in Cast.',
   'before-buying': 'Check your past catch records in Cast.',
   'private-mark': 'Choose how much location you share in Cast.',

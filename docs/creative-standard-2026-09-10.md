@@ -1,3 +1,5 @@
+> Latest September 12 direction: [three varied posts per day on each account](creative-format-library-2026-09-12.md), including the new tier-list reference.
+
 > September 12 daily Deadset addition: [one consistency/heatmap post per day](deadset-daily-consistency-2026-09-12.md), within the existing slots.
 
 > September 12 Deadset addition: [occasional ten-slide rules format](deadset-longform-reference-2026-09-12.md), with genuine app promotion on slide five. Default short posts remain two slides.

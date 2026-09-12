@@ -1,3 +1,4 @@
+import { applyThreeDaily } from '../lib/three-daily';
 import { importNativePost } from '../lib/native-post-import';
 import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
 import { Db } from '../lib/db';
@@ -1381,6 +1382,10 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   }
 
   // --- tiktok accounts ---
+
+  if (path === '/tiktok/three-daily' && req.method === 'POST') {
+    return json(await applyThreeDaily(db));
+  }
 
   if (path === '/tiktok/accounts' && req.method === 'POST') {
     const body = await parseBody(req, createAccountSchema);

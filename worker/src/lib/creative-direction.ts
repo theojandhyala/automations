@@ -1,11 +1,12 @@
 /** Owner's 10 September reset, backed by the saved Stronger audit. */
-export const CREATIVE_DIRECTION_VERSION = 'cast-deadset-2026-09-12-varied-v5';
+export const CREATIVE_DIRECTION_VERSION = 'cast-deadset-2026-09-12-diverse-v6';
 
 export const CREATIVE_DIRECTION = `Creative director standard (${CREATIVE_DIRECTION_VERSION}):
 For a two-slide promotion: one recognisable human situation, one short setup, one visible product answer.
 For Cast six-slide editorial: a concrete useful hook followed by five clear useful items. Every final slide must connect its last useful item to a truthful Cast benefit and an App Store call to action. An actual app screenshot is optional for this advice format; naming and promoting Cast is mandatory. Each item can include a short explanatory sentence.
 Deadset reference: @strongermobile, inspected in docs/strongermobile-creative-audit-2026-09-10.md.
 The observed grammar is ordinary photo -> short conversation -> app evidence. Use original wording.
+Owner's latest mix: THREE posts per account per London day, in the 12:00, 15:00 and 18:00 slots. Rotate structures, not merely opening words. Deadset includes one daily consistency/heatmap story, a rotating tier-list or relatable product demonstration, and occasional long rules posts. Cast rotates tier lists of useful fishing habits, mistake/fix stories and practical field checklists, always ending in a truthful Cast benefit. New inspected reference: @zeno.app/photo/7673262585545837831 — casual gym opener followed by a tier-list board. Borrow the concise ranking grammar for original useful habits; never invent competitor tests, rankings or first-person app endorsements. Tier-list artwork is authored and reviewed as an explicit format experiment; do not pretend an ordinary two-slide renderer produced a new board layout. Retain current supported format and exact-media/source gates.
 Vary gym-floor POV, between-set details, gym arrival and casual car context; do not repeat one stock scene.
 Cast reference: @r1pple8, inspected September 10. Its observed formats include multi-slide useful fishing advice, illustrated problem/solution cards, and app rankings ending in its own promotion. Cast should earn attention with a concrete angling decision or useful tip before product proof. Do not fabricate comparative rankings, personal testing, or copy universal fishing promises. Never call uninspected posts winners.
 Finish the image deliberately: clear hierarchy, readable proof, natural photography, generous safe areas.
