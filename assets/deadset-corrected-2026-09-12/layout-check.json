@@ -1,0 +1,392 @@
+[
+  {
+    "name": "long-1",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 651.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-2",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 740,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 891.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 960,
+        "w": 756,
+        "h": 115,
+        "bottom": 1075,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-3",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 651.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-4",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 75.890625,
+        "bottom": 575.890625,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-5",
+    "boxes": [
+      {
+        "class": "proof-viewport",
+        "x": 162,
+        "y": 650,
+        "w": 756,
+        "h": 590,
+        "bottom": 1240,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "brand-lockup",
+        "x": 300,
+        "y": 250,
+        "w": 480,
+        "h": 213.328125,
+        "bottom": 463.328125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "proof-title",
+        "x": 162,
+        "y": 485,
+        "w": 756,
+        "h": 150.53125,
+        "bottom": 635.53125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words tag",
+        "x": 162,
+        "y": 1300,
+        "w": 756,
+        "h": 32.1875,
+        "bottom": 1332.1875,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words cta",
+        "x": 162,
+        "y": 1380,
+        "w": 756,
+        "h": 45.59375,
+        "bottom": 1425.59375,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-6",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 651.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-7",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 651.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-8",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 500,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 651.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 755,
+        "w": 756,
+        "h": 115,
+        "bottom": 870,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-9",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 740,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 891.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 960,
+        "w": 756,
+        "h": 115,
+        "bottom": 1075,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "long-10",
+    "boxes": [
+      {
+        "class": "words",
+        "x": 162,
+        "y": 280,
+        "w": 756,
+        "h": 151.78125,
+        "bottom": 431.78125,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "words",
+        "x": 162,
+        "y": 940,
+        "w": 756,
+        "h": 115,
+        "bottom": 1055,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "production-live_logger",
+    "boxes": [
+      {
+        "class": "proof-viewport centered logger",
+        "x": 162,
+        "y": 590,
+        "w": 756,
+        "h": 732,
+        "bottom": 1322,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "brand-lockup centered",
+        "x": 340,
+        "y": 250,
+        "w": 400,
+        "h": 177.765625,
+        "bottom": 427.765625,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "proof-copy centered",
+        "x": 162,
+        "y": 450,
+        "w": 756,
+        "h": 114.375,
+        "bottom": 564.375,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "example centered",
+        "x": 162,
+        "y": 1333,
+        "w": 756,
+        "h": 29.6875,
+        "bottom": 1362.6875,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "cta centered",
+        "x": 162,
+        "y": 1380,
+        "w": 756,
+        "h": 46.796875,
+        "bottom": 1426.796875,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "name": "production-workout_plan",
+    "boxes": [
+      {
+        "class": "proof-viewport centered plan",
+        "x": 162,
+        "y": 650,
+        "w": 756,
+        "h": 590,
+        "bottom": 1240,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "brand-lockup centered",
+        "x": 340,
+        "y": 250,
+        "w": 400,
+        "h": 177.765625,
+        "bottom": 427.765625,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "proof-copy centered",
+        "x": 162,
+        "y": 450,
+        "w": 756,
+        "h": 114.375,
+        "bottom": 564.375,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "example centered",
+        "x": 162,
+        "y": 1333,
+        "w": 756,
+        "h": 29.6875,
+        "bottom": 1362.6875,
+        "center": 540,
+        "overflow": false
+      },
+      {
+        "class": "cta centered",
+        "x": 162,
+        "y": 1380,
+        "w": 756,
+        "h": 46.796875,
+        "bottom": 1426.796875,
+        "center": 540,
+        "overflow": false
+      }
+    ]
+  }
+]

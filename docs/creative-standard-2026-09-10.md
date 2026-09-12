@@ -1,3 +1,5 @@
+> Latest owner rejection: [Deadset centring and official-brand promotion repair](deadset-centering-correction-2026-09-12.md). Both recent rep-target posts were rejected. Every product slide, including short posts, needs the official logo, truthful benefit and App Store CTA. Old model passes and off-centre masters are superseded.
+
 > Latest cadence: [five daily slots per account, with advance creative review](five-daily-social-automation-2026-09-12.md): 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London, beginning September 13. This supersedes older three/four-post schedules.
 
 > Latest release restriction, September 12: the new Deadset calendar is unreleased. Pause calendar/heatmap promotion and its daily lane until public App Store release is verified. Promote other verified shipped features instead. Read the saved `cast-deadset-social-marketing` skill for the current audio and publishing requirements.

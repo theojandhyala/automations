@@ -1,11 +1,11 @@
 import { castEditorialHtml } from './cast-editorial';
 import puppeteer from '@cloudflare/puppeteer';
 import type { Env } from '../types';
-import { deadsetSlideHtml, deadsetSourceFits } from './deadset-slide-layout';
+import { deadsetSlideHtml, deadsetSourceFits, DEADSET_SAFE_AREA } from './deadset-slide-layout';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v4.2-deadset-native';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v5-deadset-centered-promotion';
 
 export interface SlideInput {
   imageUrl: string;
@@ -127,11 +127,15 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     }
   }
   if (input.appSlug === 'deadset' && !input.finished) {
-    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.hook-copy,.proof-copy')).every(el => {
+    const fits = await page.evaluate(`(() => {
+      const elements=Array.from(document.querySelectorAll('.centered'));
+      const bounds=elements.map(el=>el.getBoundingClientRect());
+      const overlaps=bounds.some((a,i)=>bounds.some((b,j)=>j>i && a.top<b.bottom && b.top<a.bottom && a.left<b.right && b.left<a.right));
+      return !overlaps && elements.every(el => {
       const r=el.getBoundingClientRect();
-      return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1;
-    })`);
-    if (!fits) throw new Error('DEADSET copy exceeds TikTok safe bounds; shorten the copy before approval.');
+      return Math.abs(r.left+r.width/2-540)<=1 && r.left>=${DEADSET_SAFE_AREA.x} && r.right<=${DEADSET_SAFE_AREA.x + DEADSET_SAFE_AREA.width} && r.top>=${DEADSET_SAFE_AREA.y} && r.bottom<=${DEADSET_SAFE_AREA.y + DEADSET_SAFE_AREA.height} && (el.classList.contains('proof-viewport') || el.scrollHeight<=el.clientHeight+1) && (el.classList.contains('proof-viewport') || el.scrollWidth<=el.clientWidth+1);
+    }); })()`);
+    if (!fits) throw new Error('DEADSET composition is off-centre, overflows or exceeds TikTok safe bounds; revise before approval.');
   }
   if (input.editorial) {
     const fits = await page.evaluate(`Array.from(document.querySelectorAll('.copy,.kicker,.brand')).every(el => { const r=el.getBoundingClientRect(); return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1; })`);

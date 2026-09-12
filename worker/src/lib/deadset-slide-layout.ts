@@ -1,4 +1,4 @@
-export const DEADSET_SAFE_AREA = { x: 86, y: 300, width: 778, height: 970 } as const;
+export const DEADSET_SAFE_AREA = { x: 162, y: 250, width: 756, height: 1180 } as const;
 // Safe bounds apply to added copy, not to the photograph or product canvas.
 export const DEADSET_PROOF_AREA = { x: 0, y: 0, width: 1080, height: 1920 } as const;
 
@@ -27,30 +27,30 @@ export function deadsetSlideHtml(input: {
     throw new Error('DEADSET slide copy must contain 1–100 characters; shorten it before rendering.');
   }
   const isHook = role === 'hook';
-  // A measured crop of this registered 620×1347 owner capture preserves the
-  // complete exercise and plan, with promotional copy outside the actual UI.
-  // Do not apply these coordinates to other screenshots of the same feature.
+  // Crops are tied to exact first-party captures, never inferred from a feature name.
   const focusedLogger = !finished && !isHook && input.featureKey === 'live_logger'
     && imageUrl.endsWith('/fcb7b786-5459-4edb-b575-7d9932fe7edb.png');
-  // Measured against the genuine screens in the proof library: use empty gaps,
-  // never the existing set values or readiness labels beneath them.
-  const proofCopyTop = focusedLogger ? 330 : input.featureKey === 'workout_plan' ? 974 : input.featureKey === 'live_logger' ? 590 : 1120;
+  const focusedPlan = !finished && !isHook && input.featureKey === 'workout_plan'
+    && imageUrl.endsWith('/b8570478-36b1-49fa-8cdf-c90341bad79f.png');
   const body = finished
     ? `<img class="finished" src="${escape(imageUrl)}" alt="Owner-reviewed finished slide">`
     : isHook
-      ? `<img class="hook-photo" src="${escape(imageUrl)}" alt=""><div class="shade"></div><h1 class="hook-copy">${escape(overlay)}</h1>`
-      : focusedLogger
-        ? `<div class="logger-excerpt"><img src="${escape(imageUrl)}" alt="Actual DEADSET exercise and rep-target plan, cropped from the owner screenshot"></div><h1 class="proof-copy">${escape(overlay)}</h1>`
-        : `<img class="proof" src="${escape(imageUrl)}" alt="Actual DEADSET screen"><h1 class="proof-copy">${escape(overlay)}</h1>`;
+      ? `<img class="hook-photo" src="${escape(imageUrl)}" alt=""><div class="shade"></div><h1 class="hook-copy centered">${escape(overlay)}</h1>`
+      : `<div class="proof-viewport centered ${focusedLogger ? 'logger' : focusedPlan ? 'plan' : 'whole'}"><img src="${escape(imageUrl)}" alt="Actual DEADSET app, example screen"></div><img class="brand-lockup centered" src="https://automations.theojandhyala.workers.dev/brand/deadset-lockup.png" alt="DEADSET — Forge Your Body"><h1 class="proof-copy centered">${escape(overlay)}</h1><p class="example centered">Actual Deadset app · example screen</p><p class="cta centered">Find Deadset on the App Store</p>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#08090b;color:#fff;font-family:Arial,Helvetica,sans-serif}
 .finished{display:block;width:1080px;height:1920px;object-fit:cover}
 .hook-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 43%}
 .shade{position:absolute;inset:0;background:linear-gradient(180deg,#0002,#0001 45%,#0006)}
-.hook-copy{position:absolute;left:86px;top:350px;width:778px;max-height:500px;margin:0;font-size:68px;line-height:1.12;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
-.proof{position:absolute;inset:0;display:block;width:1080px;height:1920px;object-fit:${input.featureKey === 'workout_plan' ? 'contain' : 'cover'};object-position:center center}
-.logger-excerpt{position:absolute;left:86px;top:460px;width:778px;height:764px;overflow:hidden}
-.logger-excerpt img{position:absolute;left:0;top:-439px;display:block;width:778px;height:auto}
-.proof-copy{position:absolute;left:86px;top:${proofCopyTop}px;width:778px;max-height:${input.featureKey === 'workout_plan' || input.featureKey === 'live_logger' ? 64 : 150}px;margin:0;text-align:center;font-size:${input.featureKey === 'workout_plan' ? 48 : 52}px;font-weight:700;line-height:1.12;text-shadow:0 3px 7px #000;-webkit-text-stroke:4px #000;paint-order:stroke fill;overflow-wrap:break-word}
+.hook-copy{position:absolute;left:162px;top:350px;width:756px;max-height:500px;margin:0;font-size:68px;line-height:1.12;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
+.brand-lockup{position:absolute;left:340px;top:250px;width:400px;height:auto}
+.proof-viewport{position:absolute;left:162px;top:590px;width:756px;height:732px;overflow:hidden}
+.proof-viewport img{display:block;position:absolute;width:756px;height:auto;left:0}
+.logger img{top:-427px}.plan{top:650px;height:590px}.plan img{top:-262px}
+.whole img{width:100%;height:100%;object-fit:contain}
+.proof-copy{position:absolute;left:162px;top:450px;width:756px;max-height:116px;margin:0;text-align:center;font-size:52px;font-weight:700;line-height:1.1;color:#f5f5f0;overflow-wrap:break-word}
+.example,.cta{position:absolute;left:162px;width:756px;margin:0;text-align:center}
+.example{top:1333px;font-size:27px;line-height:1.1;color:#aaa}
+.cta{top:1380px;font-size:39px;line-height:1.2;color:#f5f5f0;font-weight:700}
 </style></head><body>${body}</body></html>`;
 }

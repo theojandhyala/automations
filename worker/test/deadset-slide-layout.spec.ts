@@ -5,26 +5,27 @@ describe('DEADSET slide composition', () => {
   it('fills the entire frame while reserving conservative bounds for copy', () => {
     const safe = DEADSET_SAFE_AREA, proof = DEADSET_PROOF_AREA;
     expect(proof).toEqual({ x: 0, y: 0, width: 1080, height: 1920 });
-    expect(safe.x + safe.width).toBeLessThanOrEqual(1080 * .8);
-    expect(safe.y + safe.height).toBeLessThanOrEqual(1920 * .67);
+    expect(safe.x + safe.width / 2).toBe(540);
+    expect(safe.x + safe.width).toBeLessThanOrEqual(1080 * .85);
+    expect(safe.y + safe.height).toBeLessThanOrEqual(1920 * .75);
   });
   it('does not overprint or crop a finished slide', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/approved.png', overlay: 'Enough.', role: 'feature', finished: true });
-    const body = html.split('<body>')[1];
+    const body = html.split('<body>')[1]!;
     expect(body).toContain('class="finished"');
     expect(body).not.toContain('Enough.');
     expect(body).not.toContain('Get DEADSET');
     expect(body).not.toContain('class="shade"');
-    expect(html).not.toContain('object-fit:contain');
+    expect(html).toContain('.finished{display:block;width:1080px;height:1920px;object-fit:cover}');
   });
-  it('uses full-frame proof and a short reaction, not a boxed advert', () => {
+  it('includes the official logo and visible CTA on short product slides too', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/capture.png', overlay: 'See the muscles each exercise targets', role: 'feature' });
-    expect(html).toContain('class="proof"');
-    expect(html).toContain('class="proof-copy"');
-    expect(html).not.toContain('class="download"');
-    expect(html).not.toContain('class="benefit"');
-    expect(html).not.toContain('object-fit:contain');
-    expect(html).not.toContain('bottom:190px');
+    const body = html.split('<body>')[1]!;
+    expect(body).toContain('/brand/deadset-lockup.png');
+    expect(body).toContain('Find Deadset on the App Store');
+    expect(body).toContain('Actual Deadset app · example screen');
+    expect(body.indexOf('capture.png')).toBeLessThan(body.indexOf('deadset-lockup.png'));
+    expect(body).toContain('whole');
   });
   it('rejects card crops and low-resolution or incorrectly sized finished exports', () => {
     expect(deadsetSourceFits(1320, 2868)).toBe(true);
@@ -33,11 +34,13 @@ describe('DEADSET slide composition', () => {
     expect(deadsetSourceFits(300, 650)).toBe(false);
     expect(deadsetSourceFits(1320, 2868, true)).toBe(false);
   });
-  it('places reactions in measured gaps, not over existing app labels', () => {
-    for (const [featureKey, top] of [['workout_plan', 974], ['live_logger', 590]] as const) {
-      const html = deadsetSlideHtml({ imageUrl: 'https://media.example/screen.png', overlay: 'No more mental notes.', role: 'feature', featureKey });
-      expect(html).toContain(`top:${top}px;width:778px;max-height:64px`);
-    }
+  it('only crops the exact registered capture and keeps copy outside UI', () => {
+    const known = deadsetSlideHtml({ imageUrl: 'https://media.example/fcb7b786-5459-4edb-b575-7d9932fe7edb.png', overlay: 'Planned sets and reps', role: 'feature', featureKey: 'live_logger' });
+    const other = deadsetSlideHtml({ imageUrl: 'https://media.example/other.png', overlay: 'Planned sets and reps', role: 'feature', featureKey: 'live_logger' });
+    expect(known.split('<body>')[1]).toContain('centered logger');
+    expect(other.split('<body>')[1]).toContain('centered whole');
+    expect(known).toContain('top:450px');
+    expect(known).toContain('top:590px');
   });
   it('escapes source and caption HTML', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/" onerror="alert(1)', overlay: '<img src=x onerror=alert(1)>', role: 'hook' });

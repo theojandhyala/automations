@@ -1,5 +1,10 @@
 # Deadset logger promotion layout — 12 September 2026
 
+**SUPERSEDED: the owner subsequently rejected this published treatment.**
+It was off-centre and lacked proper official-brand advertising. Its previous
+model pass is not evidence of owner acceptance. Use
+`docs/deadset-centering-correction-2026-09-12.md` and the corrected master.
+
 The immediate rep-target post used the registered owner screenshot
 `fcb7b786-5459-4edb-b575-7d9932fe7edb.png`. Its top session summary and exercise
 summary are one genuine screen; the critic incorrectly called them stitched UI.

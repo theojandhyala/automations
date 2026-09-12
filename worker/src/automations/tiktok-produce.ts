@@ -63,10 +63,10 @@ interface CarouselManifest extends Record<string, unknown> {
 const DEADSET_REACTIONS: Record<string, string> = {
   muscle_diagram: 'Know what you’re training.',
   training_heatmap: 'Every logged session.',
-  pr_wall: 'Kept the receipts.',
-  progression_board: 'No more guessing.',
-  workout_plan: 'Already planned.',
-  live_logger: 'No more mental notes.',
+  pr_wall: 'Keep your personal records in view.',
+  progression_board: 'Check your previous sets.',
+  workout_plan: 'Training days. Rest days. Sorted.',
+  live_logger: 'See your planned sets and reps.',
 };
 
 async function approvalVarietyError(db: Db, artifact: Artifact): Promise<string | null> {
@@ -260,9 +260,9 @@ export async function produceArtifact(
   const hookOverlay = renderedHook(artifact.hook, hookSlide.overlay);
   const proofComposition = await classifyProofComposition(env, publicMediaUrl(env, feature.storage_path));
   const featureOverlay = proofComposition === 'finished_promotion' ? ''
-    : proofReaction(featureSlide.overlay, appSlug === 'deadset'
+    : appSlug === 'deadset'
       ? DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay
-      : contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay);
+      : proofReaction(featureSlide.overlay, contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay);
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
     env,
