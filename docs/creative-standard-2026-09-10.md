@@ -1,3 +1,5 @@
+> Latest Deadset opener: [candid person-led car/street imagery](deadset-candid-opener-2026-09-12.md), superseding gym-floor/shoes defaults. Apply this alongside the official-brand and centring correction.
+
 > Latest owner rejection: [Deadset centring and official-brand promotion repair](deadset-centering-correction-2026-09-12.md). Both recent rep-target posts were rejected. Every product slide, including short posts, needs the official logo, truthful benefit and App Store CTA. Old model passes and off-centre masters are superseded.
 
 > Latest cadence: [five daily slots per account, with advance creative review](five-daily-social-automation-2026-09-12.md): 10:00, 12:00, 14:00, 16:00 and 18:30 Europe/London, beginning September 13. This supersedes older three/four-post schedules.

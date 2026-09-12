@@ -68,7 +68,7 @@ export const CAST_HOOK_VISUAL_TEMPLATE_ID = 'cast-fishing-decision-v2';
 
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-09-10.2',
+    version: 'deadset-2026-09-12-candid-person',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
@@ -77,16 +77,16 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
     defaultHashtags: ['gymtok', 'gymprogress', 'workoutplan', 'workoutapp'],
     hookVisualTemplate: {
       id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
-      direction: 'A real casual phone-style gym-floor POV, between-set rest, gym-arrival or ordinary car moment. Keep framing naturally imperfect and unposed. Rotate the setting; the photo supports the gym thought, not a glossy fitness or automotive shoot.',
-      searchQuery: 'gym floor shoes dumbbells workout',
+      direction: 'A compelling candid photograph of a stylish real person in an ordinary car-arrival or street moment, like the owner-described person in a beanie getting into a black car. Natural camera-roll framing and a clear human subject. Prefer that car-arrival feel; vary people and photos. The exact car make is not required. Reject equipment-only or shoe-only openers.',
+      searchQuery: 'person black car street casual',
       requiredAltTermGroups: [
-        ['gym', 'fitness', 'workout'],
-        ['person', 'man', 'woman', 'shoe', 'bench', 'dumbbell', 'weight'],
+        ['person', 'man', 'woman', 'people'],
+        ['car', 'vehicle'],
       ],
       captionStyle: 'TikTok Classic-style semi-bold white sans serif at a normal medium-heavy weight, clean 4-5px black outline, no box, no hollow lettering and no oversized cinematic title treatment.',
-      variationRule: 'Rotate gym-floor POV, between-set rest and casual arrival; avoid repeating the same source, framing or hook.',
-      rejectionRule: 'Reject posed fitness campaigns, glamour portraits, glossy car photography, cinematic grading and photographs unrelated to the hook.',
-      gateLabel: 'native gym moment',
+      variationRule: 'Vary candid people, casual clothing, framing and car/street moments. Keep the engaging human-first treatment; never recycle the same source or replace it with equipment filler.',
+      rejectionRule: 'Reject posed fitness campaigns, scripted catalogue poses, AI-looking or generated people, empty-car adverts, equipment-only photos, glossy automotive photography, extreme grading, weak composition and photos unrelated to the human setup. A source credit is not visual QA; require the original creator/source and reuse permission separately.',
+      gateLabel: 'candid person-led opener',
     },
     creativeStrategy: {
       defaultLane: 'car_lifestyle',
@@ -106,11 +106,11 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
           soundMood: 'Current UK Commercial Music Library track that feels focused, understated and gym-native; never novelty or shock audio.',
           hashtags: ['gymtok', 'gymprogress', 'workoutplan', 'workoutapp'],
           rules: [
-            'Rotate casual gym-floor, between-set and arrival photos; no compulsory car scene.',
+            'Prefer candid person-led car arrivals; vary the people and ordinary car/street moments. Never fill the opener with equipment-only gym shots.',
             'Keep the title short, human and readable in one glance.',
             'Resolve the setup with one exact current Deadset feature screen.',
-            'Treat slide two like a creator reaction to proof: keep the screenshot untouched, add no more than one short reaction line and use at most two thin hand-drawn callouts around exact displayed values.',
-            'Never cover the feature, rebuild the UI or turn the payoff into an App Store card.',
+            'Make slide two a clear Deadset product answer: exact official lockup, one truthful benefit, genuine readable UI and an App Store CTA, all centred and outside app labels.',
+            'Never cover the feature, rebuild the UI, invent results or stamp another caption over finished artwork.',
           ],
         },
         heartbreak_rebuild: {

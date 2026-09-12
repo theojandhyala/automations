@@ -1,3 +1,5 @@
+> Latest owner correction: replace the existing cover with a candid person-led car/street opener before import. Product slide QA remains useful; the full package is not release-ready. See docs/deadset-candid-opener-2026-09-12.md.
+
 # Corrected Deadset preview QA
 
 Codex inspected all ten final 1080×1920 JPEGs at full size and the final 300px

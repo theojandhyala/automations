@@ -36,16 +36,17 @@ describe('mission-scoped carousel production', () => {
     })).toThrow(/source_run_id/);
   });
 
-  it('selects relevant casual gym photos without requiring a car', () => {
+  it('requires a person in the preferred car opener and rejects equipment-only filler', () => {
     const template = getCreativePlaybook('deadset')!.hookVisualTemplate!;
     const candidates = [
-      photo(1, 'Athlete lifting a barbell in a bright gym'),
-      photo(2, 'A person resting beside a gym bench between workout sets'),
+      photo(1, 'Shoes and dumbbells on a gym floor'),
+      photo(2, 'A person getting into a black car on the street'),
       photo(3, 'A glossy sports car photographed alone in a studio'),
     ];
 
     expect(choosePhoto(candidates, 'artifact-a', 'fitness', template.requiredAltTermGroups)?.id).toBe(2);
-    expect(choosePhoto([candidates[0]!], 'artifact-b', 'fitness', template.requiredAltTermGroups)).toBeNull();
+    expect(choosePhoto([candidates[0]!, candidates[2]!], 'artifact-b', 'fitness', template.requiredAltTermGroups)).toBeNull();
+    expect(choosePhoto(candidates, 'artifact-a', 'fitness', template.requiredAltTermGroups, [2])).toBeNull();
   });
 
   it('selects only photos that pass the saved Cast angler-and-water vibe gate', () => {

@@ -64,8 +64,8 @@ describe('verified creative playbooks', () => {
     const prompt = photoSystem(deadset);
     const fallback = buildCarouselFallbacks(deadset, ['workout_plan'], 1)[0]!;
 
-    expect(deadset.hookVisualTemplate?.id).toBe('deadset-casual-gym-v2');
-    expect(deadset.hookVisualTemplate?.direction).toMatch(/gym-floor POV/i);
+    expect(deadset.hookVisualTemplate?.id).toBe('deadset-candid-person-v3');
+    expect(deadset.hookVisualTemplate?.direction).toMatch(/candid photograph.*real person/i);
     expect(deadset.hookVisualTemplate?.captionStyle).toMatch(/TikTok Classic-style semi-bold white/i);
     expect(prompt).toContain('required for every Deadset photo carousel');
     expect(prompt).toContain('Reject posed fitness campaigns');
