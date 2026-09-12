@@ -72,3 +72,28 @@ signed review. Missing source evidence fails closed; the original score and
 truth gates are unchanged. Source-backed proof reviews have a new version so
 the previous mistaken assessment cannot be reused. Cast editorial reviews do
 not change. Validation: 180 Worker tests, 13 Node tests and typecheck passed.
+
+## Verified delivery and scheduled follow-up
+
+Cast was submitted through the normal Jarvis publisher at 17:57:42 UTC on
+September 12, passed TikTok processing, and was verified on its public profile
+and in cinema view: https://www.tiktok.com/@cast.fishing.app/photo/7684709514326707488.
+The six images, caption, music and promotional disclosure are present. This
+is a verified public result, not a local preview or queued draft.
+
+The REST execution remained falsely classified as a composite even with the
+source reference. That limitation is recorded rather than presented as solved.
+It was superseded and rejected in Queue. A clearer live-logger execution was
+revised on artifact bf423697-bb77-47d7-90df-92323087d850: “Wait, how many reps?”
+then “Right there.” over the real planned-set screen. Exact final nonce f090efe5
+was inspected full-size and at phone size; the fresh independent critic passed
+with scores [9,10,8,10] and [9,9,9,10]. It is approved with a saved earliest time
+of 19:58 Europe/London.
+
+The existing creative heartbeat has the specific one-hour launch instruction
+using the normal Jarvis publisher, including its two-step launch UI. Only one
+heartbeat is allowed per thread, so the existing schedule temporarily includes
+the evening wake; its first action restores normal 09:00/16:00 daily checks.
+Tomorrow’s normal times remain included even before restoration. The shared
+.local/creative-director/state.json tracks exact IDs, review evidence and the
+live Cast URL. Latest backend release: 76bc654c-2985-4082-83aa-0ce524809dd3.
