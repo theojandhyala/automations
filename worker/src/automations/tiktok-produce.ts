@@ -1,9 +1,9 @@
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
-import { CAST_EDITORIAL_FORMAT, type EditorialSlide } from '../lib/cast-editorial';
+import { CAST_EDITORIAL_FORMAT, castPhotoDirection, type EditorialSlide } from '../lib/cast-editorial';
 import { decrypt } from '../lib/crypto';
 import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
 import { publicMediaUrl, uploadMedia } from '../lib/storage';
-import { searchPexels, type PexelsPhoto } from '../lib/pexels';
+import { searchPexels, getPexelsPhoto, type PexelsPhoto } from '../lib/pexels';
 import { getCreativePlaybook } from '../lib/creative-playbooks';
 import { isFinishedSlidePath } from '../lib/deadset-slide-layout';
 import { CREATIVE_DIRECTION_VERSION, proofReaction } from '../lib/creative-direction';
@@ -44,6 +44,7 @@ interface PromotionMissionLink {
 }
 
 interface ManifestSlide {
+  photo_id?: number;
   role?: string;
   overlay?: string;
   asset_query?: string;
@@ -236,7 +237,7 @@ export async function produceArtifact(
     'artifacts', `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&status=neq.rejected&asset_manifest->production=not.is.null&select=asset_manifest&order=updated_at.desc&limit=12`,
   );
   const excluded = recent.map(item => item.asset_manifest.production?.stock?.id).filter((id): id is number => typeof id === 'number');
-  let stock: PexelsPhoto | null = null;
+  let stock: PexelsPhoto | null = hookSlide?.photo_id ? await getPexelsPhoto(key, hookSlide.photo_id) : null;
   for (let page = 1; page <= 3 && !stock; page++) {
     stock = choosePhoto(await searchPexels(key, query, page), artifact.id, playbook.category,
       hookVisualTemplate?.requiredAltTermGroups, excluded);
@@ -429,7 +430,7 @@ export const produceCarousels: Handler = {
         'media_type=eq.photo',
         sourceRunId ? `run_id=eq.${encodeURIComponent(sourceRunId)}` : null,
         'select=*',
-        appSlug === 'cast' ? 'order=created_at.desc' : 'order=updated_at.asc',
+        'order=created_at.desc',
         'limit=30',
       ].filter(Boolean).join('&'),
     );
@@ -564,17 +565,28 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
   const slides = manifest.slides as EditorialSlide[];
   const key = await providerKey(env, db);
   if (!key) return { state: 'blocked', reason: 'Connect Pexels for real fishing photos.' };
-  const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number } } } }>('artifacts',
+  const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number }; per_slide_sources?: Array<{ id?: number }> } } }>('artifacts',
     `app_id=eq.${artifact.app_id}&id=neq.${artifact.id}&asset_manifest->production=not.is.null&select=asset_manifest&order=created_at.desc&limit=12`);
-  const excluded = recent.map(r => r.asset_manifest.production?.stock?.id).filter((id): id is number => typeof id === 'number');
-  let stock: PexelsPhoto | null = null;
-  for (let page = 1; page <= 3 && !stock; page++) {
-    stock = choosePhoto(await searchPexels(key, 'fishing rod water', page), artifact.id, 'fishing',
-      [['fishing', 'angler', 'fisherman', 'rod'], ['water', 'lake', 'river', 'sea', 'shore', 'coast']], excluded);
+  const excluded = recent.flatMap(r => [r.asset_manifest.production?.stock?.id,
+    ...(r.asset_manifest.production?.per_slide_sources ?? []).map(source => source.id)])
+    .filter((id): id is number => typeof id === 'number');
+  const photos: PexelsPhoto[] = [];
+  const cache = new Map<string, PexelsPhoto[]>();
+  for (const [index, slide] of slides.entries()) {
+    const direction = castPhotoDirection(slide, index);
+    let photo: PexelsPhoto | null = slide.photo_id ? await getPexelsPhoto(key, slide.photo_id) : null;
+    if (photo && photos.some(selected => selected.id === photo!.id)) return {state:'blocked',reason:'Each Cast slide must use a different selected photo.'};
+    for (let page = 1; page <= 3 && !photo; page++) {
+      const cacheKey = `${direction.query}:${page}`;
+      if (!cache.has(cacheKey)) cache.set(cacheKey, await searchPexels(key, direction.query, page));
+      photo = choosePhoto(cache.get(cacheKey)!, `${artifact.id}:${index}`, 'fishing', direction.terms,
+        [...excluded, ...photos.map(selected => selected.id)]);
+    }
+    if (!photo) return { state: 'blocked', reason: `Slide ${index + 1} needs a distinct licensed photo for ${direction.query}. Never repeat another slide to fill the carousel.` };
+    photos.push(photo);
   }
-  if (!stock) return { state: 'blocked', reason: 'No fresh licensed fishing photo passed the water-and-gear check. Add real photos; never substitute AI.' };
   const bytes = await renderEditorialSlides(env, slides.map((slide, index) => ({
-    appSlug: 'cast', imageUrl: stock!.src.large2x || stock!.src.original, overlay: slide.overlay,
+    appSlug: 'cast', imageUrl: photos[index]!.src.large2x || photos[index]!.src.original, overlay: slide.overlay,
     role: index === 0 ? 'hook' as const : 'feature' as const, editorial: { body: slide.body, kicker: slide.kicker },
   })), renderer);
   const nonce = crypto.randomUUID();
@@ -586,11 +598,11 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
   const now = new Date().toISOString();
   await db.update('artifacts', `id=eq.${artifact.id}&status=eq.draft`, {
     status: 'draft', stage: 'review', photo_urls: urls, error: null, is_aigc: false,
-    stages: { ...artifact.stages, assets: { state: 'done', at: now, note: `Real Pexels photo by ${stock.photographer}; source and licence recorded.` },
+    stages: { ...artifact.stages, assets: { state: 'done', at: now, note: 'Six distinct licensed photos; per-slide sources and licences recorded.' },
       edit: { state: 'done', at: now, note: 'Six 1080×1920 JPEG slides; measured text bounds passed.' }, review: { state: 'pending', note: 'Review all six images, source suitability, caption and disclosure.' } },
     asset_manifest: { ...manifest, creative_quality: quality, requires_owner_review: true,
-      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: 'cast-editorial-v2',
-        stock: { provider: 'pexels', id: stock.id, source_url: stock.url, photographer: stock.photographer, photographer_url: stock.photographer_url, licence_url: 'https://www.pexels.com/license/', alt: stock.alt }, generated_media: false } },
+      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: 'cast-editorial-v3-varied',
+        per_slide_sources: photos.map((photo, index) => ({ slide: index + 1, provider: 'pexels', id: photo.id, source_url: photo.url, photographer: photo.photographer, photographer_url: photo.photographer_url, licence_url: 'https://www.pexels.com/license/', alt: photo.alt, selection_query: castPhotoDirection(slides[index]!, index).query })), generated_media: false } },
   });
   return { state: 'produced', photo_urls: urls };
 }

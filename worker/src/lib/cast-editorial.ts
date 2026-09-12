@@ -1,12 +1,12 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-native';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-varied';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
   'https://www.tiktok.com/@r1pple8/photo/7683475654402460935',
 ];
-export interface EditorialSlide { role: 'hook' | 'editorial'; overlay: string; body: string; kicker: string }
+export interface EditorialSlide { photo_id?: number; role: 'hook' | 'editorial'; overlay: string; body: string; kicker: string }
 export interface CastEditorialConcept {
   id: string; hook: string; caption: string; promotional: boolean;
   items: Array<[heading: string, body: string]>;
@@ -79,4 +79,16 @@ export function castEditorialHtml(input: { imageUrl: string; overlay: string; ed
 .copy{position:absolute;left:86px;width:778px;text-align:center;font-weight:700;line-height:1.12;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 3px 6px #0008;overflow-wrap:break-word}
 .head{top:${hook ? 375 : 455}px;font-size:68px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;max-height:340px;margin:0}
 </style></head><body><img class="photo" src="${esc(input.imageUrl)}"><div class="shade"></div><h1 class="copy head">${esc(heading)}</h1>${input.editorial.body ? `<p class="copy body">${esc(input.editorial.body)}</p>` : ''}</body></html>`;
+}
+
+/** Search context is a sourcing filter, never a substitute for final pixel review. */
+export function castPhotoDirection(slide: EditorialSlide, index: number): { query: string; terms: string[][] } {
+  const heading = slide.overlay.toLowerCase();
+  if (index > 0 && /fish|species|size|measurement|catch/.test(heading))
+    return { query: 'fish catch landing net', terms: [['trout', 'carp', 'bass', 'holding a fish', 'fish in', 'caught fish']] };
+  if (index > 0 && /setup|line|knot|hook|tackle|using|retrieve|change/.test(heading))
+    return { query: 'fishing rod reel tackle', terms: [['fishing', 'rod', 'reel', 'tackle', 'lure']] };
+  if (index > 0 && /time|when|timing/.test(heading))
+    return { query: 'fishing sunset water', terms: [['fishing', 'angler', 'fisherman', 'rod'], ['sunset', 'dusk', 'dawn', 'evening', 'sunrise']] };
+  return { query: index % 2 ? 'angler river fishing' : 'fishing lake shore', terms: [['fishing', 'angler', 'fisherman', 'rod'], ['water', 'lake', 'river', 'sea', 'shore', 'coast']] };
 }

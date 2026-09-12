@@ -68,6 +68,7 @@ export interface Artifact {
     format?: string;
     feature?: string;
     slides?: Array<{
+      photo_id?: number;
       role?: string;
       overlay?: string;
       body?: string;
@@ -89,6 +90,13 @@ export interface Artifact {
       at: string; pass: boolean; blockers: string[];
       slides: Array<{ observation: string; hierarchy: number; legibility: number; craft: number; story_match: number; blockers: string[] }>;
     };
+    production?: {
+      renderer?: string;
+      stock?: { source_url?: string; photographer?: string; creator?: string; licence_url?: string };
+      per_slide_sources?: Array<{ source_url?: string; photographer?: string; creator?: string; licence_url?: string }>;
+      feature_asset?: { id?: string; key?: string; source_kind?: string; composition?: string };
+    };
+    native_visual_review?: { reviewer?: string; checked_at?: string; notes?: string; result?: string };
     manual_handoff?: boolean;
   };
   error: string | null;

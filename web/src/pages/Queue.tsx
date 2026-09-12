@@ -6,6 +6,8 @@ import { Ago, Dot, Empty } from '../components/bits';
 import type { Account, App, Artifact, TikTokPrivacyLevel } from '../lib/types';
 import { formatHashtags, normalizeHashtags } from '../lib/hashtags';
 
+type SlideBrief = NonNullable<Artifact['asset_manifest']['slides']>[number];
+
 const FILTERS = ['draft', 'approved', 'publishing', 'published', 'failed', 'rejected'] as const;
 
 interface CreatorInfo {
@@ -41,6 +43,11 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
   const [renderSource, setRenderSource] = useState<Record<string, { url: string; photographer: string }>>({});
   const [manualPost, setManualPost] = useState<Record<string, string>>({});
   const [recordingPost, setRecordingPost] = useState<string | null>(null);
+  const [slideEdits, setSlideEdits] = useState<Record<string, SlideBrief[]>>({});
+  const [visualNotes, setVisualNotes] = useState<Record<string, string>>({});
+  const [visualConfirmed, setVisualConfirmed] = useState<Record<string, string>>({});
+  const [visualReviewer, setVisualReviewer] = useState<Record<string, 'owner' | 'agent'>>({});
+
 
   const { data, refresh } = useData(async () => {
     const scope = appSlug ? await supabase.from('apps').select('id').eq('slug', appSlug).single() : null;
@@ -182,6 +189,10 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  function editSlide(artifact: Artifact, index: number, field: keyof SlideBrief, value: string | number | undefined) {
+    setSlideEdits(current => ({...current,[artifact.id]:(current[artifact.id] ?? artifact.asset_manifest.slides ?? []).map((slide,i)=>i===index ? {...slide,[field]:value} : slide)}));
   }
 
   async function copyPostText(artifact: Artifact) {
@@ -363,6 +374,42 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                 </div>
               )}
 
+              {mediaReady && artifact.asset_manifest.production && (
+                <details className="creative-score">
+                  <summary>Photo sources and product evidence</summary>
+                  {(artifact.asset_manifest.production.per_slide_sources ?? [artifact.asset_manifest.production.stock]).filter(Boolean).map((source, i) => <p key={i}>Slide {i + 1}: {source?.creator || source?.photographer || 'Creator not recorded'} · {source?.source_url?.startsWith('https://') ? <a href={source.source_url} target="_blank" rel="noreferrer">Original source</a> : 'Source not recorded'} · {source?.licence_url?.startsWith('https://') ? <a href={source.licence_url} target="_blank" rel="noreferrer">Licence</a> : 'Check first-party rights'}</p>)}
+                  {artifact.asset_manifest.production.feature_asset && <p>Product evidence: {artifact.asset_manifest.production.feature_asset.key} · {artifact.asset_manifest.production.feature_asset.source_kind} · {artifact.asset_manifest.production.feature_asset.composition} · {artifact.asset_manifest.production.feature_asset.id}</p>}
+                </details>
+              )}
+              {artifact.asset_manifest.native_visual_review && <p className="muted">Recorded visual inspection by {artifact.asset_manifest.native_visual_review.reviewer} at {artifact.asset_manifest.native_visual_review.checked_at}: {artifact.asset_manifest.native_visual_review.notes}</p>}
+
+              {artifact.status === 'draft' && artifact.media_type === 'photo' && mediaReady && (
+                <details className="creative-score">
+                  <summary>Record visual inspection</summary>
+                  <p>Inspect every exact slide at full size and phone size. Record the crop, copy, product evidence and source checks here. The independent image critic still has to pass before release.</p>
+                  <label>Reviewed by
+                    <select aria-label={`Visual reviewer for ${artifact.hook}`} value={visualReviewer[artifact.id] ?? 'owner'} onChange={event => setVisualReviewer(current => ({...current,[artifact.id]:event.target.value as 'owner' | 'agent'}))}>
+                      <option value="owner">Owner</option><option value="agent">Codex creative director</option>
+                    </select>
+                  </label>
+                  <textarea aria-label={`Visual inspection notes for ${artifact.hook}`} placeholder="What did you inspect and correct in these exact slides?" value={visualNotes[artifact.id] ?? ''} onChange={event => setVisualNotes(current => ({...current,[artifact.id]:event.target.value}))} />
+                  <label className="check-row"><input type="checkbox" checked={visualConfirmed[artifact.id] === JSON.stringify([artifact.photo_urls,artifact.hook,artifact.caption,artifact.account_id])} onChange={event => setVisualConfirmed(current => ({...current,[artifact.id]:event.target.checked ? JSON.stringify([artifact.photo_urls,artifact.hook,artifact.caption,artifact.account_id]) : ''}))} />I inspected every final slide at full and phone size, checked natural photography, readable copy, truthful product evidence and recorded rights, and release this draft's review hold.</label>
+                  <button type="button" disabled={visualConfirmed[artifact.id] !== JSON.stringify([artifact.photo_urls,artifact.hook,artifact.caption,artifact.account_id]) || (visualNotes[artifact.id]?.trim().length ?? 0) < 20} onClick={() => patch(artifact.id, {asset_manifest:{...artifact.asset_manifest,requires_owner_review:false,native_visual_review:{standard:'native-photo-2026-09-10',result:'pass',reviewer:visualReviewer[artifact.id] ?? 'owner',checked_at:new Date().toISOString(),hook:artifact.hook,caption:artifact.caption,photo_urls:artifact.photo_urls,full_frame:true,native_photo:true,truth_and_rights:true,all_slides_inspected:true,notes:visualNotes[artifact.id]!.trim()}}})}>Save inspection for these slides</button>
+                </details>
+              )}
+
+              {artifact.status === 'draft' && artifact.asset_manifest.slides?.length && artifact.asset_manifest.production?.renderer !== 'local-native-import-v1' ? <details className="creative-score">
+                <summary>Edit slide copy and photo choices</summary>
+                <p>Choose a different licensed photo for each Cast slide. Save the brief, rebuild, then inspect the new final images. A photo ID comes from its Pexels source page.</p>
+                {(slideEdits[artifact.id] ?? artifact.asset_manifest.slides).map((slide,index)=><div className="field" key={index}>
+                  <label>Slide {index + 1}</label>
+                  <input aria-label={`Slide ${index + 1} heading`} value={slide.overlay ?? ''} onChange={event=>editSlide(artifact,index,'overlay',event.target.value)} />
+                  {artifact.asset_manifest.format === 'cast_editorial_carousel' && <textarea aria-label={`Slide ${index + 1} body`} value={slide.body ?? ''} onChange={event=>editSlide(artifact,index,'body',event.target.value)} />}
+                  {(index===0 || artifact.asset_manifest.format === 'cast_editorial_carousel') && <input type="number" min="1" step="1" aria-label={`Slide ${index + 1} Pexels photo ID`} placeholder="Automatic photo selection" value={slide.photo_id ?? ''} onChange={event=>editSlide(artifact,index,'photo_id',event.target.value ? Number(event.target.value) : undefined)} />}
+                </div>)}
+                <button type="button" disabled={!slideEdits[artifact.id]} onClick={()=>patch(artifact.id,{hook:slideEdits[artifact.id]?.[0]?.overlay ?? artifact.hook,asset_manifest:{...artifact.asset_manifest,slides:slideEdits[artifact.id],requires_owner_review:true}})}>Save slide brief</button>
+              </details> : null}
+
               {artifact.status === 'draft' && artifact.media_type === 'photo' && Boolean(artifact.asset_manifest.slides?.length) && (
                 <div className="row" style={{ marginBottom: 14 }}>
                   <button
@@ -408,6 +455,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
 
               {isEditable && (
                 <div className="review-fields">
+                  <div className="field"><label>Do not publish before (local time)</label><input type="datetime-local" aria-label={`Earliest publishing time for ${artifact.hook}`} defaultValue={artifact.scheduled_for ? new Date(new Date(artifact.scheduled_for).getTime() - new Date(artifact.scheduled_for).getTimezoneOffset()*60000).toISOString().slice(0,16) : ''} onBlur={event => patch(artifact.id,{scheduled_for:event.target.value ? new Date(event.target.value).toISOString() : null})} /><small>Jarvis uses the next eligible posting window after this time. An owner-triggered run can publish an approved, due post immediately.</small></div>
                   <div className="field">
                     <label>Hook / title</label>
                     <input

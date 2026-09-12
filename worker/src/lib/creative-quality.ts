@@ -142,6 +142,13 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   }
   if (manifest.format === CAST_EDITORIAL_FORMAT) {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
+    if (input.photoUrls?.length) {
+      const production = manifest.production as { per_slide_sources?: Array<{ id?: number; source_url?: string }> } | undefined;
+      const sources = production?.per_slide_sources ?? [];
+      const identities = sources.map(source => source.id ? `pexels:${source.id}` : source.source_url?.replace(/[?#].*$/, '').replace(/\/$/, ''));
+      if (sources.length !== 6 || identities.some(id => !id) || new Set(identities).size !== 6)
+        blockers.push('Cast requires six distinct recorded photo sources. Replace repeated backgrounds before release.');
+    }
     if (manifest.app_slug !== 'cast' || input.mediaType !== 'photo') blockers.push('Cast editorial must be a Cast photo carousel.');
     if (slides.length !== 6 || (input.photoUrls && input.photoUrls.length !== 6)) blockers.push('Cast editorial requires all six slides in order.');
     if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Cast editorial requires real, sourced media.');

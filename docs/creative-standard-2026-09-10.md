@@ -1,3 +1,5 @@
+> Latest owner correction: [different Cast photos on every slide](cast-varied-slides-2026-09-12.md) supersedes the repeated-background direction below.
+
 # Cast / Deadset creative reset
 
 **September 11 correction supersedes the poster direction below:** read

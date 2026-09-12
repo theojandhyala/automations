@@ -6,7 +6,7 @@ import type { RunContext } from '../src/lib/runner';
 import { visualReviewFixture } from './visual-review-fixture';
 
 const row = (c: typeof CAST_EDITORIAL_CONCEPTS[number]) => ({ hook: c.hook, asset_manifest: { format: CAST_EDITORIAL_FORMAT, editorial_id: c.id, promotional: c.promotional } });
-const manifest = (i = 0) => ({ format: CAST_EDITORIAL_FORMAT, app_slug: 'cast', promotional: CAST_EDITORIAL_CONCEPTS[i]!.promotional, slides: editorialSlides(CAST_EDITORIAL_CONCEPTS[i]!), generated_media: false, generated_people: false, fabricated_ui: false, source_policy: 'licensed_real_only' });
+const manifest = (i = 0) => ({ format: CAST_EDITORIAL_FORMAT, app_slug: 'cast', promotional: CAST_EDITORIAL_CONCEPTS[i]!.promotional, slides: editorialSlides(CAST_EDITORIAL_CONCEPTS[i]!), generated_media: false, generated_people: false, fabricated_ui: false, source_policy: 'licensed_real_only', production: {per_slide_sources: Array.from({length:6}, (_,i) => ({id:i+1,source_url:`https://www.pexels.com/photo/${i+1}/`}))} });
 const quality = (extra: Record<string, unknown> = {}, urls?: string[]) => assessCreativeQuality({ hook: CAST_EDITORIAL_CONCEPTS[0]!.hook, caption: CAST_EDITORIAL_CONCEPTS[0]!.caption, hashtags: ['fishing', 'fishingtips', 'angling'], mediaType: 'photo', assetManifest: { ...manifest(), ...extra }, photoUrls: urls });
 
 describe('Cast curated editorial route', () => {
@@ -64,4 +64,12 @@ it('lets an explicit mission reach production even when the ordinary ready buffe
   const result = await produceCarousels.run(ctx) as {reason?:string};
   expect(result.reason).not.toBe('Three-day ready buffer is full');
   expect(select.mock.calls.some(([,q])=>q.includes('run_id=eq.requested-run'))).toBe(true);
+});
+
+it('holds repeated or undocumented Cast photographs even with a passing image receipt', () => {
+  const urls=Array.from({length:6},(_,i)=>`https://example.test/slide-${i}.jpg`);
+  const receipt=visualReviewFixture(CAST_EDITORIAL_CONCEPTS[0]!.hook,CAST_EDITORIAL_CONCEPTS[0]!.caption,urls);
+  const repeat=quality({native_visual_review:receipt,production:{per_slide_sources:Array(6).fill({id:42,source_url:'https://www.pexels.com/photo/42/'})}},urls);
+  expect(repeat.blockers).toContain('Cast requires six distinct recorded photo sources. Replace repeated backgrounds before release.');
+  expect(quality({native_visual_review:receipt,production:{stock:{id:42}}},urls).pass).toBe(false);
 });

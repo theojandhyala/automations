@@ -34,3 +34,13 @@ export async function searchPexels(apiKey: string, query: string, page = 1): Pro
   const data = (await response.json()) as SearchResponse;
   return Array.isArray(data.photos) ? data.photos : [];
 }
+
+/** Retrieve an explicitly selected licensed source without inventing an image URL. */
+export async function getPexelsPhoto(apiKey: string, id: number): Promise<PexelsPhoto> {
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Select a valid Pexels photo ID.');
+  const response = await fetch(`https://api.pexels.com/v1/photos/${id}`, {headers:{Authorization:apiKey},signal:AbortSignal.timeout(15_000)});
+  if (!response.ok) throw new Error(`Selected Pexels photo unavailable (${response.status}).`);
+  const photo = await response.json() as PexelsPhoto;
+  if (photo.id !== id || !photo.url?.startsWith('https://www.pexels.com/') || !photo.src?.original?.startsWith('https://images.pexels.com/')) throw new Error('Selected photo returned invalid source provenance.');
+  return photo;
+}
