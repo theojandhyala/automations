@@ -1,3 +1,5 @@
+> September 12 Deadset addition: [occasional ten-slide rules format](deadset-longform-reference-2026-09-12.md), with genuine app promotion on slide five. Default short posts remain two slides.
+
 > Latest owner correction: [every Cast final slide promotes Cast; audio feedback](cast-promotion-and-audio-2026-09-12.md). This supersedes the older promotional cadence.
 
 > Latest owner correction: [different Cast photos on every slide](cast-varied-slides-2026-09-12.md) supersedes the repeated-background direction below.

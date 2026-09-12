@@ -1,3 +1,4 @@
+import { supportedCarousel, DEADSET_LONGFORM, deadsetLongformDue } from '../lib/deadset-longform';
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
 import { deliveryPaused } from '../lib/timed-delivery';
 import { CAST_EDITORIAL_FORMAT, castPhotoDirection, type EditorialSlide } from '../lib/cast-editorial';
@@ -70,6 +71,11 @@ const DEADSET_REACTIONS: Record<string, string> = {
 
 async function approvalVarietyError(db: Db, artifact: Artifact): Promise<string | null> {
   if (!artifact.account_id) return 'Assign this draft to its owned TikTok account before approval.';
+  if(artifact.asset_manifest.format===DEADSET_LONGFORM){
+    const longQueued=await db.select<{id:string}>('artifacts',`account_id=eq.${artifact.account_id}&id=neq.${artifact.id}&status=in.(approved,publishing)&asset_manifest->>format=eq.${DEADSET_LONGFORM}&select=id&limit=1`);
+    const delivered=await db.select<{asset_manifest:{format?:string}}>('artifacts',`account_id=eq.${artifact.account_id}&status=eq.published&select=asset_manifest&order=published_at.desc&limit=3`);
+    if(longQueued.length || !deadsetLongformDue(delivered.map(p=>p.asset_manifest.format??'')))return 'Long-format cadence hold: allow three other delivered posts before another rules carousel.';
+  }
   const previous = await db.select<{ hook: string | null }>('artifacts',
     `account_id=eq.${artifact.account_id}&id=neq.${artifact.id}&status=in.(approved,publishing,published)&select=hook&order=created_at.desc&limit=90`);
   return isRepeatedHook(artifact.hook ?? '', previous.map(item => item.hook ?? ''))
@@ -438,7 +444,7 @@ export const produceCarousels: Handler = {
     let autoApproved = 0;
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
-        .filter((artifact) => artifact.account_id && artifact.photo_urls.length >= 2 && artifact.photo_urls.length <= 6)
+        .filter((artifact) => artifact.account_id && supportedCarousel(artifact.asset_manifest, artifact.photo_urls.length))
         .filter((artifact) => appSlug !== 'deadset' || ((artifact.asset_manifest.production as { caption_renderer?: string } | undefined)?.caption_renderer === CAPTION_RENDERER_VERSION || (artifact.asset_manifest.production as { renderer?: string } | undefined)?.renderer === NATIVE_IMPORT_RENDERER));
       let inspected = 0;
       for (const original of renderedDrafts) {

@@ -12,7 +12,7 @@ Finish the image deliberately: clear hierarchy, readable proof, natural photogra
 Owner correction, September 11: the glossy AI poster treatment was rejected for these feed posts.
 Default to REAL ordinary photography with short native outlined captions. No brand headline cards,
 app-store badges, campaign panels, phone mockups or generated scenic poster backgrounds in this lane.
-Deadset: TWO slides, recognisable gym photo then actual app screenshot with one short answer.
+Deadset default: TWO slides, recognisable gym photo then actual app screenshot with one short answer. Owner September 12 exception: approximately one in four delivered Deadset posts is the TEN-slide rules format from docs/deadset-longform-reference-2026-09-12.md. Use a collage opener, seven original numbered gym habits, genuine Deadset promotion after rule three (slide five), then a closing prompt. The app slide must name Deadset, demonstrate a relevant truthful benefit and include an App Store CTA. Keep native outlined typography, coherent spacing and distinct real photos. The long format has its own supported import and independent review; never force it through the two-slide renderer.
 Owner correction, September 12: Cast needs a DIFFERENT relevant real photograph on every slide.
 Cast: SIX slides, real fishing/catch opener then five distinct useful items, each with its own relevant image.
 Never reuse a photograph within a carousel. Match fish details to catch photos, setup to tackle, timing to light and conditions to water.

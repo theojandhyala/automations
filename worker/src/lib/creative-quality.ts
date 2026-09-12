@@ -1,3 +1,4 @@
+import { DEADSET_LONGFORM } from './deadset-longform';
 import { CAST_EDITORIAL_FORMAT } from './cast-editorial';
 import { normalizeHashtags } from './hashtags';
 import { nativeVisualReviewBlocker } from './native-visual-review';
@@ -138,6 +139,24 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
       if (templateId !== requiredHookTemplate.id && !legacyDeadset) {
         blockers.push(requiredHookTemplate.blocker);
       }
+    }
+  }
+  if (manifest.format === DEADSET_LONGFORM) {
+    const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
+    if (manifest.app_slug !== 'deadset' || input.mediaType !== 'photo' || slides.length !== 10 || (input.photoUrls && input.photoUrls.length !== 10)) blockers.push('Long Deadset requires exactly ten ordered photos.');
+    if (slides.some((s, i) => s.role !== (i === 0 ? 'hook' : i === 4 ? 'feature_proof' : 'editorial'))) blockers.push('Place the genuine Deadset promotion after rule three, on slide five.');
+    const rules = [1,2,3,5,6,7,8].map(i=>slides[i]);
+    if(rules.some((s,i)=>!new RegExp(`^${i+1}[.)]\\s`).test(s?.overlay ?? ''))) blockers.push('Deliver seven distinct numbered rules in order.');
+    if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Long Deadset requires real sourced photos and unchanged product evidence.');
+    if(slides.some(s=>typeof s.overlay!=='string'||s.overlay.length>90||typeof s.body!=='string'||s.body.length>120)) blockers.push('Keep each rule concise and phone-readable.');
+    const promo = `${slides[4]?.overlay ?? ''} ${slides[4]?.body ?? ''}`;
+    if(manifest.promotional!==true || !/\bDeadset\b/.test(promo) || !/app store/i.test(promo) || !/\bDeadset\b/.test(caption) || !/app store/i.test(caption)) blockers.push('The product slide and caption must visibly name Deadset and include an App Store CTA.');
+    if(input.photoUrls?.length){
+      const production=manifest.production as {per_slide_sources?:Array<{source_url?:string;kind?:string}>,feature_asset?:{id?:string;composition?:string;source_kind?:string}}|undefined;
+      const sources=production?.per_slide_sources??[];
+      const photos=sources.filter((_,i)=>i!==4).map(s=>s.source_url?.replace(/[?#].*$/,''));
+      if(sources.length!==10 || photos.some(s=>!s) || new Set(photos).size!==9 || sources[4]?.kind!=='first_party_ui') blockers.push('Record distinct real photographs and genuine product provenance for all ten slides.');
+      if(!production?.feature_asset?.id || production.feature_asset.composition!=='app_screen' || production.feature_asset.source_kind!=='owner_upload') blockers.push('The promotion requires registered original product evidence for independent comparison.');
     }
   }
   if (manifest.format === CAST_EDITORIAL_FORMAT) {

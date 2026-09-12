@@ -1,3 +1,5 @@
+import { classifyProofComposition } from './creative-visual-review';
+import { DEADSET_LONGFORM, DEADSET_LONGFORM_REFERENCE } from './deadset-longform';
 import { DEADSET_NATIVE_TEMPLATE } from './creative-photo-templates';
 import { z } from 'zod';
 import type { Env, Artifact } from '../types';
@@ -12,15 +14,20 @@ export const nativePostSchema = z.object({
   version: z.literal(1), id: z.string().uuid(), app_slug: z.enum(['cast','deadset']),
   hook: z.string().trim().min(1).max(90), caption: z.string().trim().min(1).max(1500),
   hashtags: z.array(z.string().regex(/^[\p{L}\p{N}_]+$/u).max(80)).min(1).max(8),
+  format: z.literal(DEADSET_LONGFORM).optional(), proof_asset_id: z.string().uuid().optional(),
   promotional: z.boolean(), feature_key: z.string().max(60).optional(),
   reference_urls: z.array(z.string().url().max(2000)).min(1).max(5),
-  slides: z.array(z.object({file: z.string().regex(/^slide-\d{2}\.jpg$/), role: z.enum(['hook','feature','editorial']), overlay: z.string().min(1).max(90), body: z.string().max(120).default(''), source }).strict()).min(2).max(6),
+  slides: z.array(z.object({file: z.string().regex(/^slide-\d{2}\.jpg$/), role: z.enum(['hook','feature','editorial']), overlay: z.string().min(1).max(90), body: z.string().max(120).default(''), source, additional_sources: z.array(source).max(3).optional() }).strict()).min(2).max(10),
 }).strict().superRefine((p,ctx)=>{
-  const expected=p.app_slug==='cast'?6:2;
+  const long = p.format === DEADSET_LONGFORM;
+  const expected=long?10:p.app_slug==='cast'?6:2;
   if(p.slides.length!==expected)ctx.addIssue({code:'custom',message:`${p.app_slug} needs ${expected} slides.`});
-  if(p.slides.some((s,i)=>s.file!==`slide-${String(i+1).padStart(2,'0')}.jpg` || s.role!==(i===0?'hook':p.app_slug==='cast'?'editorial':'feature')))ctx.addIssue({code:'custom',message:'Slide roles and filenames must match posting order.'});
+  if(long && (p.app_slug!=='deadset' || !p.proof_asset_id || !p.feature_key || !p.promotional || !p.reference_urls.includes(DEADSET_LONGFORM_REFERENCE)))ctx.addIssue({code:'custom',message:'Long Deadset needs the saved reference, registered product evidence and promotion.'});
+  if(p.slides.some((s,i)=>s.file!==`slide-${String(i+1).padStart(2,'0')}.jpg` || s.role!==(i===0?'hook':long?(i===4?'feature':'editorial'):p.app_slug==='cast'?'editorial':'feature')))ctx.addIssue({code:'custom',message:'Slide roles and filenames must match posting order.'});
   if(p.slides[0]?.overlay!==p.hook)ctx.addIssue({code:'custom',message:'The hook must match slide one.'});
-  if(p.app_slug==='deadset' && p.slides[1]?.source.kind!=='first_party_ui')ctx.addIssue({code:'custom',message:'Deadset needs genuine app proof.'});
+  if(p.app_slug==='deadset' && p.slides[long?4:1]?.source.kind!=='first_party_ui')ctx.addIssue({code:'custom',message:'Deadset needs genuine app proof.'});
+  if(long && p.slides.some((s,i)=>i!==4 && s.source.kind!=='licensed_photo'))ctx.addIssue({code:'custom',message:'Long editorial slides need real licensed photographs.'});
+  if(p.slides.some((s,i)=>s.additional_sources?.length && (!long || i!==0 || s.additional_sources.some(v=>v.kind!=='licensed_photo'||!v.licence_url))))ctx.addIssue({code:'custom',message:'Only the long-form opener can contain additional licensed collage photographs.'});
   if(p.slides.some(s=>s.source.kind==='licensed_photo'&&!s.source.licence_url))ctx.addIssue({code:'custom',message:'Every stock photo needs a licence record.'});
 });
 const reply=(body:unknown,status=200)=>Response.json(body,{status});
@@ -66,16 +73,22 @@ export async function importNativePost(req:Request,env:Env,db:Db):Promise<Respon
   if(existing)return (existing.asset_manifest.production as {import_fingerprint?:string}|undefined)?.import_fingerprint===fingerprint?reply(existing):reply({error:'This package ID already belongs to different content. Use a new package ID.'},409);
   const app=await db.selectOne<{id:string}>('apps',`slug=eq.${pack.app_slug}&select=id`);
   if(!app)return reply({error:'App channel not found.'},404);
+  let registeredProof: {id:string;storage_path:string} | null = null;
+  if(pack.format===DEADSET_LONGFORM){
+    registeredProof=await db.selectOne<{id:string;storage_path:string}>('creative_assets',`id=eq.${pack.proof_asset_id}&app_slug=eq.deadset&asset_key=eq.${encodeURIComponent(pack.feature_key!)}&source_kind=eq.owner_upload&select=id,storage_path`);
+    if(!registeredProof || publicMediaUrl(env,registeredProof.storage_path)!==pack.slides[4]!.source.source_url)return reply({error:'The promotion must use the matching registered original Deadset screen.'},400);
+    if(await classifyProofComposition(env,pack.slides[4]!.source.source_url)!=='app_screen')return reply({error:'Use the original app screen, not finished promotional artwork.'},400);
+  }
   const accounts=await db.select<{id:string}>('tiktok_accounts',`app_id=eq.${app.id}&status=eq.connected&select=id&limit=2`);
   if(accounts.length!==1)return reply({error:'Import requires exactly one connected account for this app channel.'},409);
   const urls:string[]=[];
   for(let i=0;i<images.length;i++){const path=`outputs/${pack.id}/native-${i+1}-${hashes[i]}.jpg`;await uploadMedia(env,path,images[i]!, 'image/jpeg');urls.push(publicMediaUrl(env,path));}
   const now=new Date().toISOString();
-  const manifest={version:1,app_slug:pack.app_slug,format:pack.app_slug==='cast'?'cast_editorial_carousel':'two_slide_photo_carousel',creative_direction_version:CREATIVE_DIRECTION_VERSION,
+  const manifest={version:1,app_slug:pack.app_slug,format:pack.format??(pack.app_slug==='cast'?'cast_editorial_carousel':'two_slide_photo_carousel'),creative_direction_version:CREATIVE_DIRECTION_VERSION,
     hook_visual_template:pack.app_slug==='deadset'?{id:DEADSET_NATIVE_TEMPLATE}:undefined, promotional:pack.promotional,feature:pack.feature_key,feature_key:pack.feature_key,requires_owner_review:true,source_policy:'licensed_real_only',generated_media:false,generated_people:false,fabricated_ui:false,
     reference_urls:pack.reference_urls,slides:pack.slides.map(s=>({role:s.role==='feature'?'feature_proof':s.role,overlay:s.overlay,body:s.body,kicker:'',app_asset_key:s.role==='feature'?pack.feature_key:undefined})),
-    production:{renderer:NATIVE_IMPORT_RENDERER,rendered_at:now,dimensions:{width:1080,height:1920},output_format:'image/jpeg',import_fingerprint:fingerprint,
-      per_slide_sources:pack.slides.map((s,i)=>({...s.source,photo_url:urls[i],sha256:hashes[i]})),provenance_status:'declared_sources_pending_release_review'},
+    production:{...(registeredProof?{feature_asset:{id:registeredProof.id,source_kind:'owner_upload',composition:'app_screen'}}:{}),renderer:NATIVE_IMPORT_RENDERER,rendered_at:now,dimensions:{width:1080,height:1920},output_format:'image/jpeg',import_fingerprint:fingerprint,
+      per_slide_sources:pack.slides.map((s,i)=>({...s.source,...(s.additional_sources?{additional_sources:s.additional_sources}:{}),photo_url:urls[i],sha256:hashes[i]})),provenance_status:'declared_sources_pending_release_review'},
     quality_gate:{publishable:false,required_before_publish:['Exact hosted slides inspected','Sources and product truth reviewed','Independent signed visual review','Existing owner hold resolved']},
   };
   const row={id:pack.id,app_id:app.id,account_id:accounts[0]!.id,status:'draft',stage:'review',media_type:'photo',hook:pack.hook,caption:pack.caption,hashtags:pack.hashtags,photo_urls:urls,thumbnail_url:urls[0],

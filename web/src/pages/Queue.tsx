@@ -433,7 +433,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                   >
                     {producing === artifact.id ? 'Starting production…' : mediaReady ? 'Rebuild final slides' : 'Build final slides'}
                   </button>
-                  {artifact.asset_manifest.format !== 'cast_editorial_carousel' && <label className="upload-button">
+                  {artifact.asset_manifest.format !== 'cast_editorial_carousel' && artifact.asset_manifest.format !== 'deadset_rules_carousel' && <label className="upload-button">
                     {uploadingSlides === artifact.id ? 'Uploading slides…' : 'Use device renderer'}
                     <input
                       type="file"
@@ -444,7 +444,7 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
                       onChange={(event) => uploadRenderedSlides(artifact, event.target.files)}
                     />
                   </label>}
-                  {!mediaReady && artifact.asset_manifest.format !== 'cast_editorial_carousel' && <>
+                  {!mediaReady && artifact.asset_manifest.format !== 'cast_editorial_carousel' && artifact.asset_manifest.format !== 'deadset_rules_carousel' && <>
                     <input
                       aria-label={`Licensed source URL for ${artifact.hook ?? 'draft'}`}
                       placeholder="Licensed source URL"

@@ -64,6 +64,23 @@ describe('independent final-image review', () => {
     expect(await hasPassingVisualReview(env, { ...reviewed, asset_manifest: { ...reviewed.asset_manifest,
       visual_review: { ...review, slides: [{ ...good, observation: 'Forged positive assessment of the slide.' }, good] } } })).toBe(false);
   });
+  it('reviews all ten Deadset slides and compares original proof only on slide five', async () => {
+    const { env, run } = fixture();
+    stubFetch([
+      {match:/rest\/v1\/creative_assets/,respond:()=>Response.json([{storage_path:'features/deadset/logger/original.png'}])},
+      {match:/storage\/v1\/object/,respond:()=>new Response(new Uint8Array([255,216,255,217]),{headers:{'Content-Type':'image/jpeg'}})},
+    ]);
+    const long = {...artifact,photo_urls:Array.from({length:10},(_,i)=>`https://example.test/media/outputs/long/${i}.jpg`),asset_manifest:{app_slug:'deadset',format:'deadset_rules_carousel',production:{feature_asset:{id:'proof-id',source_kind:'owner_upload',composition:'app_screen'}}}};
+    const review=await reviewFinalCarousel(env,long);
+    expect(run).toHaveBeenCalledTimes(10);
+    expect(review.pass).toBe(true);
+    for(let i=0;i<10;i++) expect(run.mock.calls[i]![1].messages[0].content.filter((p:{type:string})=>p.type==='image_url')).toHaveLength(i===4?2:1);
+    const released={...long,asset_manifest:{...long.asset_manifest,visual_review:review}};
+    expect(await hasPassingVisualReview(env,released)).toBe(true);
+    expect(await hasPassingVisualReview(env,{...released,photo_urls:[...released.photo_urls].reverse()})).toBe(false);
+    run.mockResolvedValueOnce({choices:[{message:{content:JSON.stringify({...good,craft:7,blockers:['Unclear hook']})}}]});
+    expect((await reviewFinalCarousel(env,long)).pass).toBe(false);
+  });
   it('reviews every slide of a six-slide Cast editorial', async () => {
     const { env, run } = fixture();
     const cast = { ...artifact, photo_urls: Array.from({ length: 6 }, (_, i) => `https://example.test/media/outputs/cast/${i}.jpg`), asset_manifest: { app_slug: 'cast', format: 'cast_editorial_carousel' } };
