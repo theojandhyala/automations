@@ -12,6 +12,9 @@ Never weaken the threshold to clear a queue. Keep source provenance and product
 truth separate from aesthetic scores.
 
 Read `docs/native-carousel-correction-2026-09-11.md` for the latest owner correction.
+Read `docs/creative-review-calibration-2026-09-12.md` before reusing AI rejection
+lessons: repeated item backgrounds are intentional, and prior model criticism
+must be verified against pixels rather than promoted into owner instructions.
 The September 10 glossy AI posters were rejected. Default to real native photo
 carousels: two Deadset slides, six Cast slides with consistent item layouts.
 Reserve generated promotional artwork for a separately explicit experiment. Keep

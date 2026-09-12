@@ -33,6 +33,8 @@ describe('independent final-image review', () => {
     expect(run).toHaveBeenCalledTimes(2);
     const reviewed = { ...artifact, asset_manifest: { ...artifact.asset_manifest, visual_review: review } };
     expect(await hasPassingVisualReview(env, reviewed)).toBe(true);
+    expect(await hasPassingVisualReview(env, { ...reviewed, asset_manifest: { ...reviewed.asset_manifest,
+      visual_review: { ...review, version: 'cast-deadset-2026-09-11-native-v3' } } })).toBe(false);
     for (const patch of [{ caption: 'Changed' }, { account_id: 'another' }, { photo_urls: [...artifact.photo_urls].reverse() }])
       expect(await hasPassingVisualReview(env, { ...reviewed, ...patch })).toBe(false);
     expect(await hasPassingVisualReview(env, { ...reviewed, asset_manifest: { ...reviewed.asset_manifest,
@@ -63,7 +65,8 @@ describe('independent final-image review', () => {
   it('blocks duplicate captions and misleading proof regardless of high scores', () => {
     expect(visualVerdictPasses({ ...good, duplicate_copy: true })).toBe(false);
     expect(visualVerdictPasses({ ...good, truthful_proof: false })).toBe(false);
-    expect(visualVerdictPasses({ ...good, legibility: 7 })).toBe(false);
+    for (const dimension of ['hierarchy', 'legibility', 'craft', 'story_match'])
+      expect(visualVerdictPasses({ ...good, [dimension]: 7 })).toBe(false);
     expect(visualVerdictPasses({ ...good, safe_zones: false })).toBe(false);
   });
   it('retains the authored reaction and varies native gym sources', () => {

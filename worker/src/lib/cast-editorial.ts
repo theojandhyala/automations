@@ -1,6 +1,6 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-11-native';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-native';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
@@ -30,9 +30,9 @@ export const CAST_EDITORIAL_CONCEPTS: CastEditorialConcept[] = [
   { id: 'session-checklist', hook: '5 checks before the first cast', promotional: false,
     caption: 'A quick setup check beats finding the problem halfway through the session. Save this for your next trip.',
     items: [['5 · Line condition', 'Check the working end for wear.'], ['4 · Knot connection', 'Make sure the tackle is attached securely.'], ['3 · Tackle condition', 'Replace damaged components before fishing.'], ['2 · Space around you', 'Look behind you before casting.'], ['1 · A simple plan', 'Pick what you want to try first. Change one thing at a time.']] },
-  { id: 'trip-debrief', hook: '5 questions worth asking on the way home', promotional: false,
-    caption: 'A two-minute debrief gives the next trip a starting point. Keep the answers while they are fresh.',
-    items: [['5 · What did you expect?', 'Write down the plan you started with.'], ['4 · What actually happened?', 'Keep the observations separate from the guesses.'], ['3 · What did you change?', 'Record the setup and when you changed it.'], ['2 · What is worth repeating?', 'Keep a note of the decisions you want to try again.'], ['1 · What is the next question?', 'Leave yourself one thing to test next session.']] },
+  { id: 'trip-debrief', hook: '5 fishing details to jot down before heading home', promotional: false,
+    caption: 'You remember the fish. Will you remember the depth, retrieve and time? Save five quick notes before you pack away.',
+    items: [['5 · Where were the bites?', 'Note the mark and depth. No bites? Record that too.'], ['4 · When did it happen?', 'Log the bite time, not just the hours you fished.'], ['3 · What were you using?', 'Bait or lure, rig and retrieve. Keep it specific.'], ['2 · What did you change?', 'Note when you swapped lure, depth or retrieve.'], ['1 · What will you try next?', 'Pick one change for your next visit to that mark.']] },
   { id: 'photo-checklist', hook: '5 details to save with your catch photo', promotional: false,
     caption: 'Future you will forget the details. Add a short note while the session is fresh.',
     items: [['5 · Species', 'Record the identification you can support.'], ['4 · Measurement', 'Keep the size you measured, not a guess.'], ['3 · Time', 'Save when the catch happened.'], ['2 · Setup', 'Note the lure or bait and how you fished it.'], ['1 · Context', 'Add the conditions and a private note about the mark.']] },
