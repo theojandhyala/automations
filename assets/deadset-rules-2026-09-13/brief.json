@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "app_slug": "deadset",
+  "format": "deadset_rules_carousel",
+  "promotional": true,
+  "feature_key": "workout_plan",
+  "reference_urls": [
+    "https://www.tiktok.com/@anoma.yollande23/photo/7684726961444228384"
+  ],
+  "hook": "7 gym habits worth keeping",
+  "caption": "Build a gym week you can repeat. Keep training and rest days in view with Deadset. Find Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "gymhabits",
+    "workoutplan",
+    "deadset"
+  ],
+  "slides": [
+    {
+      "file": "slide-01.jpg",
+      "role": "hook",
+      "overlay": "7 gym habits worth keeping",
+      "body": "Start with the one you keep skipping.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/man-walking-near-a-black-car-8556753/",
+        "creator": "Vine",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-02.jpg",
+      "role": "editorial",
+      "overlay": "1. Choose days you can repeat",
+      "body": "A realistic week beats a plan you never start.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/8555305/",
+        "creator": "Liliana Drew",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-03.jpg",
+      "role": "editorial",
+      "overlay": "2. Pack before you need to leave",
+      "body": "Shoes. Bottle. Headphones. One less excuse at the door.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/8032776/",
+        "creator": "MART PRODUCTION",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-04.jpg",
+      "role": "editorial",
+      "overlay": "3. Make room for rest",
+      "body": "A planned day off still belongs in the week.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/1480530/",
+        "creator": "Sabel Blanco",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-05.jpg",
+      "role": "feature",
+      "overlay": "DEADSET \u2014 Forge Your Body. Training days. Rest days. Sorted.",
+      "body": "Actual Deadset app \u00b7 example plan. Find Deadset on the App Store.",
+      "source": {
+        "kind": "first_party_ui",
+        "source_url": "https://automations.theojandhyala.workers.dev/media/features/deadset/workout_plan/b8570478-36b1-49fa-8cdf-c90341bad79f.png",
+        "creator": "Deadset / owner capture"
+      }
+    },
+    {
+      "file": "slide-06.jpg",
+      "role": "editorial",
+      "overlay": "4. Give the set your attention",
+      "body": "Put the scroll away until you\u2019re finished.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/11432959/",
+        "creator": "Marius Aholou",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-07.jpg",
+      "role": "editorial",
+      "overlay": "5. Know your reps before the set",
+      "body": "Check the plan before you pick up the dumbbells.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/7690204/",
+        "creator": "cottonbro studio",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-08.jpg",
+      "role": "editorial",
+      "overlay": "6. Put your weights away",
+      "body": "Leave the space ready for the next person.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/7674491/",
+        "creator": "cottonbro studio",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-09.jpg",
+      "role": "editorial",
+      "overlay": "7. Decide when you\u2019re coming back",
+      "body": "Choose your next session before you leave.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/4720764/",
+        "creator": "Ketut Subiyanto",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-10.jpg",
+      "role": "editorial",
+      "overlay": "Which one are you starting with?",
+      "body": "Save this for your next gym day.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/17706035/",
+        "creator": "_mamadvali",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    }
+  ],
+  "id": "cf1095b2-d27d-4cbc-b2d0-5785bf9120ba",
+  "proof_asset_id": "eb3583a5-25ad-4236-bb00-2624c0ee560d"
+}

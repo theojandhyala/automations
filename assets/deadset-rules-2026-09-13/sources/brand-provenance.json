@@ -1,0 +1,13 @@
+{
+  "logo": "/Users/theojandhyala/deadset/public/brand/deadset-lockup.png",
+  "usage": "/Users/theojandhyala/deadset/src/routes/creator.tsx",
+  "colors": "/Users/theojandhyala/deadset/src/styles.css",
+  "font_css": "https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap",
+  "font_url": "https://fonts.gstatic.com/s/oswald/v57/TK3_WkUHHAIjg75cFRf3bXL8LICs1xZogUE.ttf",
+  "logo_sha256": "ec9e900186a66ac2e4f0a7ebdc0ac61893d65606f5a5d48328e5660a08535e21",
+  "palette": {
+    "red": "#e63222",
+    "off_white": "#f5f5f0",
+    "background": "#0a0a0a"
+  }
+}
