@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "a6d7c830-bad9-4cc5-9004-94cf17694cf3",
+  "app_slug": "deadset",
+  "promotional": true,
+  "feature_key": "live_logger",
+  "reference_urls": [
+    "https://www.tiktok.com/@strongermobile/photo/7589668827324058882"
+  ],
+  "hook": "Lost count of which set you’re on?",
+  "caption": "Open your workout, tap a set to tick it off, then swipe to the next exercise. Keep your place in Deadset. Find Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "gymroutine",
+    "workoutapp",
+    "deadset"
+  ],
+  "slides": [
+    {
+      "file": "slide-01.jpg",
+      "role": "hook",
+      "overlay": "Lost count of which set you’re on?",
+      "body": "A quick Deadset walkthrough →",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/man-in-black-leather-jacket-walking-on-the-sidewalk-4882831/",
+        "creator": "Eun Suk",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-02.jpg",
+      "role": "feature",
+      "overlay": "ONE SET AT A TIME.",
+      "body": "Open workout → tick a set → swipe next. Actual Deadset example screen. Find Deadset on the App Store.",
+      "source": {
+        "kind": "first_party_ui",
+        "source_url": "https://automations.theojandhyala.workers.dev/media/features/deadset/live_logger/fcb7b786-5459-4edb-b575-7d9932fe7edb.png",
+        "creator": "Deadset / owner capture"
+      }
+    }
+  ]
+}

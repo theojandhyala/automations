@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "64148765-3616-4b74-9e91-0b01a5e121ed",
+  "app_slug": "deadset",
+  "promotional": true,
+  "feature_key": "workout_plan",
+  "reference_urls": [
+    "https://www.tiktok.com/@strongermobile/photo/7589668827324058882"
+  ],
+  "hook": "The plan: six days. The week: absolutely not.",
+  "caption": "The best-looking plan on paper still has to fit your life. Keep your training and rest days together in Deadset. Find Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "gymroutine",
+    "workoutapp",
+    "deadset"
+  ],
+  "slides": [
+    {
+      "file": "slide-01.jpg",
+      "role": "hook",
+      "overlay": "The plan: six days. The week: absolutely not.",
+      "body": "Give your actual week a say.",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/man-walking-in-black-leather-jacket-20185373/",
+        "creator": "Joaquin Carfagna",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-02.jpg",
+      "role": "feature",
+      "overlay": "BUILD A WEEK YOU CAN REPEAT.",
+      "body": "DEADSET — Forge Your Body. Actual Deadset app · example screen. Find Deadset on the App Store.",
+      "source": {
+        "kind": "first_party_ui",
+        "source_url": "https://automations.theojandhyala.workers.dev/media/features/deadset/workout_plan/b8570478-36b1-49fa-8cdf-c90341bad79f.png",
+        "creator": "Deadset / owner capture"
+      }
+    }
+  ]
+}

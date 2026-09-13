@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "71d1c3e1-13a1-4e45-bc8f-4f5d4ded229e",
+  "app_slug": "deadset",
+  "promotional": true,
+  "feature_key": "live_logger",
+  "reference_urls": [
+    "https://www.tiktok.com/@zeno.app/photo/7673262585545837831"
+  ],
+  "hook": "Gym habits, ranked.",
+  "caption": "Our gym-habit ranking, not a scientific score. What would you move? Plan your sets and tick them off in Deadset. Find Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "gymhabits",
+    "tierlist",
+    "deadset"
+  ],
+  "slides": [
+    {
+      "file": "slide-01.jpg",
+      "role": "hook",
+      "overlay": "Gym habits, ranked.",
+      "body": "D: Winging every set. B: Plan on your phone. S: Plan + tick off sets. Our take. What would you move?",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/a-man-in-black-jacket-and-black-pants-walking-on-the-street-12480665/",
+        "creator": "El gringo photo",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-02.jpg",
+      "role": "feature",
+      "overlay": "PLAN YOUR SETS. TICK THEM OFF.",
+      "body": "DEADSET — Forge Your Body. Actual Deadset app · example screen. Find Deadset on the App Store.",
+      "source": {
+        "kind": "first_party_ui",
+        "source_url": "https://automations.theojandhyala.workers.dev/media/features/deadset/live_logger/fcb7b786-5459-4edb-b575-7d9932fe7edb.png",
+        "creator": "Deadset / owner capture"
+      }
+    }
+  ]
+}

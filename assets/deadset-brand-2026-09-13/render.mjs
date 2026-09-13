@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import {spawn,execFileSync} from 'node:child_process';
+import {deadsetSlideHtml} from '../../worker/src/lib/deadset-slide-layout.ts';
+const root=new URL('.',import.meta.url).pathname;
+const sources=new URL('../deadset-rules-2026-09-13/sources/',import.meta.url).pathname;
+const uri=(f,mime)=>`data:${mime};base64,${fs.readFileSync(sources+f).toString('base64')}`;
+let html=deadsetSlideHtml({imageUrl:'https://automations.theojandhyala.workers.dev/media/features/deadset/workout_plan/b8570478-36b1-49fa-8cdf-c90341bad79f.png',overlay:'TRAINING DAYS. REST DAYS. SORTED.',role:'feature',featureKey:'workout_plan'});
+html=html.replace('https://automations.theojandhyala.workers.dev/media/features/deadset/workout_plan/b8570478-36b1-49fa-8cdf-c90341bad79f.png',uri('train.png','image/png')).replace('https://automations.theojandhyala.workers.dev/brand/deadset-lockup.png',uri('deadset-lockup.png','image/png')).replace('https://fonts.gstatic.com/s/oswald/v57/TK3_WkUHHAIjg75cFRf3bXL8LICs1xZogUE.ttf',uri('oswald-700.ttf','font/ttf'));
+const out=root+'slide-05';fs.writeFileSync(out+'.html',html);fs.rmSync(out+'.png',{force:true});
+const proc=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--hide-scrollbars','--no-first-run','--force-device-scale-factor=1','--window-size=1080,1920','--user-data-dir=/tmp/deadset-brand-'+Date.now(),'--screenshot='+out+'.png','file://'+out+'.html'],{stdio:'ignore'});
+let ready=false;for(let n=0;n<150;n++){await new Promise(r=>setTimeout(r,100));if(fs.existsSync(out+'.png')&&fs.statSync(out+'.png').size>1000){ready=true;break}}proc.kill();if(!ready)throw Error('Render timed out');
+execFileSync('sips',['-s','format','jpeg','-s','formatOptions','91',out+'.png','--out',out+'.jpg'],{stdio:'ignore'});
+execFileSync('sips',['-Z','693',out+'.jpg','--out',root+'phone.jpg'],{stdio:'ignore'});
