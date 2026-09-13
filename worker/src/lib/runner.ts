@@ -1,6 +1,7 @@
 import { Db } from './db';
 import { nextRun } from './cron';
 import { log, errorFields } from './log';
+import { runOutcomeCounts } from './run-outcome-counts';
 import type { Automation, Env, LogLevel } from '../types';
 import { getHandler } from '../automations/registry';
 
@@ -139,6 +140,7 @@ export async function executeRun(
     trigger,
     status,
     duration_ms: durationMs,
+    outcome_counts: runOutcomeCounts(result),
     ...(error ? { error } : {}),
   });
 

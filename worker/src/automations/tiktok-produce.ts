@@ -1,6 +1,8 @@
 import { supportedCarousel, DEADSET_LONGFORM, deadsetLongformDue } from '../lib/deadset-longform';
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
 import { deliveryPaused } from '../lib/timed-delivery';
+import { carouselRenderReason } from '../lib/carousel-render-queue';
+import { log } from '../lib/log';
 import { CAST_EDITORIAL_FORMAT, castPhotoDirection, type EditorialSlide } from '../lib/cast-editorial';
 import { decrypt } from '../lib/crypto';
 import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
@@ -500,10 +502,16 @@ export const produceCarousels: Handler = {
         autoApproved++;
       }
     }
-    const pending = candidates.filter((artifact) => artifact.photo_urls.length === 0);
+    const pending = candidates.filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) !== null);
+    log.info('carousel queue inspected', {
+      run_id: ctx.runId, app_slug: appSlug, candidate_drafts: candidates.length,
+      render_pending: pending.length,
+      outdated_renderer: pending.filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) === 'outdated_renderer').length,
+      auto_approved: autoApproved,
+    });
     if (pending.length === 0) {
       if (activeMission) await syncMissionOutput(ctx.db, activeMission, ctx.runId);
-      return { produced: 0, auto_approved: autoApproved, blocked: 0, message: 'No unrendered photo drafts.' };
+      return { produced: 0, auto_approved: autoApproved, blocked: 0, message: 'No eligible unrendered or outdated photo drafts.' };
     }
 
     await ctx.setTask(`building ${pending.length} ${playbook.appName} carousel${pending.length === 1 ? '' : 's'}`);
