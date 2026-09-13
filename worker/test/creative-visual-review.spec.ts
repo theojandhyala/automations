@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { hasPassingVisualReview, parseVisualVerdict, reviewFinalCarousel, visualVerdictPasses } from '../src/lib/creative-visual-review';
+import { finalImageReviewPrompt, hasPassingVisualReview, parseVisualVerdict, reviewFinalCarousel, visualVerdictPasses } from '../src/lib/creative-visual-review';
 import { proofReaction } from '../src/lib/creative-direction';
 import { selectHookTemplate } from '../src/lib/creative-photo-templates';
 import { getCreativePlaybook } from '../src/lib/creative-playbooks';
@@ -27,6 +27,20 @@ function fixture(payload: unknown = good) {
   return { env, run };
 }
 describe('independent final-image review', () => {
+  it('keeps Cast editorial and promotion roles separate from Deadset branding requirements', () => {
+    const cast = { ...artifact, photo_urls: Array.from({ length: 6 }, (_, i) => `https://example.test/${i}.jpg`), asset_manifest: { app_slug: 'cast', format: 'cast_editorial_carousel' } };
+    const item = finalImageReviewPrompt(cast, 4);
+    const promotion = finalImageReviewPrompt(cast, 5);
+    expect(item).toContain('Current slide number: 5 of 6.');
+    expect(item).toContain('NOT THE FINAL PROMOTION');
+    expect(promotion).toContain('THIS IS THE FINAL CAST PROMOTION');
+    expect(promotion).toContain('visible Cast name is required');
+    expect(promotion).toContain('An app screenshot and official logo graphic are optional');
+    expect(promotion).not.toContain('Every Deadset product/feature slide');
+    expect(finalImageReviewPrompt(artifact, 1)).toContain('Every Deadset product/feature slide');
+    expect(finalImageReviewPrompt(artifact, 1)).toContain('deliberate visible Deadset red/black brand presence');
+  });
+
   it('compares final proof with the original source and signs that evidence without relaxing the verdict', async () => {
     const { env, run } = fixture();
     stubFetch([
