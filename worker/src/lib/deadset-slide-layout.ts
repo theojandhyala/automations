@@ -41,18 +41,18 @@ export function deadsetSlideHtml(input: {
 @font-face{font-family:DeadsetDisplay;src:url(https://fonts.gstatic.com/s/oswald/v57/TK3_WkUHHAIjg75cFRf3bXL8LICs1xZogUE.ttf);font-weight:700;font-display:block}*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#08090b;color:#fff;font-family:Arial,Helvetica,sans-serif}
 .finished{display:block;width:1080px;height:1920px;object-fit:cover}
 .hook-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 43%}
-.shade{position:absolute;inset:0;background:linear-gradient(180deg,#0002,#0001 45%,#0006)}
-.hook-copy{position:absolute;left:162px;top:350px;width:756px;max-height:500px;margin:0;font-size:68px;line-height:1.12;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
-.brand-field{position:absolute;inset:0;background:linear-gradient(180deg,#08090b 0 43%,#e63222 43% 100%)}
-.brand-field::after{content:"";position:absolute;inset:1450px 0 0;background:repeating-linear-gradient(128deg,transparent 0 140px,#c6251a 140px 180px)}
-.brand-lockup{position:absolute;left:215px;top:250px;width:650px;height:auto}
-.proof-viewport{position:absolute;left:162px;top:670px;width:756px;height:535px;overflow:hidden;background:#111;border-radius:8px;box-shadow:0 14px 30px #0004}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,#0001,transparent 50%)}
+.hook-copy{position:absolute;left:162px;top:350px;width:756px;max-height:500px;margin:0;font-size:60px;font-weight:600;line-height:1.14;text-align:center;text-shadow:0 3px 7px #000;-webkit-text-stroke:3px #000;paint-order:stroke fill;overflow-wrap:break-word}
+.brand-field{position:absolute;inset:0;background:#0a0a0a}
+.brand-field::after{content:"";position:absolute;inset:1520px 0 0;border-top:1px solid #e6322240;background:radial-gradient(ellipse at 50% 120%,#e6322226,transparent 75%)}
+.brand-lockup{position:absolute;left:260px;top:250px;width:560px;height:auto}
+.proof-viewport{position:absolute;left:162px;top:600px;width:756px;height:660px;overflow:hidden;background:#0a0a0a}
 .proof-viewport img{display:block;position:absolute;width:756px;height:auto;left:0}
-.logger img{top:-427px}.plan{height:535px}.plan img{top:-262px}
+.logger img{top:-575px}.plan{height:660px}.plan img{top:-262px}
 .whole img{width:100%;height:100%;object-fit:contain}
-.proof-copy{position:absolute;left:162px;top:550px;width:756px;height:116px;margin:0;text-align:center;font-family:DeadsetDisplay,Impact,Arial,sans-serif;font-size:52px;font-weight:700;line-height:1.12;color:#f5f5f0;overflow-wrap:break-word}
+.proof-copy{position:absolute;left:162px;top:510px;width:756px;height:80px;margin:0;text-align:center;font-family:DeadsetDisplay,Impact,Arial,sans-serif;font-size:56px;font-weight:700;line-height:1.12;color:#f5f5f0;overflow-wrap:break-word}
 .example,.cta{position:absolute;left:162px;width:756px;margin:0;text-align:center}
-.example{top:1220px;font-size:26px;line-height:1.1;color:#fff}
-.cta{top:1270px;height:86px;padding:19px 0;font-size:36px;line-height:1.2;color:#f5f5f0;background:#0a0a0a;border-radius:12px;font-weight:700}
+.example{top:1280px;font-size:26px;line-height:1.1;color:#fff}
+.cta{top:1340px;height:86px;padding:20px 0;font-size:34px;line-height:1.2;color:#f5f5f0;background:#e63222;border-radius:28px;font-weight:700}
 </style></head><body>${body}</body></html>`;
 }

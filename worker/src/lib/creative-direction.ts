@@ -1,7 +1,8 @@
 /** Owner's 10 September reset, backed by the saved Stronger audit. */
-export const CREATIVE_DIRECTION_VERSION = 'cast-deadset-2026-09-19-full-frame-v11';
+export const CREATIVE_DIRECTION_VERSION = 'cast-deadset-2026-09-19-native-brand-v12';
 
 export const CREATIVE_DIRECTION = `Creative director standard (${CREATIVE_DIRECTION_VERSION}):
+Latest September 19 owner correction: previous real photographs still looked AI/stock and product posters looked cheap. Use a clean personal photo-dump aesthetic: casual framing, natural exposure and texture, no staged catalogue portraits or generated people. The product page must feel like the actual app: official identity, authentic typography and colours, much larger readable first-party UI. Generic diagonal stripes and giant flat-colour poster panels were rejected. Owner rejection supersedes an older model pass; preserve its source as owner feedback.
 For a two-slide promotion: one recognisable human situation, one short setup, one visible product answer.
 For Cast six-slide editorial: a concrete useful hook, FOUR distinct useful items, then a dedicated Cast advertisement. Counted hooks must promise four items. The final advertisement connects the topic to a truthful Cast benefit and an App Store call to action. The final slide requires a prominent exact official Cast logo, deliberate navy/teal branding, a readable genuine app screenshot, one truthful benefit and an App Store action. The earlier text-only final promotion was rejected on September 13. Keep actual UI unchanged and example data labelled. Each item can include a short explanatory sentence.
 Deadset reference: @strongermobile, inspected in docs/strongermobile-creative-audit-2026-09-10.md.

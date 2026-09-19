@@ -1,3 +1,5 @@
+> Latest owner rejection, September 19: [photo-dump photography and app-native branding](native-brand-reset-2026-09-19.md) supersedes previous creative passes. Preserve recorded owner corrections even when an AI review passed.
+
 Latest Cast requirement: [mandatory official logo and genuine app promotion, 13 September](cast-brand-proof-2026-09-13.md) supersedes optional-screen/text-only ending guidance below.
 
 > Latest Deadset opener: [candid person-led car/street imagery](deadset-candid-opener-2026-09-12.md), superseding gym-floor/shoes defaults. Apply this alongside the official-brand and centring correction.

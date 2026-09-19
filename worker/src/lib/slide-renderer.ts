@@ -6,7 +6,7 @@ import { deadsetSlideHtml, deadsetSourceFits, DEADSET_SAFE_AREA } from './deadse
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v8-full-frame-brand';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v9-native-app-brand';
 
 export interface SlideInput {
   imageUrl: string;
@@ -145,7 +145,7 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     if (!fits) { const diagnostics = await page.evaluate(`Array.from(document.querySelectorAll('.centered')).map(el=>({class:el.className,box:el.getBoundingClientRect().toJSON(),scroll:[el.scrollWidth,el.scrollHeight],client:[el.clientWidth,el.clientHeight]}))`); throw new Error('Cast promotion layout failed: '+JSON.stringify(diagnostics)); }
   }
   if (input.editorial && !input.castPromotion) {
-    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.copy,.kicker,.brand')).every(el => { const r=el.getBoundingClientRect(); return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1; })`);
+    const fits = await page.evaluate(`Array.from(document.querySelectorAll('.copy,.kicker,.brand')).every(el => { const r=el.getBoundingClientRect(); return Math.abs(r.left+r.width/2-540)<=1 && r.left>=162 && r.right<=918 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1; })`);
     if (!fits) throw new Error('Cast editorial text exceeds TikTok safe bounds.');
   }
   const bytes = await page.screenshot({

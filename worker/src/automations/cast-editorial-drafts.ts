@@ -2,15 +2,13 @@ import type { RunContext } from '../lib/runner';
 import { CAST_EDITORIAL_FORMAT, CAST_EDITORIAL_VERSION, CAST_REFERENCE_URLS, editorialSlides, planCastEditorial } from '../lib/cast-editorial';
 import { CREATIVE_DIRECTION_VERSION } from '../lib/creative-direction';
 import { assessCreativeQuality } from '../lib/creative-quality';
+import { recentCreativeFeedback } from '../lib/creative-feedback';
 
 export async function createCastEditorialDrafts(ctx: RunContext, appId: string, accountId: string | null,
   count: number, recent: Array<{ hook?: string | null; asset_manifest: Record<string, unknown> }>) {
   const concepts = planCastEditorial(recent, Math.min(count, 3));
   if (!concepts.length) return { drafted: 0, generation_mode: 'curated_no_ai', reason: 'Curated Cast bank exhausted. Add new reviewed topics; do not repeat old posts.' };
-  const lessons = recent.flatMap(r => {
-    const review = r.asset_manifest.visual_review as { pass?: boolean; blockers?: string[] } | undefined;
-    return review?.pass === false ? [{ hook: r.hook, defects: review.blockers ?? [] }] : [];
-  }).slice(0, 8);
+  const lessons = recentCreativeFeedback(recent);
   const now = new Date().toISOString();
   const rows = concepts.map(concept => {
     const slides = editorialSlides(concept);

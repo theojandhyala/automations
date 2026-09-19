@@ -492,6 +492,7 @@ export const produceCarousels: Handler = {
           status: 'approved',
           stage: 'schedule',
           error: null,
+          asset_manifest: { ...artifact.asset_manifest, creative_quality: quality },
           tiktok_privacy_level: 'PUBLIC_TO_EVERYONE',
           disable_comment: false,
           auto_add_music: true,

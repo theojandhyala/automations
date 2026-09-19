@@ -56,7 +56,11 @@ describe('Cast curated editorial route', () => {
     const html=castEditorialHtml({imageUrl:'x" onerror="bad',overlay:'<script>bad</script>',editorial:{body:'Use <real> photos',kicker:'1 / 6'},role:'hook'});
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;real&gt;');
-    expect(html).toContain('left:86px;width:778px');
+    const match = html.match(/\.copy\{[^}]*left:(\d+)px;width:(\d+)px/);
+    expect(match).not.toBeNull();
+    const left = Number(match![1]), width = Number(match![2]);
+    expect(left + width / 2).toBe(540);
+    expect(left).toBe(1080 - left - width);
   });
 });
 

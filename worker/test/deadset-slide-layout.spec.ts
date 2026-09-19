@@ -39,8 +39,8 @@ describe('DEADSET slide composition', () => {
     const other = deadsetSlideHtml({ imageUrl: 'https://media.example/other.png', overlay: 'Planned sets and reps', role: 'feature', featureKey: 'live_logger' });
     expect(known.split('<body>')[1]).toContain('centered logger');
     expect(other.split('<body>')[1]).toContain('centered whole');
-    expect(known).toContain('top:550px');
-    expect(known).toContain('top:670px');
+    expect(known).toContain('top:510px');
+    expect(known).toContain('top:600px');
   });
   it('escapes source and caption HTML', () => {
     const html = deadsetSlideHtml({ imageUrl: 'https://media.example/" onerror="alert(1)', overlay: '<img src=x onerror=alert(1)>', role: 'hook' });

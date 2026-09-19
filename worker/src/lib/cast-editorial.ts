@@ -116,9 +116,9 @@ export function castEditorialHtml(input: { imageUrl: string; overlay: string; ed
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#0d191c;color:white;font-family:Arial,Helvetica,sans-serif}
 .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
-.shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 8%,#0006 24%,#0006 46%,transparent 72%)}
-.copy{position:absolute;left:86px;width:778px;text-align:center;font-weight:700;line-height:1.12;-webkit-text-stroke:5px #000;paint-order:stroke fill;text-shadow:0 3px 6px #0008;overflow-wrap:break-word}
-.head{top:${hook ? 375 : 455}px;font-size:68px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;white-space:pre-line;max-height:340px;margin:0}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 8%,#0002 24%,#0002 46%,transparent 72%)}
+.copy{position:absolute;left:162px;width:756px;text-align:center;font-weight:700;line-height:1.12;-webkit-text-stroke:3px #000;paint-order:stroke fill;text-shadow:0 3px 6px #0008;overflow-wrap:break-word}
+.head{top:${hook ? 375 : 455}px;font-size:60px;max-height:260px;margin:0}.body{top:630px;font-size:53px;line-height:1.24;white-space:pre-line;max-height:340px;margin:0}
 </style></head><body><img class="photo" src="${esc(input.imageUrl)}"><div class="shade"></div><h1 class="copy head">${esc(heading)}</h1>${input.editorial.body ? `<p class="copy body">${esc(input.editorial.body)}</p>` : ''}</body></html>`;
 }
 
