@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "approval_status": "awaiting_owner_preview_approval",
+  "account": "@deadset.app",
+  "format": "two_slide_photo_carousel",
+  "slides": [
+    "rank-01.jpg",
+    "rank-02.jpg"
+  ],
+  "hook": "What\u2019s your gym rank?",
+  "answer": "Your lifts. Your level.",
+  "caption": "Your lifts have a level. See your card in Deadset. Find Deadset on the App Store. #deadset #gymtok #workoutapp",
+  "own_brand_disclosure": true,
+  "paid_partnership": false,
+  "audio": {
+    "status": "not_selected_or_auditioned",
+    "automatic_music": "Disabled for this preview; if approved, resolve or explicitly agree the delivery audio treatment before release."
+  },
+  "sources": [
+    {
+      "file": "sources/8556753.jpg",
+      "creator": "Vine",
+      "url": "https://www.pexels.com/photo/man-walking-near-a-black-car-8556753/",
+      "licence": "https://www.pexels.com/license/",
+      "type": "licensed photograph, not a testimonial"
+    },
+    {
+      "file": "sources/profile.png",
+      "local_original": "/Users/theojandhyala/deadset/public/screenshots/profile.png",
+      "type": "first-party screenshot, example profile",
+      "release_evidence": "https://apps.apple.com/us/app/deadset/id6783511541",
+      "claim": "App Store listing explicitly promotes ranks; no new calendar or personal result claims. Exact profile source not yet registered for production review."
+    }
+  ],
+  "not_scheduled": true,
+  "photograph_note": "Existing licensed source from the September 13 library reused only for this owner-review calibration draft. Natural exposure retained; do not treat this as an endless reusable opener.",
+  "sha256": {
+    "rank-01.jpg": "9ca9b7f5cb67071bae9e694e5fec0882d67a7f7d61e98d62f6f659ea04573ee2",
+    "rank-02.jpg": "8e98c7a264e5f0301c3ff53b3df49a247f75c31081345e71b184d903fe7a5328"
+  },
+  "visual_inspection": {
+    "sizes": [
+      "1080x1920",
+      "360x640"
+    ],
+    "status": "inspected_for_owner_visual_feedback_not_release_approved"
+  }
+}

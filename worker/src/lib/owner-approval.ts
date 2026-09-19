@@ -1,6 +1,6 @@
 import type { Artifact } from '../types';
-// Owner opted both active brands into quality-gated autonomous release on 2026-09-10.
-export function automaticCreativeApprovalAllowed(appSlug: string): boolean { return appSlug === 'cast' || appSlug === 'deadset'; }
+// September 19: owner revoked autonomous release; show the exact post before posting.
+export function automaticCreativeApprovalAllowed(_appSlug: string): boolean { return false; }
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)

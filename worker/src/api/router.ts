@@ -22,7 +22,7 @@ import {
 } from '../lib/tiktok';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { activeTikTokAccounts, checkAccountAccess } from '../lib/tiktok-health';
-import { ownerApprovalReceipt } from '../lib/owner-approval';
+import { ownerApprovalReceipt, automaticCreativeApprovalAllowed } from '../lib/owner-approval';
 import { timedDeliveryStage } from '../lib/timed-delivery';
 import { hasPassingVisualReview } from '../lib/creative-visual-review';
 import { mediaProperty } from '../lib/tiktok-property';
@@ -365,8 +365,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
       direct_post_test_ready: !businessMode && (reviewState === 'sandbox' || reviewState === 'approved'),
       sandbox_private_only: !businessMode && reviewState === 'sandbox',
       public_direct_post_ready: reviewState === 'approved' && configured,
-      autonomous_public_post_ready: unattendedPublishingEnabled(env),
-      owner_review_required: !unattendedPublishingEnabled(env),
+      autonomous_public_post_ready: unattendedPublishingEnabled(env) && ['deadset', 'cast'].every(automaticCreativeApprovalAllowed),
+      owner_review_required: !(['deadset', 'cast'].every(automaticCreativeApprovalAllowed) && unattendedPublishingEnabled(env)),
     });
   }
 

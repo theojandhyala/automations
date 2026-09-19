@@ -1,3 +1,5 @@
+> September 19 latest instruction: [preview first, owner approval before posting](preview-first-2026-09-19.md). Autonomous release is revoked for both brands. Older schedule and approval statements below are historical.
+
 > Latest owner rejection, September 19: [photo-dump photography and app-native branding](native-brand-reset-2026-09-19.md) supersedes previous creative passes. Preserve recorded owner corrections even when an AI review passed.
 
 Latest Cast requirement: [mandatory official logo and genuine app promotion, 13 September](cast-brand-proof-2026-09-13.md) supersedes optional-screen/text-only ending guidance below.

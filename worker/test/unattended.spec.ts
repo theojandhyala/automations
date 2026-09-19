@@ -77,16 +77,17 @@ describe('unattended safety', () => {
     expect(plan.decisions.every(decision => decision.latest_views === null)).toBe(true);
   });
 
-  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true, booking?: 'valid' | 'expired' | 'changed' | 'none' | 'cancelled') {
+  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true, booking?: 'valid' | 'expired' | 'changed' | 'none' | 'cancelled', publishBrand: 'deadset' | 'cast' = 'deadset') {
     if (booking) { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T18:58:30Z')); }
     vi.spyOn(independentReview, 'hasPassingVisualReview').mockResolvedValue(visualPass);
     const channel = await account();
+    if (publishBrand === 'cast') channel.handle = 'cast.fishing.app';
     const artifact: Artifact = {
       id: 'artifact-1', run_id: null, app_id: 'deadset-id', account_id: channel.id, status: 'approved',
       hook: 'What weight did you use last time?', caption: 'One less thing to guess between sets.',
       hashtags: ['gymtok', 'workoutapp', 'gymprogress'], media_type: 'photo', video_url: null,
       photo_urls: ['https://example.test/media/outputs/one.jpg', 'https://example.test/media/outputs/two.jpg'],
-      asset_manifest: { app_slug: 'deadset', format: 'two_slide_photo_carousel', slides: [{}, {}],
+      asset_manifest: { app_slug: publishBrand, format: 'two_slide_photo_carousel', slides: [{}, {}],
         production: { caption_renderer: legacy ? 'tiktok-classic-v2' : CAPTION_RENDERER_VERSION },
         hook_visual_template: { id: getCreativePlaybook('deadset')!.hookVisualTemplate!.id } },
       thumbnail_url: null, duration_s: null, publish_id: null, tiktok_post_id: null, error: null,
@@ -122,7 +123,7 @@ describe('unattended safety', () => {
         return jsonResponse([]);
       } },
       { match: /tiktok_accounts\?/, respond: () => jsonResponse([channel]) },
-      { match: /apps\?/, respond: () => jsonResponse([{ id: 'deadset-id', slug: mode === 'produce' && approved ? 'cast' : 'deadset', promotion_enabled: true }]) },
+      { match: /apps\?/, respond: () => jsonResponse([{ id: 'deadset-id', slug: mode === 'produce' && approved ? 'cast' : publishBrand, promotion_enabled: true }]) },
       { match: /promotion_missions\?/, respond: () => jsonResponse([]) },
       { match: /media\/outputs\//, respond: () => new Response(null, { headers: { 'Content-Type': 'image/jpeg' } }) },
       { match: /business\/get\//, respond: () => jsonResponse({ code: 0, data: { username: channel.handle } }) },
@@ -178,17 +179,16 @@ describe('unattended safety', () => {
     expect(claim?.body).toMatchObject({ p_artifact_id: 'artifact-1', p_scheduled: false, p_expected: { account_id: 'account-1' } });
   });
 
-  it('allows opted-in Deadset content through quality and atomic reservation', async () => {
-    const calls = await publishingFixture(true, false, false, 'publish', false);
-    expect(calls.some(c => /reserve_tiktok_delivery/.test(c.url))).toBe(true);
-    expect(calls.filter(c => /photo\/publish/.test(c.url))).toHaveLength(1);
+  it.each(['deadset', 'cast'] as const)('blocks quality-passed %s content without owner preview approval', async brand => {
+    const calls = await publishingFixture(true, false, false, 'publish', false, false, true, undefined, brand);
+    expect(calls.some(c => /reserve_tiktok_delivery|photo\/publish/.test(c.url))).toBe(false);
   });
 
-  it('auto-approves quality-passed Deadset drafts after owner opt-in', async () => {
+  it('does not auto-approve either brand after owner requests preview first', async () => {
     const calls = await publishingFixture(false, false, false, 'produce', false);
-    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).toContainEqual(expect.objectContaining({ status: 'approved' }));
-    expect(automaticCreativeApprovalAllowed('deadset')).toBe(true);
-    expect(automaticCreativeApprovalAllowed('cast')).toBe(true);
+    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).not.toContainEqual(expect.objectContaining({ status: 'approved' }));
+    expect(automaticCreativeApprovalAllowed('deadset')).toBe(false);
+    expect(automaticCreativeApprovalAllowed('cast')).toBe(false);
     expect(automaticCreativeApprovalAllowed('lifescore')).toBe(false);
   });
 
@@ -238,14 +238,10 @@ describe('unattended safety', () => {
     ]);
   });
 
-  it('does not auto-approve a variety-held concept again or let it starve a fresh draft', async () => {
+  it('keeps both existing and fresh Cast drafts in review after preview-first request', async () => {
     const calls = await publishingFixture(false, false, true, 'produce');
-    const writes = calls.filter(call => call.method === 'PATCH');
-    expect(writes).toHaveLength(2);
-    expect(writes[0]?.url).toContain('id=eq.repeated-artifact');
-    expect(writes[0]?.body).toEqual({ stage: 'review', error: expect.stringContaining('Creative variety hold') });
-    expect(writes[1]?.url).toContain('id=eq.artifact-1');
-    expect(writes[1]?.body).toMatchObject({ status: 'approved', error: null });
+    expect(calls.filter(call => call.method === 'PATCH').map(call => call.body))
+      .not.toContainEqual(expect.objectContaining({ status: 'approved' }));
     expect(calls.some(call => call.url.includes('/photo/publish/'))).toBe(false);
   });
 });
