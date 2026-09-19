@@ -68,7 +68,7 @@ export const CAST_HOOK_VISUAL_TEMPLATE_ID = 'cast-fishing-decision-v2';
 
 export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
   deadset: {
-    version: 'deadset-2026-09-12-candid-person',
+    version: 'deadset-2026-09-19-native-brand',
     appSlug: 'deadset',
     appName: 'Deadset',
     category: 'fitness',
@@ -167,7 +167,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
       soundPolicy: [
         'Match the sound mood to the content lane; sad and villain-arc posts must not receive the same emotional treatment.',
         'For a Business Account, use only tracks eligible in TikTok’s Commercial Music Library for the United Kingdom at posting time.',
-        'Direct photo posting can request TikTok recommended music but cannot name an exact track; store the mood brief and let TikTok add recommended music automatically.',
+        'The Business API supports a Commercial Music Library sound ID, but this publisher currently wires automatic music only. Record automatic selection accurately; a catalogue preview is not an attached or auditioned track.',
         'Never hard-code a trend name because availability, business eligibility and popularity change.',
       ],
       trendPolicy: [
@@ -295,7 +295,7 @@ export const CREATIVE_PLAYBOOKS: Record<string, CreativePlaybook> = {
       soundPolicy: [
         'Match audio energy to the field moment: calm for waiting and observation, dynamic for casts, bites and catches.',
         'For a Business Account, use only tracks eligible in TikTok’s Commercial Music Library for the United Kingdom at posting time.',
-        'Direct photo posting can request TikTok recommended music but cannot name an exact track; store the mood brief and let TikTok add recommended music automatically.',
+        'The Business API supports a Commercial Music Library sound ID, but this publisher currently wires automatic music only. Record automatic selection accurately; a catalogue preview is not an attached or auditioned track.',
         'Never hard-code a trend name because availability, business eligibility and popularity change.',
       ],
       trendPolicy: [

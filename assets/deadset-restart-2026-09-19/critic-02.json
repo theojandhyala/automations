@@ -1,0 +1,41 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "annotations": null,
+        "audio": null,
+        "content": "```json\n{\"visible_text\":\"DEADSET FORGE YOUR BODY YOUR WEEK. SORTED. Actual Deadset app · example screen Find Deadset on the App Store\",\"observation\":\"A Deadset product slide featuring a black background with a red bottom section. The official Deadset logo is prominent at the top. Centred is a genuine app screenshot showing a 'REST' day view with a weekly schedule (MON UPPER, TUE LOWER, etc.) and a 'GRIT 10' streak. A red button at the bottom contains the App Store CTA.\",\"hierarchy\":10,\"legibility\":10,\"craft\":9,\"story_match\":10,\"safe_zones\":true,\"truthful_proof\":true,\"duplicate_copy\":false,\"blockers\":[]}\n```",
+        "function_call": null,
+        "reasoning": null,
+        "refusal": null,
+        "role": "assistant"
+      },
+      "routed_experts": null,
+      "stop_reason": 106,
+      "token_ids": null
+    }
+  ],
+  "created": 1789817365,
+  "ec_transfer_params": null,
+  "id": "chatcmpl-ac743ad9-8287-4b67-86a4-ea7b29470f45",
+  "kv_transfer_params": null,
+  "metrics": null,
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "object": "chat.completion",
+  "prompt_logprobs": null,
+  "prompt_text": null,
+  "prompt_token_ids": null,
+  "service_tier": null,
+  "usage": {
+    "prompt_tokens": 3554,
+    "completion_tokens": 163,
+    "total_tokens": 3717,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "neurons": 36.75454330444336
+  }
+}

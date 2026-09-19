@@ -16,6 +16,7 @@ export default defineConfig({
         compatibilityFlags: ['nodejs_compat'],
         kvNamespaces: ['HQ_DATA', 'DEADSET_BASELINE'],
         r2Buckets: ['MIGRATION_TEST_MEDIA'],
+        d1Databases: ['TEST_OPERATIONS_DB'],
         bindings: {
           // Pipeline status only needs to know the binding is configured; AI
           // inference itself remains remote and is not called by unit tests.

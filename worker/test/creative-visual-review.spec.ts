@@ -43,6 +43,12 @@ describe('independent final-image review', () => {
     expect(finalImageReviewPrompt(artifact, 1)).toContain('deliberate visible Deadset red/black brand presence');
   });
 
+  it('reviews the opening hook and branded answer under their distinct roles', () => {
+    expect(finalImageReviewPrompt(artifact,0)).toContain('THIS IS THE OPENING LIFESTYLE HOOK');
+    expect(finalImageReviewPrompt(artifact,1)).toContain('THIS IS THE PRODUCT ANSWER');
+    expect(finalImageReviewPrompt(artifact,1)).toContain('Require the exact prominent Deadset logo');
+  });
+
   it('compares final proof with the original source and signs that evidence without relaxing the verdict', async () => {
     const { env, run } = fixture();
     stubFetch([

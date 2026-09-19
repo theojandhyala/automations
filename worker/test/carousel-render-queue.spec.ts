@@ -16,6 +16,7 @@ describe('carousel repair queue', () => {
   it('selects outdated system drafts and unrendered drafts, but not current exports', () => {
     expect(reason(draft())).toBe('outdated_renderer');
     expect(reason(draft({ photo_urls: [], asset_manifest: {} }))).toBe('unrendered');
+    expect(reason(draft({ photo_urls: [], asset_manifest: { requires_owner_review:true } }))).toBe('unrendered');
     const current = draft();
     (current.asset_manifest.production as Record<string, string>).caption_renderer = 'current';
     expect(reason(current)).toBeNull();

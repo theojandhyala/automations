@@ -134,13 +134,12 @@ export function buildCarouselFallbacks(
       .filter(Boolean)
       .map((hook) => hook.trim().toLowerCase()),
   );
-  const session = playbook.category === 'fishing' ? 'session' : 'workout';
   const lane = requestedLane
     ?? playbook.creativeStrategy.lanes[playbook.creativeStrategy.defaultLane];
   if (!lane) return [];
   const fallbacks: DraftIdea[] = [];
 
-  for (let index = 0; index < featureOrder.length * 6 && fallbacks.length < needed; index += 1) {
+  for (let index = 0; index < featureOrder.length * 3 && fallbacks.length < needed; index += 1) {
     const feature = featureOrder[index % featureOrder.length]!;
     const spec = playbook.features[feature];
     if (!spec) continue;
@@ -148,14 +147,13 @@ export function buildCarouselFallbacks(
     const variant = Math.floor(index / featureOrder.length);
     const candidates = requestedLane
       ? lane.hookExamples
-      : [
-          spec.fallbackHook,
-          `${spec.label}: the check I make before the next ${session}`,
-          `The ${spec.label.toLowerCase()} detail I kept forgetting`,
-          `One ${spec.label.toLowerCase()} screen before the next ${session}`,
-          `The ${spec.label.toLowerCase()} check after the last ${session}`,
-          `${spec.label}: the part I want saved for next time`,
-        ];
+      : [spec.fallbackHook, ...(playbook.appSlug === 'deadset' ? ({
+          muscle_diagram: ['What are you actually training?', 'Same exercise. Different target?'],
+          workout_plan: ['What’s the plan this week?', 'Training days and rest days. Planned?'],
+          live_logger: ['Was that set two or three?', 'One more set. Or already done?'],
+          progression_board: ['Same lift. What did you lift last time?', 'Your last session left a clue.'],
+          pr_wall: ['Remember that personal best?', 'Some sets deserve a receipt.'],
+        } as Record<string, string[]>)[feature] ?? [] : [])];
     const hook = candidates[variant];
     if (!hook || hook.length > 90 || isRepeatedHook(hook, [...usedHooks])) continue;
     usedHooks.add(hook.toLowerCase());

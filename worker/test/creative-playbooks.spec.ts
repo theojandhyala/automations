@@ -98,7 +98,7 @@ describe('verified creative playbooks', () => {
     expect(hashtags).not.toEqual(expect.arrayContaining(['viral', 'fyp']));
     expect(deadset.creativeStrategy.captionTreatment).toMatch(/pure white fill, clean 5px black outside stroke/i);
     expect(lane.soundMood).toMatch(/Commercial Music Library/i);
-    expect(photoSystem(deadset)).toContain('Direct photo posting can request TikTok recommended music but cannot name an exact track');
+    expect(photoSystem(deadset)).toContain('The Business API supports a Commercial Music Library sound ID, but this publisher currently wires automatic music only.');
   });
 
   it('does not activate an unverified LifeScore promotion model', () => {
@@ -132,12 +132,21 @@ describe('verified creative playbooks', () => {
       [cast.features.bite_forecast!.fallbackHook],
     );
 
-    expect(fallbacks).toHaveLength(3);
-    expect(new Set(fallbacks.map((idea) => idea.hook)).size).toBe(3);
+    expect(fallbacks).toHaveLength(2); // Exhaustion must not invent catalogue filler to reach a quota.
+    expect(new Set(fallbacks.map((idea) => idea.hook)).size).toBe(2);
     expect(fallbacks.every((idea) => idea.feature && idea.feature in cast.features)).toBe(true);
     expect(fallbacks.every((idea) => idea.slides?.length === 2)).toBe(true);
     expect(fallbacks.every((idea) => idea.hashtags.length >= 3)).toBe(true);
     expect(fallbacks.map((idea) => idea.hook)).not.toContain(cast.features.bite_forecast!.fallbackHook);
+  });
+
+  it('uses finite human fallbacks and stops when those concepts are exhausted', () => {
+    const book = getCreativePlaybook('deadset')!;
+    const ideas = buildCarouselFallbacks(book, ['workout_plan', 'live_logger'], 30);
+    expect(ideas.length).toBeGreaterThan(0);
+    expect(ideas.length).toBeLessThanOrEqual(6);
+    expect(ideas.every(i => !/workout plan:|live workout logger|check after the last|detail I kept forgetting/i.test(i.hook))).toBe(true);
+    expect(buildCarouselFallbacks(book, ['workout_plan', 'live_logger'], 5, [], ideas.map(i => i.hook))).toEqual([]);
   });
 
   it('uses measured performance without starving untested verified features', () => {

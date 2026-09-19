@@ -90,7 +90,10 @@ export default {
         await backfillSchedules(env);
         const { started } = await dispatchDue(env);
         if (started > 0) log.info("dispatch pass", { started });
-      })().catch((err) => log.error("scheduled pass failed", errorFields(err))),
+      })().catch((err) => {
+        log.error("scheduled pass failed", errorFields(err));
+        throw err; // Cloudflare must report a failed dispatcher as failed.
+      }),
     );
   },
 };

@@ -1,5 +1,7 @@
 import { env } from 'cloudflare:test';
-import { describe, expect, it } from 'vitest';
+import { streamMedia, uploadMedia } from '../src/lib/storage';
+import type { Env } from '../src/types';
+import { describe, expect, it, vi } from 'vitest';
 import { putR2Media, streamR2Media } from '../src/lib/r2-media';
 
 declare global {
@@ -51,4 +53,19 @@ describe('private R2 media migration target', () => {
     }
     expect((await streamR2Media(bucket, 'outputs/missing.jpg', request())).status).toBe(404);
   });
+});
+
+it('routes new media to R2 and only falls back for absent legacy objects', async () => {
+  const migrated = { ...env, SOCIAL_MEDIA: bucket } as Env;
+  const key = `outputs/${crypto.randomUUID()}/slide.jpg`;
+  await uploadMedia(migrated, key, bytes, 'image/jpeg');
+  const response = await streamMedia(migrated, key, request());
+  expect(new TextDecoder().decode(await response.arrayBuffer())).toBe('0123456789');
+  expect((await streamMedia(migrated, key, request('GET', { Range: 'bytes=20-' }))).status).toBe(416);
+  const upstream=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('legacy',{headers:{'content-type':'image/jpeg'}}));
+  try {
+    const legacy=await streamMedia(migrated,'outputs/legacy.jpg',request());
+    expect(new TextDecoder().decode(await legacy.arrayBuffer())).toBe('legacy');
+    expect(upstream).toHaveBeenCalledWith('https://test.supabase.co/storage/v1/object/authenticated/automation-media/outputs/legacy.jpg',expect.objectContaining({redirect:'manual'}));
+  } finally {upstream.mockRestore();}
 });

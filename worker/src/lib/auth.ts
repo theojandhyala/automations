@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { accessOwnerFromRequest } from './access-auth';
 
 /**
  * Verifies a Supabase access token by asking Supabase who it belongs to, then
@@ -10,6 +11,8 @@ const cache = new Map<string, { email: string; expires: number }>();
 const CACHE_MS = 60_000;
 
 export async function ownerFromRequest(req: Request, env: Env): Promise<string | null> {
+  const accessOwner = await accessOwnerFromRequest(req, env);
+  if (accessOwner) return accessOwner;
   const header = req.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) return null;
   const token = header.slice(7);

@@ -74,10 +74,11 @@ export async function importNativePost(req:Request,env:Env,db:Db):Promise<Respon
   const app=await db.selectOne<{id:string}>('apps',`slug=eq.${pack.app_slug}&select=id`);
   if(!app)return reply({error:'App channel not found.'},404);
   let registeredProof: {id:string;storage_path:string} | null = null;
-  if(pack.format===DEADSET_LONGFORM){
+  if(pack.app_slug==='deadset' && pack.proof_asset_id){
+    const proofIndex=pack.format===DEADSET_LONGFORM?4:1;
     registeredProof=await db.selectOne<{id:string;storage_path:string}>('creative_assets',`id=eq.${pack.proof_asset_id}&app_slug=eq.deadset&asset_key=eq.${encodeURIComponent(pack.feature_key!)}&source_kind=eq.owner_upload&select=id,storage_path`);
-    if(!registeredProof || publicMediaUrl(env,registeredProof.storage_path)!==pack.slides[4]!.source.source_url)return reply({error:'The promotion must use the matching registered original Deadset screen.'},400);
-    if(await classifyProofComposition(env,pack.slides[4]!.source.source_url)!=='app_screen')return reply({error:'Use the original app screen, not finished promotional artwork.'},400);
+    if(!registeredProof || publicMediaUrl(env,registeredProof.storage_path)!==pack.slides[proofIndex]!.source.source_url)return reply({error:'The promotion must use the matching registered original Deadset screen.'},400);
+    if(await classifyProofComposition(env,pack.slides[proofIndex]!.source.source_url)!=='app_screen')return reply({error:'Use the original app screen, not finished promotional artwork.'},400);
   }
   const accounts=await db.select<{id:string}>('tiktok_accounts',`app_id=eq.${app.id}&status=eq.connected&select=id&limit=2`);
   if(accounts.length!==1)return reply({error:'Import requires exactly one connected account for this app channel.'},409);

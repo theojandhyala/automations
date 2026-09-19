@@ -1,3 +1,4 @@
+import { readOwnerData } from '../lib/owner-data';
 import { importNativePost } from '../lib/native-post-import';
 import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
 import { Db } from '../lib/db';
@@ -313,6 +314,12 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // --- everything below requires the owner's session ---
   const owner = await ownerFromRequest(req, env);
   if (!owner) return json({ error: 'unauthorized' }, 401);
+
+  if (path === '/auth/session' && req.method === 'GET') {
+    return new Response(JSON.stringify({ email: owner }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+  }
+  if (path === '/auth/access' && req.method === 'GET') return Response.redirect(`${url.origin}/`, 302);
+  if (path.startsWith('/data/')) return readOwnerData(req, db, path.slice('/data/'.length));
 
   if (path === '/tiktok/media-property' && req.method === 'POST') {
     const { action } = await req.json() as { action?: string };

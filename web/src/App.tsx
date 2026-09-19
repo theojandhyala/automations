@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
+import type { OwnerSession as Session } from './lib/supabase';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import CommandCenter from './pages/CommandCenter';

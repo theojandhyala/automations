@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { putR2Media, streamR2Media, validMediaPath } from './r2-media';
 
 export const MEDIA_BUCKET = 'automation-media';
 
@@ -15,6 +16,10 @@ export async function uploadMedia(
   body: ArrayBuffer | Uint8Array,
   contentType: string,
 ): Promise<void> {
+  if (env.SOCIAL_MEDIA) {
+    await putR2Media(env.SOCIAL_MEDIA, path, body instanceof Uint8Array ? body : new Uint8Array(body), contentType);
+    return;
+  }
   const response = await fetch(objectUrl(env, path), {
     method: 'POST',
     headers: {
@@ -32,8 +37,15 @@ export async function uploadMedia(
 
 /** Streams a private Supabase object through the Worker public media route. */
 export async function streamMedia(env: Env, path: string, req: Request): Promise<Response> {
-  if (!/^(outputs|features)\/[A-Za-z0-9._/-]+$/.test(path) || path.includes('..')) {
+  if (!validMediaPath(path)) {
     return new Response('not found', { status: 404 });
+  }
+
+  // Existing reviewed URLs stay stable. During migration only absent R2 objects
+  // use the legacy source; range/cache failures must not fall through.
+  if (env.SOCIAL_MEDIA) {
+    const response = await streamR2Media(env.SOCIAL_MEDIA, path, req);
+    if (response.status !== 404) return response;
   }
 
   const headers: Record<string, string> = {

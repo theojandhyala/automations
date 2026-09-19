@@ -1,0 +1,23 @@
+[
+  {
+    "class": "hook-copy centered",
+    "rect": {
+      "x": 162,
+      "y": 350,
+      "width": 756,
+      "height": 152.3125,
+      "top": 350,
+      "right": 918,
+      "bottom": 502.3125,
+      "left": 162
+    },
+    "scroll": [
+      756,
+      152
+    ],
+    "client": [
+      756,
+      152
+    ]
+  }
+]

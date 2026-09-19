@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { supabase } from './supabase';
+import { supabase, cloudflareAuthEnabled } from './supabase';
 
 export const LIVE_DATA_EVENT = 'jarvis:live-data';
 
@@ -37,6 +37,15 @@ export function LiveSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (cloudflareAuthEnabled) {
+      setState(current => ({ ...current, status:'fallback', lastSource:'Cloudflare periodic refresh' }));
+      const refresh = () => { if(document.visibilityState === 'visible') pulse('cloudflare-refresh'); };
+      const timer = window.setInterval(refresh, 30_000);
+      window.addEventListener('focus', refresh);
+      window.addEventListener('online', refresh);
+      document.addEventListener('visibilitychange', refresh);
+      return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); document.removeEventListener('visibilitychange', refresh); };
+    }
     const channel = supabase
       .channel('jarvis-live-telemetry')
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {

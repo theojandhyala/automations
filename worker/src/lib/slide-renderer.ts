@@ -6,7 +6,7 @@ import { deadsetSlideHtml, deadsetSourceFits, DEADSET_SAFE_AREA } from './deadse
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v7-deadset-brand-presence';
+export const CAPTION_RENDERER_VERSION = 'tiktok-classic-v8-full-frame-brand';
 
 export interface SlideInput {
   imageUrl: string;

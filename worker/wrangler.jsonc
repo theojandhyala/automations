@@ -20,6 +20,12 @@
     { "binding": "HQ_DATA", "id": "60862cecd4b04329ab0b2ea25e4bcc75" },
     { "binding": "DEADSET_BASELINE", "id": "48433907f95c443687f31fc2343a8c55" }
   ],
+  "r2_buckets": [
+    { "binding": "SOCIAL_MEDIA", "bucket_name": "jarvis-social-media" }
+  ],
+  "d1_databases": [
+    { "binding": "OPERATIONS_DB", "database_name": "jarvis-operations", "database_id": "efece047-884b-4b47-a5f1-f16e496a9b6d", "migrations_dir": "migrations" }
+  ],
   "triggers": {
     "crons": ["* * * * *"]
   },
@@ -47,6 +53,8 @@
   // Non-secret config. Secrets are set with `wrangler secret put` -- see README.
   "vars": {
     "SUPABASE_URL": "https://ewmgvujlqvdctzryfbid.supabase.co",
+    "ACCESS_TEAM_DOMAIN": "https://rough-lake-8828.cloudflareaccess.com",
+    "ACCESS_AUD": "eae3fa757c1565b68b037fdd8932c603c22a21a82c1f023702b3d44e8bb83f3d",
     "PUBLIC_BASE_URL": "https://automations.theojandhyala.workers.dev",
     "TIKTOK_PUBLISH_PROVIDER": "business_accounts",
     "TIKTOK_REVIEW_STATE": "approved",

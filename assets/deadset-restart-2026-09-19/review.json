@@ -1,0 +1,54 @@
+{
+  "reviewed_at": "2026-09-19T11:30:36.237346+00:00",
+  "status": "published",
+  "codex_visual_inspection": {
+    "full_resolution": true,
+    "phone_size": true,
+    "notes": "Full bleed, centered hook and branded product composition. Genuine daily-plan capture; visible example label. No claim of new calendar release or model endorsement."
+  },
+  "independent_local_critique": [
+    {
+      "visible_text": "What\u2019s the plan this week?",
+      "observation": "A candid, close-up photo of a person wearing a beanie and glasses, seen from a side profile while sitting in a car. The shot has a natural, personal camera-roll aesthetic.",
+      "hierarchy": 9,
+      "legibility": 10,
+      "craft": 9,
+      "story_match": 10,
+      "safe_zones": true,
+      "truthful_proof": true,
+      "duplicate_copy": false,
+      "blockers": []
+    },
+    {
+      "visible_text": "DEADSET FORGE YOUR BODY YOUR WEEK. SORTED. Actual Deadset app \u00b7 example screen Find Deadset on the App Store",
+      "observation": "A Deadset product slide featuring a black background with a red bottom section. The official Deadset logo is prominent at the top. Centred is a genuine app screenshot showing a 'REST' day view with a weekly schedule (MON UPPER, TUE LOWER, etc.) and a 'GRIT 10' streak. A red button at the bottom contains the App Store CTA.",
+      "hierarchy": 10,
+      "legibility": 10,
+      "craft": 9,
+      "story_match": 10,
+      "safe_zones": true,
+      "truthful_proof": true,
+      "duplicate_copy": false,
+      "blockers": []
+    }
+  ],
+  "signed_publishing_review": {
+    "status": "passed_live_worker",
+    "version": "cast-deadset-2026-09-19-full-frame-v11-brand-presence-v1-source-compare-v1"
+  },
+  "audio": "TikTok automatic music path; exact sound not selected or auditioned",
+  "ordered_sha256": [
+    "e63c5bf8f70bd7391d2d1561e0c2631cc3b3759938a7066b7ea3c53c6dfc5bbd",
+    "cf334836d8b7d3ca68c610af5ad51de33d607781b1c4a6194a3e1783905a319d"
+  ],
+  "artifact_id": "3895e38e-b897-49d0-85e2-bf60c5533053",
+  "delivery": {
+    "booked_via": "authenticated Jarvis immediate-post control",
+    "published_at": "2026-09-19T12:02:21.935Z",
+    "public_url": "https://www.tiktok.com/@deadset.app/photo/7687214767458487584",
+    "provider_reconciled": true,
+    "public_browser_verified": true
+  },
+  "audio_displayed": "original sound - Dropship",
+  "audio_auditioned": false
+}

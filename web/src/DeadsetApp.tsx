@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
-import { api, supabase } from './lib/supabase';
+import type { OwnerSession as Session } from './lib/supabase';
+import { api, supabase, cloudflareAuthEnabled } from './lib/supabase';
 import { useData } from './lib/useData';
 import { LiveSyncProvider } from './lib/liveSync';
 import type { Automation, Run } from './lib/types';
@@ -20,6 +20,7 @@ function OwnerLogin() {
     catch (err) { setError(err instanceof Error ? err.message : 'Sign-in failed. Please try again.'); }
     finally { setBusy(false); }
   }
+  if (cloudflareAuthEnabled) return <div className="center-screen"><div className="login card"><Wordmark /><p>Sign in to your private workspace.</p><a className="ds-primary" href="/api/auth/access">Continue to owner sign-in</a></div></div>;
   return <div className="ds-login"><div className="ds-login-art"><Wordmark /><div><p className="ds-kicker">BUILT FOR THE LONG GAME</p><h1>EVERY REP.<br />EVERY USER.<br /><em>EVERY STEP.</em></h1><p>The home of DEADSET growth.</p></div><small>FORGE YOUR BODY. BUILD YOUR BUSINESS.</small></div><section className="ds-login-form"><div className="ds-lock"><Glyph name="shield" /></div><p className="ds-kicker">OWNER ACCESS</p><h2>Back to work.</h2><p>Your numbers. Your next move.</p><form onSubmit={signIn}><label>Email address<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="ds-primary" disabled={busy}>{busy ? 'Signing in…' : 'Enter DEADSET HQ'}<Glyph name="arrow" /></button>{error && <p className="ds-alert" role="alert">{error}</p>}</form><small>Use your existing automation dashboard owner account.</small></section></div>;
 }
 async function loadDashboard() {

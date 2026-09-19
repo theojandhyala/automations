@@ -1,6 +1,6 @@
 /** Curated, original copy: no model calls, synthetic imagery or competitor claims. */
 export const CAST_EDITORIAL_FORMAT = 'cast_editorial_carousel';
-export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-12-varied-bank';
+export const CAST_EDITORIAL_VERSION = 'cast-editorial-2026-09-19-fresh-context';
 export const CAST_REFERENCE_URLS = [
   'https://www.tiktok.com/@r1pple8/photo/7683784451708456199',
   'https://www.tiktok.com/@r1pple8/photo/7683655444849511698',
@@ -12,6 +12,16 @@ export interface CastEditorialConcept {
   items: Array<[heading: string, body: string]>;
 }
 const CURATED_CONCEPTS: CastEditorialConcept[] = [
+  { id: 'same-water-different-day', hook: 'Same spot. Completely different day.', promotional: true,
+    caption: 'The location can stay the same while the session changes. Save the conditions with your catch in Cast. Cast on the App Store.',
+    items: [['The light', 'Open sky or heavy cloud? Note what you actually saw.'], ['The wind', 'A sheltered bank and an exposed one can feel very different.'], ['The water', 'Keep a note of visible clarity and water level.'], ['The timing', 'Save the catch time while the details are fresh.'], ['Compare your own sessions', 'Look back at your catch records in Cast.']] },
+  { id: 'one-last-look', hook: 'Four things to check before you leave the bank', promotional: true,
+    caption: 'A good finish is part of the trip. Leave the bank clear and keep the catch details in Cast. Cast on the App Store.',
+    items: [['Loose line', 'Check around your feet and tackle bag for offcuts.'], ['Small tackle', 'Count hooks and small parts back into their boxes.'], ['The bank', 'Take your rubbish and leave access clear.'], ['Your catch details', 'Save the photo and measurement before you forget.'], ['Keep the trip with you', 'Save your catch records in Cast.']] },
+  { id: 'camera-roll-vs-catch-record', hook: 'Camera roll vs catch record', promotional: true,
+    caption: 'Keep the photo. Keep the details that belong with it too. Build your own catch record in Cast. Cast on the App Store.',
+    items: [['Photo: the moment', 'Record: the species you identified.'], ['Photo: the fish', 'Record: the size you actually measured.'], ['Photo: the scene', 'Record: the catch time and conditions.'], ['Photo: one trip', 'Record: context to look back at next time.'], ['Give the photo a home', 'Keep your catch and conditions together in Cast.']] },
+
   { id: 'notes-tier-list', hook: 'Fishing notes tier list', promotional: true,
     caption: 'Our ranking of fishing notes by how much context they keep. What would you move up a tier?',
     items: [['D · “Caught one”', 'A memory, but almost nothing to compare.'], ['C · Photo only', 'You can see the fish. The setup is still missing.'], ['B · Add time and species', 'A clearer record of what happened and when.'], ['A · Add the setup', 'Lure or bait, depth and retrieve. Record what you used.'], ['S · Keep the context', 'Keep the catch and conditions together in Cast.']] },
@@ -55,6 +65,9 @@ const CURATED_CONCEPTS: CastEditorialConcept[] = [
 
 export const CAST_STORE_CTA = 'Find Cast Fishing Companion on the App Store.';
 const CAST_PAYOFFS: Record<string, string> = {
+  'same-water-different-day': 'Compare your own catch conditions in Cast.',
+  'one-last-look': 'Keep your catch details in Cast.',
+  'camera-roll-vs-catch-record': 'Give every catch a record in Cast.',
   'notes-tier-list': 'Keep catch conditions together in Cast.',
   'memory-vs-record': 'Look back at your catch records in Cast.',
   'one-trip-five-decisions': 'Choose how much location you share in Cast.',

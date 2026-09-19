@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "```json\n{\"visible_text\":\"What’s the plan this week?\",\"observation\":\"A candid, close-up photo of a person wearing a beanie and glasses, seen from a side profile while sitting in a car. The shot has a natural, personal camera-roll aesthetic.\",\"hierarchy\":9,\"legibility\":10,\"craft\":9,\"story_match\":10,\"safe_zones\":true,\"truthful_proof\":true,\"duplicate_copy\":false,\"blockers\":[]}\n```",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1789817362,
+  "id": "cd26bb6c1a4f4a0d988e450790393045",
+  "model": "@cf/google/gemma-4-26b-a4b-it-external",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 3263,
+    "completion_tokens": 106,
+    "total_tokens": 3369,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "neurons": 32.554542541503906
+  }
+}

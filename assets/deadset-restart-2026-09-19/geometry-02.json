@@ -1,0 +1,107 @@
+[
+  {
+    "class": "proof-viewport centered plan",
+    "rect": {
+      "x": 162,
+      "y": 670,
+      "width": 756,
+      "height": 535,
+      "top": 670,
+      "right": 918,
+      "bottom": 1205,
+      "left": 162
+    },
+    "scroll": [
+      756,
+      1380
+    ],
+    "client": [
+      756,
+      535
+    ]
+  },
+  {
+    "class": "brand-lockup centered",
+    "rect": {
+      "x": 215,
+      "y": 250,
+      "width": 650,
+      "height": 288.875,
+      "top": 250,
+      "right": 865,
+      "bottom": 538.875,
+      "left": 215
+    },
+    "scroll": [
+      650,
+      289
+    ],
+    "client": [
+      650,
+      289
+    ]
+  },
+  {
+    "class": "proof-copy centered",
+    "rect": {
+      "x": 162,
+      "y": 550,
+      "width": 756,
+      "height": 116,
+      "top": 550,
+      "right": 918,
+      "bottom": 666,
+      "left": 162
+    },
+    "scroll": [
+      756,
+      116
+    ],
+    "client": [
+      756,
+      116
+    ]
+  },
+  {
+    "class": "example centered",
+    "rect": {
+      "x": 162,
+      "y": 1220,
+      "width": 756,
+      "height": 28.59375,
+      "top": 1220,
+      "right": 918,
+      "bottom": 1248.59375,
+      "left": 162
+    },
+    "scroll": [
+      756,
+      29
+    ],
+    "client": [
+      756,
+      29
+    ]
+  },
+  {
+    "class": "cta centered",
+    "rect": {
+      "x": 162,
+      "y": 1270,
+      "width": 756,
+      "height": 86,
+      "top": 1270,
+      "right": 918,
+      "bottom": 1356,
+      "left": 162
+    },
+    "scroll": [
+      756,
+      86
+    ],
+    "client": [
+      756,
+      86
+    ]
+  }
+]

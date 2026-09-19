@@ -265,7 +265,7 @@ export async function produceArtifact(
   const proofComposition = await classifyProofComposition(env, publicMediaUrl(env, feature.storage_path));
   const featureOverlay = proofComposition === 'finished_promotion' ? ''
     : appSlug === 'deadset'
-      ? DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay
+      ? proofReaction(featureSlide.overlay, DEADSET_REACTIONS[featureKey] ?? playbook.features[featureKey]!.fallbackProofOverlay)
       : proofReaction(featureSlide.overlay, contentLane.proofOverlay ?? playbook.features[featureKey]!.fallbackProofOverlay);
 
   const [hookBytes, featureBytes] = await renderCarouselSlides(
@@ -278,8 +278,8 @@ export async function produceArtifact(
     },
     {
       imageUrl: publicMediaUrl(env, feature.storage_path),
-      // Re-apply the current verified payoff at render time so older queued
-      // drafts also benefit from updated truth and legibility rules.
+      // Preserve the brief’s short answer. Source comparison and the separate
+      // final-image review verify that its promise matches this exact UI.
       overlay: featureOverlay,
       role: 'feature',
       appSlug,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, cloudflareAuthEnabled } from '../lib/supabase';
 import ArcReactorMark from './ArcReactorMark';
 
 /**
@@ -44,7 +44,9 @@ export default function Login() {
           <h1>J.A.R.V.I.S.</h1>
           <span>MARK VII // PRIVATE AUTOMATION CORE</span>
         </div>
-        {sent ? (
+        {cloudflareAuthEnabled ? (
+          <><p>Sign in securely to your private workspace.</p><a className="btn primary" href="/api/auth/access">Continue to owner sign-in</a></>
+        ) : sent ? (
           <p>Check {email} for a sign-in link.</p>
         ) : (
           <>

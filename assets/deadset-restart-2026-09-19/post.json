@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "id": "3895e38e-b897-49d0-85e2-bf60c5533053",
+  "app_slug": "deadset",
+  "hook": "What’s the plan this week?",
+  "caption": "Give training days and rest days a place in your week. Deadset on the App Store.",
+  "hashtags": [
+    "gymtok",
+    "workoutplan",
+    "workoutapp"
+  ],
+  "promotional": true,
+  "feature_key": "workout_plan",
+  "proof_asset_id": "eb3583a5-25ad-4236-bb00-2624c0ee560d",
+  "reference_urls": [
+    "https://www.tiktok.com/@strongermobile/photo/7685754526644636950",
+    "https://www.tiktok.com/@strongermobile/photo/7558787856127380758"
+  ],
+  "slides": [
+    {
+      "file": "slide-01.jpg",
+      "role": "hook",
+      "overlay": "What’s the plan this week?",
+      "source": {
+        "kind": "licensed_photo",
+        "source_url": "https://www.pexels.com/photo/back-view-of-man-in-hat-sitting-in-car-22119159/",
+        "creator": "Lisa from Pexels",
+        "licence_url": "https://www.pexels.com/license/"
+      }
+    },
+    {
+      "file": "slide-02.jpg",
+      "role": "feature",
+      "overlay": "YOUR WEEK. SORTED.",
+      "source": {
+        "kind": "first_party_ui",
+        "source_url": "https://automations.theojandhyala.workers.dev/media/features/deadset/workout_plan/b8570478-36b1-49fa-8cdf-c90341bad79f.png",
+        "creator": "Deadset / owner capture"
+      }
+    }
+  ]
+}

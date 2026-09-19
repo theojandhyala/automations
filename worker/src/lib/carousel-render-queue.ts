@@ -7,7 +7,10 @@ export function carouselRenderReason(
 ): 'unrendered' | 'outdated_renderer' | null {
   if (artifact.status !== 'draft' || artifact.media_type !== 'photo') return null;
   if (artifact.publish_id || artifact.tiktok_post_id || artifact.scheduled_for) return null;
-  if (artifact.stages?.delivery || artifact.asset_manifest.requires_owner_review === true) return null;
+  if (artifact.stages?.delivery) return null;
+  // Review holds protect finished exports. An unrendered first draft must be
+  // allowed to produce pixels before anyone can inspect them.
+  if (artifact.asset_manifest.requires_owner_review === true && artifact.photo_urls.length > 0) return null;
   const review = artifact.asset_manifest.native_visual_review as { result?: string } | undefined;
   if (review?.result === 'pass' || artifact.stages?.review?.state === 'done') return null;
   const production = artifact.asset_manifest.production as { renderer?: string; caption_renderer?: string } | undefined;

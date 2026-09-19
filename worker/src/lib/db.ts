@@ -1,12 +1,14 @@
 import type { Env } from '../types';
+import { OperationsDb } from './operations-db';
 
 /**
- * Thin PostgREST client. The worker holds the service role key, so every call
+ * Cloudflare operations store with a legacy PostgREST fallback. The worker holds the service role key, so every legacy call
  * here bypasses RLS -- keep it server-side and never proxy it raw to the
  * browser.
  */
 export class Db {
-  constructor(private env: Env) {}
+  private operations: OperationsDb | null;
+  constructor(private env: Env) { this.operations = env.OPERATIONS_DB ? new OperationsDb(env.OPERATIONS_DB) : null; }
 
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
     const res = await fetch(`${this.env.SUPABASE_URL}/rest/v1/${path}`, {
@@ -25,6 +27,7 @@ export class Db {
   }
 
   async select<T>(table: string, query = ''): Promise<T[]> {
+    if (this.operations) return this.operations.select<T>(table, query);
     const res = await this.request(`${table}?${query}`);
     return (await res.json()) as T[];
   }
@@ -35,6 +38,7 @@ export class Db {
   }
 
   async insert<T>(table: string, row: unknown): Promise<T> {
+    if (this.operations) return this.operations.insert<T>(table, row);
     const res = await this.request(table, {
       method: 'POST',
       body: JSON.stringify(row),
@@ -46,6 +50,7 @@ export class Db {
   }
 
   async insertMany(table: string, rows: unknown[]): Promise<void> {
+    if (this.operations) return this.operations.insertMany(table, rows);
     if (rows.length === 0) return;
     await this.request(table, {
       method: 'POST',
@@ -55,6 +60,7 @@ export class Db {
   }
 
   async upsert<T>(table: string, row: unknown, onConflict: string): Promise<T> {
+    if (this.operations) return this.operations.upsert<T>(table, row, onConflict);
     const res = await this.request(`${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
       method: 'POST',
       body: JSON.stringify(row),
@@ -70,6 +76,7 @@ export class Db {
    * the status flip have to happen in one statement.
    */
   async rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+    if (this.operations) return this.operations.rpc<T>(fn, args);
     const res = await this.request(`rpc/${fn}`, {
       method: 'POST',
       body: JSON.stringify(args),
@@ -78,6 +85,7 @@ export class Db {
   }
 
   async update<T>(table: string, query: string, patch: unknown): Promise<T[]> {
+    if (this.operations) return this.operations.update<T>(table, query, patch);
     const res = await this.request(`${table}?${query}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),

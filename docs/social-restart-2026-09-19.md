@@ -1,8 +1,18 @@
 # Social automation restart — September 19, 2026
 
-Cloudflare deployment `3a3be51b-45e6-410c-826d-306a99a14839` remains live. Its scheduled invocation at 09:50 UTC reached the dispatcher but failed while reading Supabase automations, with HTTP 402 `exceed_egress_quota`. A Cloudflare invocation marked OK does not mean this caught application failure succeeded.
+## Current recovery
 
-The authenticated Supabase dashboard confirms services restricted for the automation organization: 14.289 GB uncached egress against 5 GB, billing cycle August 30–September 30. It offers a paid upgrade (Pro displayed from USD25/month) or waiting for the next billing period, with possible restoration delay. No plan purchase or spending-control change was made. Jarvis itself showed its login screen in both existing Chrome and a fresh in-app session.
+The original outage was Supabase's egress-quota restriction, despite an apparently healthy Cloudflare invocation. The owner activated R2 and authorised the Cloudflare cutover. D1, private R2 and owner-only Access are now deployed and verified; normal Jarvis login and account analytics work. Details and historical coverage limits are in `cloudflare-migration-2026-09-19.md`.
+
+New Deadset artifact `3895e38e-b897-49d0-85e2-bf60c5533053` (“What’s the plan this week?”) has passed native full/phone inspection and the live independent signed visual review. It uses a licensed candid car photograph, exact official Deadset logo and the real existing daily-plan screen. The unreleased calendar is not promoted. At 12:59 London it was booked through authenticated Jarvis for immediate delivery; Cloudflare submitted it and TikTok returned publish ID `p_pub_url~v2.7687214571563583521`. TikTok reconciliation confirmed publication at 13:02 London, and the public page/caption were verified in the browser: https://www.tiktok.com/@deadset.app/photo/7687214767458487584.
+
+Three fresh Cast concepts were created at 12:59 London: “Same spot. Completely different day.”, “Four things to check before you leave the bank”, and “Camera roll vs catch record”. All three rendered six images. The camera-roll batch was inspected at full and phone size: branding/proof is present, but editorial photographs are generic and do not closely match the species/context comparison. It remains held for revision, with those findings saved. The other two require final inspection; no Cast batch is booked from this run.
+
+The existing creative-director heartbeat was updated with the September 19 reference audit, corrected marketing skill and real Cloudflare recovery state. No duplicate publisher or duplicate heartbeat was created. London delivery windows remain 10:00, 12:00, 14:00, 16:00 and 18:30, subject to exact-media gates and available approved posts. Historical drafts remain held; missed slots are not replayed.
+
+Named-track attachment remains unfinished. TikTok automatic music is used; no selected/auditioned soundtrack or viral outcome is claimed.
+
+## Previously observed public posts
 
 The public profiles show the final three September 13 scheduled posts on each account. Captions match the saved briefs; backend ID reconciliation remains pending database access. Music names below were read from TikTok, not auditioned.
 
@@ -15,6 +25,5 @@ The public profiles show the final three September 13 scheduled posts on each ac
 | Deadset | realistic training plan | https://www.tiktok.com/@deadset.app/photo/7685034881381977376 | original sound — Vortexquotezz |
 | Deadset | keep your place in the logger | https://www.tiktok.com/@deadset.app/photo/7685073544719437088 | OBLIVION 4 — ANTOSHKA |
 
-The existing creative-director heartbeat remains active and now carries the quota incident and recovery instructions. No duplicate publisher was created. Restore database service with owner-authorized billing action or verified reset, verify a successful database-backed scheduled run, then reconcile public/pending IDs and inspect/book future slots only. Never replay missed slots in a burst. The daily buffer is not verified ready.
 
-The official-brand Cast renderer and signed source-comparison checks deployed September 13 are preserved. The read-only commercial-music catalogue exists; named-track attachment remains unfinished. The marketing skill was corrected to distinguish those capabilities and passed its validator on September 19. Prior source validation passed 218 worker tests, 13 Node tests, typecheck and normal Jarvis web build on September 13; no implementation changes were made during this restart audit.
+The new post displays “original sound - Dropship” on TikTok. This was observed, not selected or auditioned.

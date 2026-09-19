@@ -29,7 +29,7 @@ export async function createCastEditorialDrafts(ctx: RunContext, appId: string, 
     return {
       run_id: ctx.runId, app_id: appId, account_id: accountId, status: 'draft', stage: 'concept',
       hook: concept.hook, caption: concept.caption, hashtags, media_type: 'photo',
-      shot_notes: 'Six distinct real fishing photos: one useful hook, five readable items, and a truthful Cast benefit plus App Store CTA integrated into the last item. No AI imagery, fake reviews or competitor footage.',
+      shot_notes: 'Six distinct real fishing photos: one useful hook, four distinct editorial items, and a dedicated final Cast promotion with exact logo, real UI and App Store CTA. No AI imagery, fake reviews or competitor footage.',
       script: slides.map((s, i) => `Slide ${i + 1}: ${s.overlay}${s.body ? ' — ' + s.body : ''}`).join('\n'),
       asset_manifest: { ...manifest, creative_quality: assessCreativeQuality({ hook: concept.hook, caption: concept.caption, hashtags, mediaType: 'photo', assetManifest: manifest }) },
       stages: { research: { state: 'done', at: now, note: 'Three r1pple8 carousels reviewed slide by slide on 2026-09-10.' }, concept: { state: 'done', at: now }, script: { state: 'done', at: now }, assets: { state: 'pending', note: 'Source licensed real fishing photos.' }, edit: { state: 'pending' }, review: { state: 'pending', note: 'New editorial format needs exact owner review.' } },
