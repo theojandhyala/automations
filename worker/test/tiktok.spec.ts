@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   authorizeUrl,
+  commercialMusicChoices,
   initOwnedPhotoPublish,
   initPhotoPublish,
   isDirectPostPrivacyAllowed,
@@ -235,5 +236,18 @@ describe('TikTok publish reconciliation', () => {
       status: 'PUBLISH_COMPLETE',
       publicaly_available_post_id: ['7480000000000000000'],
     })).toBe(true);
+  });
+});
+
+describe('commercial music discovery',()=>{
+  it('requests the UK catalogue with server-side account authentication and returns only track fields',async()=>{
+    let request:Request|undefined;
+    vi.stubGlobal('fetch',async(input:RequestInfo|URL,init?:RequestInit)=>{request=new Request(input,init);return Response.json({code:0,data:{list:[{commercial_music_id:'12345678',commercial_music_name:'Track',artist:'Artist',preview_url:'https://example.test/music.mp3',genres:['Pop'],rank_position:'1',duration:30,unexpected:'omit'}]}});});
+    const result=await commercialMusicChoices('test-token','owned-id','POP');
+    const u=new URL(request!.url);expect(u.pathname).toBe('/open_api/v1.3/discovery/cml/trending_list/');expect(Object.fromEntries(u.searchParams)).toEqual({business_id:'owned-id',country_code:'GB',date_range:'7DAY',genre:'POP'});expect(request!.headers.get('Access-Token')).toBe('test-token');expect(result.tracks[0]).toEqual({id:'12345678',title:'Track',artist:'Artist',preview_url:'https://example.test/music.mp3',genres:['Pop'],rank:'1',duration:30});
+  });
+  it('surfaces permission rejection instead of fabricating eligible tracks',async()=>{
+    vi.stubGlobal('fetch',async()=>Response.json({code:40001,message:'Permission denied'}));
+    await expect(commercialMusicChoices('test-token','owned-id')).rejects.toThrow('40001 Permission denied');
   });
 });

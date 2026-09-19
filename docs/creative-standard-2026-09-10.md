@@ -1,3 +1,5 @@
+Latest Cast requirement: [mandatory official logo and genuine app promotion, 13 September](cast-brand-proof-2026-09-13.md) supersedes optional-screen/text-only ending guidance below.
+
 > Latest Deadset opener: [candid person-led car/street imagery](deadset-candid-opener-2026-09-12.md), superseding gym-floor/shoes defaults. Apply this alongside the official-brand and centring correction.
 
 > Latest owner rejection: [Deadset centring and official-brand promotion repair](deadset-centering-correction-2026-09-12.md). Both recent rep-target posts were rejected. Every product slide, including short posts, needs the official logo, truthful benefit and App Store CTA. Old model passes and off-centre masters are superseded.

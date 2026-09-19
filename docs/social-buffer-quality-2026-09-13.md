@@ -1,3 +1,5 @@
+Latest Cast requirement: [mandatory official logo and genuine app promotion, 13 September](cast-brand-proof-2026-09-13.md) supersedes optional-screen/text-only ending guidance below.
+
 # September 13: branded Deadset and the remaining Cast buffer
 
 The owner reaffirmed natural, engaging person-led car/street hooks and unmistakable full-canvas Deadset promotion. The reviewed Deadset noon, 14:00, 16:00 and 18:30 packages remain intact; see `deadset-brand-presence-2026-09-13.md`. Actual official lockups, deliberate red/black composition, released app evidence and a visible App Store action are required. A bare screenshot is not the advertisement. No photograph can substantiate a promised view or install count.

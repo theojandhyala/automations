@@ -1,3 +1,4 @@
+import { castPromotionHtml } from './cast-promotion';
 import { castEditorialHtml } from './cast-editorial';
 import puppeteer from '@cloudflare/puppeteer';
 import type { Env } from '../types';
@@ -15,6 +16,7 @@ export interface SlideInput {
   finished?: boolean;
   featureKey?: string;
   editorial?: { body: string; kicker: string };
+  castPromotion?: { proofUrl: string; heading: string };
 }
 
 function escapeHtml(value: string): string {
@@ -27,6 +29,7 @@ function escapeHtml(value: string): string {
 }
 
 function slideHtml(input: SlideInput): string {
+  if (input.appSlug === 'cast' && input.castPromotion) return castPromotionHtml({ imageUrl: input.imageUrl, ...input.castPromotion });
   if (input.appSlug === 'cast' && input.editorial) return castEditorialHtml({ ...input, editorial: input.editorial });
   if (input.appSlug === 'deadset') return deadsetSlideHtml(input);
   const { imageUrl, overlay, role } = input;
@@ -137,7 +140,11 @@ async function renderPage(page: Awaited<ReturnType<CloudflareBrowser['newPage']>
     }); })()`);
     if (!fits) throw new Error('DEADSET composition is off-centre, overflows or exceeds TikTok safe bounds; revise before approval.');
   }
-  if (input.editorial) {
+  if (input.castPromotion) {
+    const fits = await page.evaluate(`(() => { const proof=document.querySelector('.proof img'); if (!proof || proof.naturalWidth<600 || proof.naturalHeight<proof.naturalWidth*1.5) return false; const els=Array.from(document.querySelectorAll('.centered')); const bounds=els.map(el=>el.getBoundingClientRect()); return els.every((el,i)=>{const r=bounds[i];return Math.abs(r.left+r.width/2-540)<=1 && r.left>=160 && r.right<=920 && r.top>=260 && r.bottom<=1440 && (el.classList.contains('proof') || (el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1));}) && !bounds.some((a,i)=>bounds.some((b,j)=>j>i&&a.top<b.bottom&&b.top<a.bottom)); })()`);
+    if (!fits) { const diagnostics = await page.evaluate(`Array.from(document.querySelectorAll('.centered')).map(el=>({class:el.className,box:el.getBoundingClientRect().toJSON(),scroll:[el.scrollWidth,el.scrollHeight],client:[el.clientWidth,el.clientHeight]}))`); throw new Error('Cast promotion layout failed: '+JSON.stringify(diagnostics)); }
+  }
+  if (input.editorial && !input.castPromotion) {
     const fits = await page.evaluate(`Array.from(document.querySelectorAll('.copy,.kicker,.brand')).every(el => { const r=el.getBoundingClientRect(); return r.left>=86 && r.right<=864 && r.top>=300 && r.bottom<=1270 && el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1; })`);
     if (!fits) throw new Error('Cast editorial text exceeds TikTok safe bounds.');
   }

@@ -1,3 +1,4 @@
+import { CommercialMusic } from '../components/CommercialMusic';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, supabase } from '../lib/supabase';
@@ -290,6 +291,8 @@ export default function Queue({ appSlug }: { appSlug?: string } = {}) {
       </div>
       {importNotice && <div className="card" role="status">{importNotice}</div>}
       {error && <div className="card jarvis-alert error">{error}</div>}
+
+      {data.tiktokStatus.provider === 'business_accounts' && <CommercialMusic accounts={data.accounts.filter(a=>a.status==='connected')} />}
 
       <div className="grid queue-grid">
         {visibleArtifacts.map((artifact, artifactIndex) => {

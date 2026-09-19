@@ -1,3 +1,4 @@
+import { castPromotionEvidenceBlocker } from './cast-promotion';
 import { DEADSET_LONGFORM } from './deadset-longform';
 import { CAST_EDITORIAL_FORMAT } from './cast-editorial';
 import { normalizeHashtags } from './hashtags';
@@ -162,6 +163,8 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   if (manifest.format === CAST_EDITORIAL_FORMAT) {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
     if (input.photoUrls?.length) {
+      const promotionBlocker = castPromotionEvidenceBlocker(manifest);
+      if (promotionBlocker) blockers.push(promotionBlocker);
       const production = manifest.production as { per_slide_sources?: Array<{ id?: number; source_url?: string }> } | undefined;
       const sources = production?.per_slide_sources ?? [];
       const identities = sources.map(source => source.id ? `pexels:${source.id}` : source.source_url?.replace(/[?#].*$/, '').replace(/\/$/, ''));

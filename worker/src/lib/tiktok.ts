@@ -471,3 +471,9 @@ export async function publishStatusFor(
     publicaly_available_post_id: data.post_ids,
   };
 }
+
+/** Official owned-account Commercial Music Library discovery; no publishing side effect. */
+export async function commercialMusicChoices(token: string, businessId: string, genre = 'ALL') {
+  const data=await businessApi<{list?:Array<{commercial_music_id:string;commercial_music_name:string;artist:string;preview_url:string;genres:string[];rank_position:string;duration:number}>}>(token,'/discovery/cml/trending_list/',{method:'GET',query:{business_id:businessId,country_code:'GB',date_range:'7DAY',genre}});
+  return {country_code:'GB',date_range:'7DAY',checked_at:new Date().toISOString(),tracks:(data.list??[]).slice(0,100).map(t=>({id:t.commercial_music_id,title:t.commercial_music_name,artist:t.artist,preview_url:t.preview_url,genres:t.genres,rank:t.rank_position,duration:t.duration}))};
+}

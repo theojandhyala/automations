@@ -1,3 +1,4 @@
+import { CAST_BRAND_SHA256 } from '../src/lib/cast-brand';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { finalImageReviewPrompt, hasPassingVisualReview, parseVisualVerdict, reviewFinalCarousel, visualVerdictPasses } from '../src/lib/creative-visual-review';
 import { proofReaction } from '../src/lib/creative-direction';
@@ -34,8 +35,9 @@ describe('independent final-image review', () => {
     expect(item).toContain('Current slide number: 5 of 6.');
     expect(item).toContain('NOT THE FINAL PROMOTION');
     expect(promotion).toContain('THIS IS THE FINAL CAST PROMOTION');
-    expect(promotion).toContain('visible Cast name is required');
-    expect(promotion).toContain('An app screenshot and official logo graphic are optional');
+    expect(promotion).toContain('prominent exact official Cast fishing logo');
+    expect(promotion).toContain('readable genuine app evidence');
+    expect(promotion).not.toContain('screenshot is optional');
     expect(promotion).not.toContain('Every Deadset product/feature slide');
     expect(finalImageReviewPrompt(artifact, 1)).toContain('Every Deadset product/feature slide');
     expect(finalImageReviewPrompt(artifact, 1)).toContain('deliberate visible Deadset red/black brand presence');
@@ -97,9 +99,16 @@ describe('independent final-image review', () => {
   });
   it('reviews every slide of a six-slide Cast editorial', async () => {
     const { env, run } = fixture();
-    const cast = { ...artifact, photo_urls: Array.from({ length: 6 }, (_, i) => `https://example.test/media/outputs/cast/${i}.jpg`), asset_manifest: { app_slug: 'cast', format: 'cast_editorial_carousel' } };
+    stubFetch([
+      {match:/rest\/v1\/creative_assets/,respond:()=>Response.json([{storage_path:'features/cast/catch_log/original.png'}])},
+      {match:/storage\/v1\/object/,respond:()=>new Response(new Uint8Array([255,216,255,217]),{headers:{'Content-Type':'image/jpeg'}})},
+    ]);
+    const cast = { ...artifact, photo_urls: Array.from({ length: 6 }, (_, i) => `https://example.test/media/outputs/cast/${i}.jpg`), asset_manifest: { app_slug: 'cast', format: 'cast_editorial_carousel', production:{feature_asset:{id:'proof-id',source_kind:'owner_upload',composition:'app_screen'},brand_asset:{sha256:CAST_BRAND_SHA256}} } };
     const review = await reviewFinalCarousel(env, cast);
     expect(run).toHaveBeenCalledTimes(6);
+    for(let i=0;i<6;i++) expect(run.mock.calls[i]![1].messages[0].content.filter((p:{type:string})=>p.type==='image_url')).toHaveLength(i===5?2:1);
+    expect(review.proof_reference?.asset_id).toBe('proof-id');
+    expect((await reviewFinalCarousel(env,{...cast,asset_manifest:{...cast.asset_manifest,production:{}}})).pass).toBe(false);
     expect(await hasPassingVisualReview(env, { ...cast, asset_manifest: { ...cast.asset_manifest, visual_review: review } })).toBe(true);
     expect(await hasPassingVisualReview(env, { ...cast, photo_urls: cast.photo_urls.slice(0, 5), asset_manifest: { ...cast.asset_manifest, visual_review: review } })).toBe(false);
   });

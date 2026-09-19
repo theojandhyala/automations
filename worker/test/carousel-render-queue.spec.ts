@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carouselRenderReason } from '../src/lib/carousel-render-queue';
+import { carouselRenderReason, revisedPausedDraftMayBeReviewed } from '../src/lib/carousel-render-queue';
 import { runOutcomeCounts } from '../src/lib/run-outcome-counts';
 import type { Artifact } from '../src/types';
 
@@ -52,5 +52,22 @@ describe('safe run outcome logging', () => {
     expect(runOutcomeCounts({ published: 0, submitted: 2, caption: 'private copy', secret: 'private',
       blocked: ['details'], failed: -1, produced: NaN, skipped: 1.5 })).toEqual({ published: 0, submitted: 2 });
     expect(runOutcomeCounts(null)).toEqual({});
+  });
+});
+
+describe('cancelled draft review repair', () => {
+  it('permits critique after a matching fresh inspection without changing delivery pause or render eligibility', () => {
+    const item=draft({hook:'Hook',caption:'Caption',stages:{delivery:{state:'cancelled',at:'2026-09-13T10:00:00Z'}}});
+    item.asset_manifest.app_slug='cast';
+    item.asset_manifest.requires_owner_review=false;
+    item.asset_manifest.native_visual_review={standard:'native-photo-2026-09-10',result:'pass',reviewer:'agent',checked_at:'2026-09-13T11:00:00Z',hook:item.hook,caption:item.caption,photo_urls:item.photo_urls,full_frame:true,native_photo:true,truth_and_rights:true,all_slides_inspected:true,notes:'Inspected exact exports and source provenance.'};
+    expect(revisedPausedDraftMayBeReviewed(item)).toBe(true);
+    expect(item.stages.delivery?.state).toBe('cancelled');
+    expect(reason(item)).toBeNull();
+    item.photo_urls=['changed.jpg','two.jpg'];
+    expect(revisedPausedDraftMayBeReviewed(item)).toBe(false);
+    item.photo_urls=['one.jpg','two.jpg'];
+    item.stages.delivery!.at='2026-09-13T12:00:00Z';
+    expect(revisedPausedDraftMayBeReviewed(item)).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { stageStatuses } from '../lib/pipeline';
 import { ownerFromRequest, signState, verifyState } from '../lib/auth';
 import {
   accessTokenFor,
+  commercialMusicChoices,
   authorizeUrl,
   businessAccountsConfigured,
   exchangeCode,
@@ -1407,6 +1408,17 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
     // Never echo the token columns back to the browser.
     const { access_token_enc: _a, refresh_token_enc: _r, ...safe } = updated as Record<string, unknown>;
     return json(safe);
+  }
+
+  const musicMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})\/commercial-music$/);
+  if (musicMatch && req.method === 'GET') {
+    if (publishProvider(env) !== 'business_accounts') return json({error:'Commercial track discovery requires the owned-account Business API.'},409);
+    const genre=new URL(req.url).searchParams.get('genre')??'ALL';
+    if (!['ALL','POP','ELECTRONIC','TROPICAL_HOUSE','HIP_HOP/RAP'].includes(genre)) return json({error:'Unsupported music genre.'},400);
+    const account=await db.selectOne<TikTokAccount>('tiktok_accounts',`id=eq.${musicMatch[1]!}&select=*`);
+    if (!account || account.status!=='connected' || !account.open_id) return json({error:'Choose a connected TikTok account.'},409);
+    const token=await accessTokenFor(env,db,account);
+    return json(await commercialMusicChoices(token,account.open_id,genre));
   }
 
   const creatorInfoMatch = path.match(/^\/tiktok\/accounts\/([0-9a-f-]{36})\/creator-info$/);

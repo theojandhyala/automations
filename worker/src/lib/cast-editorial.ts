@@ -18,7 +18,7 @@ const CURATED_CONCEPTS: CastEditorialConcept[] = [
   { id: 'memory-vs-record', hook: 'What you remember vs what you recorded', promotional: true,
     caption: 'Memory fills in the gaps. A short catch record gives you something concrete to check next time.',
     items: [['“Some time after lunch”', 'Record the catch time while it is fresh.'], ['“That lure worked”', 'Note the lure and how you retrieved it.'], ['“It was about this big”', 'Save the measurement you actually took.'], ['“The usual spot”', 'Keep the exact location private when appropriate.'], ['A record you can check', 'Keep the catch and conditions together in Cast.']] },
-  { id: 'one-trip-five-decisions', hook: 'One fishing trip. Five decisions.', promotional: true,
+  { id: 'one-trip-five-decisions', hook: 'One fishing trip. Four decisions.', promotional: true,
     caption: 'A useful session starts with a few deliberate choices. Keep a record so you can compare what happened.',
     items: [['Choose your water', 'Check access and local restrictions before you travel.'], ['Choose your first setup', 'Start with tackle you know how to use.'], ['Choose one change', 'Adjust one thing, then pay attention to what happens.'], ['Choose what to record', 'Time, setup, conditions and the measured catch.'], ['Choose what to share', 'Keep control of location details in Cast.']] },
   { id: 'notes-ranked', hook: 'Fishing notes, ranked from vague to useful', promotional: false,
@@ -71,9 +71,9 @@ const CAST_PAYOFFS: Record<string, string> = {
 };
 /** Every post earns attention with advice and ends with a truthful product action. */
 export const CAST_EDITORIAL_CONCEPTS: CastEditorialConcept[] = CURATED_CONCEPTS.map(concept => ({
-  ...concept, promotional: true,
+  ...concept, hook: concept.hook.replace(/^5 /, '4 ').replace('5 useful notes', '4 useful notes'), promotional: true,
   caption: /app store/i.test(concept.caption) ? concept.caption : `${concept.caption} Keep your catch records in Cast. ${CAST_STORE_CTA}`,
-  items: concept.items.map((item, index) => index === 4 ? [item[0], `${CAST_PAYOFFS[concept.id]}\n${CAST_STORE_CTA}`] : item),
+  items: concept.items.map((item, index) => index === 4 ? [item[0], `${CAST_PAYOFFS[concept.id]}\n${CAST_STORE_CTA}`] : [item[0].replace(/^([2-5]) · /, (_, n) => `${Number(n) - 1} · `), item[1]]),
 }));
 
 export function editorialSlides(concept: CastEditorialConcept): EditorialSlide[] {

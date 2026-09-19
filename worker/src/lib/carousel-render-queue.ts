@@ -1,3 +1,4 @@
+import { nativeVisualReviewBlocker } from './native-visual-review';
 import type { Artifact } from '../types';
 
 /** Rebuild only system-owned drafts. Exact reviewed or booked media stays intact. */
@@ -19,4 +20,14 @@ export function carouselRenderReason(
       && production?.renderer === 'cloudflare_browser_paid_bounded_session'
       && production.caption_renderer !== currentRenderer) return 'outdated_renderer';
   return null;
+}
+
+/** A fresh inspection after cancellation permits critique only, never delivery. */
+export function revisedPausedDraftMayBeReviewed(artifact: Artifact): boolean {
+  if (artifact.status !== 'draft' || artifact.media_type !== 'photo' || !artifact.photo_urls.length) return false;
+  const stage = artifact.stages?.delivery;
+  if (!stage || !['cancelled','failed'].includes(stage.state)) return false;
+  const reviewedAt = (artifact.asset_manifest.native_visual_review as {checked_at?:string}|undefined)?.checked_at;
+  if (!reviewedAt || !stage.at || !(Date.parse(reviewedAt) > Date.parse(stage.at))) return false;
+  return nativeVisualReviewBlocker({hook:artifact.hook,caption:artifact.caption,photoUrls:artifact.photo_urls,assetManifest:artifact.asset_manifest}) === null;
 }

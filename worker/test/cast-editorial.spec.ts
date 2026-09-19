@@ -1,3 +1,4 @@
+import { CAST_BRAND_SHA256 } from '../src/lib/cast-brand';
 import { describe, it, expect, vi } from 'vitest';
 import { CAST_EDITORIAL_CONCEPTS, CAST_EDITORIAL_FORMAT, editorialSlides, planCastEditorial, castEditorialHtml } from '../src/lib/cast-editorial';
 import { createCastEditorialDrafts } from '../src/automations/cast-editorial-drafts';
@@ -6,7 +7,7 @@ import type { RunContext } from '../src/lib/runner';
 import { visualReviewFixture } from './visual-review-fixture';
 
 const row = (c: typeof CAST_EDITORIAL_CONCEPTS[number]) => ({ hook: c.hook, asset_manifest: { format: CAST_EDITORIAL_FORMAT, editorial_id: c.id, promotional: c.promotional } });
-const manifest = (i = 0) => ({ format: CAST_EDITORIAL_FORMAT, app_slug: 'cast', promotional: CAST_EDITORIAL_CONCEPTS[i]!.promotional, slides: editorialSlides(CAST_EDITORIAL_CONCEPTS[i]!), generated_media: false, generated_people: false, fabricated_ui: false, source_policy: 'licensed_real_only', production: {per_slide_sources: Array.from({length:6}, (_,i) => ({id:i+1,source_url:`https://www.pexels.com/photo/${i+1}/`}))} });
+const manifest = (i = 0) => ({ format: CAST_EDITORIAL_FORMAT, app_slug: 'cast', promotional: CAST_EDITORIAL_CONCEPTS[i]!.promotional, slides: editorialSlides(CAST_EDITORIAL_CONCEPTS[i]!), generated_media: false, generated_people: false, fabricated_ui: false, source_policy: 'licensed_real_only', production: {feature_asset:{id:'proof-id',source_kind:'owner_upload',composition:'app_screen'},brand_asset:{sha256:CAST_BRAND_SHA256},per_slide_sources: Array.from({length:6}, (_,i) => ({id:i+1,source_url:`https://www.pexels.com/photo/${i+1}/`}))} });
 const quality = (extra: Record<string, unknown> = {}, urls?: string[]) => assessCreativeQuality({ hook: CAST_EDITORIAL_CONCEPTS[0]!.hook, caption: CAST_EDITORIAL_CONCEPTS[0]!.caption, hashtags: ['fishing', 'fishingtips', 'angling'], mediaType: 'photo', assetManifest: { ...manifest(), ...extra }, photoUrls: urls });
 
 describe('Cast curated editorial route', () => {

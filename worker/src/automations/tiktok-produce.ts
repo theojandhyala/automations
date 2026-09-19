@@ -1,8 +1,10 @@
 import { supportedCarousel, DEADSET_LONGFORM, deadsetLongformDue } from '../lib/deadset-longform';
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
 import { deliveryPaused } from '../lib/timed-delivery';
-import { carouselRenderReason } from '../lib/carousel-render-queue';
+import { carouselRenderReason, revisedPausedDraftMayBeReviewed } from '../lib/carousel-render-queue';
 import { log } from '../lib/log';
+import { castPromotionPlan, CAST_PROMOTION_VERSION } from '../lib/cast-promotion';
+import { CAST_BRAND_SHA256 } from '../lib/cast-brand';
 import { CAST_EDITORIAL_FORMAT, castPhotoDirection, type EditorialSlide } from '../lib/cast-editorial';
 import { decrypt } from '../lib/crypto';
 import { automaticCreativeApprovalAllowed } from '../lib/owner-approval';
@@ -442,7 +444,8 @@ export const produceCarousels: Handler = {
         'order=created_at.desc',
         'limit=30',
       ].filter(Boolean).join('&'),
-    )).filter(artifact => !deliveryPaused(artifact));
+    )).filter(artifact => !deliveryPaused(artifact) || revisedPausedDraftMayBeReviewed(artifact))
+      .sort((a,b) => Number(revisedPausedDraftMayBeReviewed(b)) - Number(revisedPausedDraftMayBeReviewed(a)));
     let autoApproved = 0;
     if (automaticCreativeApprovalAllowed(appSlug) && unattendedPublishingEnabled(ctx.env)) {
       const renderedDrafts = candidates
@@ -466,6 +469,8 @@ export const produceCarousels: Handler = {
           });
           if (!review.pass) continue;
         }
+        // A cancelled/failed booking stays paused after critique. Only explicit approval clears it.
+        if (deliveryPaused(artifact)) continue;
         const quality = assessCreativeQuality({
           hook: artifact.hook,
           caption: artifact.caption,
@@ -502,7 +507,7 @@ export const produceCarousels: Handler = {
         autoApproved++;
       }
     }
-    const pending = candidates.filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) !== null);
+    const pending = candidates.filter(artifact => !deliveryPaused(artifact)).filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) !== null);
     log.info('carousel queue inspected', {
       run_id: ctx.runId, app_slug: appSlug, candidate_drafts: candidates.length,
       render_pending: pending.length,
@@ -577,7 +582,13 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
   const manifest = artifact.asset_manifest;
   const quality = assessCreativeQuality({ hook: artifact.hook, caption: artifact.caption, hashtags: artifact.hashtags, mediaType: 'photo', assetManifest: manifest });
   if (!quality.pass) return { state: 'blocked', reason: quality.blockers.join(' ') };
-  const slides = manifest.slides as EditorialSlide[];
+  const promotion = castPromotionPlan(String(manifest.editorial_id ?? ''));
+  const feature = await db.selectOne<{id:string;asset_key:string;storage_path:string}>('creative_assets',
+    `app_slug=eq.cast&asset_key=eq.${promotion.featureKey}&source_kind=eq.owner_upload&select=id,asset_key,storage_path`);
+  if (!feature) return {state:'blocked',reason:`Upload the genuine Cast ${promotion.featureKey} screen before rendering the promotion.`};
+  const proofUrl = publicMediaUrl(env, feature.storage_path);
+  if (await classifyProofComposition(env, proofUrl) !== 'app_screen') return {state:'blocked',reason:'Cast requires an original app capture, not a finished advertisement or uncertain source.'};
+  const slides = (manifest.slides as EditorialSlide[]).map((slide,index)=>index===5 ? {...slide,overlay:promotion.heading,body:'Actual Cast app · example data. Find Cast on the App Store.'} : slide);
   const key = await providerKey(env, db);
   if (!key) return { state: 'blocked', reason: 'Connect Pexels for real fishing photos.' };
   const recent = await db.select<{ asset_manifest: { production?: { stock?: { id?: number }; per_slide_sources?: Array<{ id?: number }> } } }>('artifacts',
@@ -603,6 +614,7 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
   const bytes = await renderEditorialSlides(env, slides.map((slide, index) => ({
     appSlug: 'cast', imageUrl: photos[index]!.src.large2x || photos[index]!.src.original, overlay: slide.overlay,
     role: index === 0 ? 'hook' as const : 'feature' as const, editorial: { body: slide.body, kicker: slide.kicker },
+    ...(index === 5 ? {castPromotion:{proofUrl,heading:promotion.heading}} : {}),
   })), renderer);
   const nonce = crypto.randomUUID();
   const urls: string[] = [];
@@ -615,8 +627,10 @@ async function produceCastEditorial(env: Env, db: Db, artifact: Artifact, render
     status: 'draft', stage: 'review', photo_urls: urls, error: null, is_aigc: false,
     stages: { ...artifact.stages, assets: { state: 'done', at: now, note: 'Six distinct licensed photos; per-slide sources and licences recorded.' },
       edit: { state: 'done', at: now, note: 'Six 1080×1920 JPEG slides; measured text bounds passed.' }, review: { state: 'pending', note: 'Review all six images, source suitability, caption and disclosure.' } },
-    asset_manifest: { ...manifest, creative_quality: quality, requires_owner_review: true,
-      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: 'cast-editorial-v3-varied',
+    asset_manifest: { ...manifest, slides, feature: promotion.featureKey, creative_quality: quality, requires_owner_review: true,
+      production: { rendered_at: now, dimensions: { width: 1080, height: 1920 }, output_format: 'image/jpeg', caption_renderer: CAST_PROMOTION_VERSION,
+        feature_asset: {id:feature.id,key:feature.asset_key,app_slug:'cast',source_kind:'owner_upload',composition:'app_screen'},
+        brand_asset: {kind:'official_brand',sha256:CAST_BRAND_SHA256,source:'cast-landing-page-build/src/assets/cast-mark.png'},
         per_slide_sources: photos.map((photo, index) => ({ slide: index + 1, provider: 'pexels', id: photo.id, source_url: photo.url, photographer: photo.photographer, photographer_url: photo.photographer_url, licence_url: 'https://www.pexels.com/license/', alt: photo.alt, selection_query: castPhotoDirection(slides[index]!, index).query })), generated_media: false } },
   });
   return { state: 'produced', photo_urls: urls };
