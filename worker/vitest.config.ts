@@ -15,6 +15,7 @@ export default defineConfig({
         compatibilityDate: '2026-08-22',
         compatibilityFlags: ['nodejs_compat'],
         kvNamespaces: ['HQ_DATA', 'DEADSET_BASELINE'],
+        r2Buckets: ['MIGRATION_TEST_MEDIA'],
         bindings: {
           // Pipeline status only needs to know the binding is configured; AI
           // inference itself remains remote and is not called by unit tests.
