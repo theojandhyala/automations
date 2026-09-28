@@ -1,6 +1,6 @@
 import HqBillingConnection from "../components/HqBillingConnection";
 import HqProductConnection from "../components/HqProductConnection";
-import { useEffect, useId, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
   Link,
   NavLink,
@@ -11,7 +11,7 @@ import {
 import { api } from "../lib/supabase";
 import { useData } from "../lib/useData";
 import type { HqPayload } from "../../../worker/src/lib/hq-contract";
-import { reportedTotal } from "../../../worker/src/lib/hq-report-summary";
+import { reportedTotal, downloadSummary } from "../../../worker/src/lib/hq-report-summary";
 import type { HqDay } from "../../../worker/src/lib/hq-metrics";
 import "../app-hq.css";
 function BillingHistory({ data, dates }: { data: HqPayload; dates: string[] }) {
@@ -644,6 +644,7 @@ function Workspace({
   const rows = dates.map(
     (date) => data?.days.find((d) => d.date === date) ?? { date },
   );
+  const downloads = downloadSummary(rows);
   const total = (key: keyof HqDay) =>
     rows.every((d) => typeof d[key] === "number")
       ? rows.reduce((n, d) => n + (d[key] as number), 0)
@@ -657,11 +658,22 @@ function Workspace({
       return appleLinked
         ? "Waiting for Apple reports; this does not mean zero downloads"
         : "Apple reporting is not connected";
+    if (summary.value === null)
+      return `Pending: ${summary.expected - summary.received} missing days · ${summary.subtotal ?? 0} in received reports; period total unknown`;
     return `${summary.complete ? "Complete period" : "Reported subtotal · incomplete period"} · ${summary.received}/${summary.expected} days verified · Apple${appleLinked ? "" : " import"}`;
   };
   const appleReports = (data?.records ?? [])
     .filter((r) => r.source === "app_store_connect")
     .sort((a, b) => b.data.date.localeCompare(a.data.date));
+  const reportReceipt = appleReports.reduce((latest, r) => r.captured_at > latest ? r.captured_at : latest, "");
+  const previousReceipt = useRef({ app, at: "" });
+  useEffect(() => {
+    if (previousReceipt.current.app !== app) previousReceipt.current = { app, at: "" };
+    if (!reportReceipt) return;
+    if (previousReceipt.current.at && reportReceipt > previousReceipt.current.at)
+      setNotice("New Apple report received. Download totals and charts have updated.");
+    previousReceipt.current.at = reportReceipt;
+  }, [app, reportReceipt]);
   const latest = (key: keyof HqDay) =>
     [...(data?.days ?? [])].reverse().find((d) => typeof d[key] === "number");
   const value = (key: keyof HqDay) => {
@@ -963,8 +975,11 @@ function Workspace({
                 <p>
                   {!appleLinked
                     ? "Download totals are unavailable until Apple reporting is connected. This is not zero downloads."
-                    : "Apple supplies daily download reports, not an event for each download. Reports are checked hourly; this page refreshes automatically."}
+                    : "Apple supplies next-day download reports. We check hourly, repair older gaps, and refresh this page every 15 seconds. Today remains pending; these are selected-period totals, not lifetime totals."}
                 </p>
+                {data?.apple_sync && Date.now() - Date.parse(data.apple_sync.at) > 90 * 60000 && (
+                  <p role="alert">Apple sync is overdue. These are the last received figures; use Refresh to retry.</p>
+                )}
                 {data?.apple_sync && (
                   <p>
                     Last Apple check:{" "}
@@ -1024,7 +1039,13 @@ function Workspace({
             <>
               <div className="ah-kpis">
                 <Card
-                  label="First-time downloads"
+                  label={`Total downloads · ${days} days`}
+                  value={downloads.value}
+                  empty={appleLinked ? "Pending reports" : "Not connected"}
+                  note={`First-time + re-downloads; excludes updates · ${downloads.received}/${downloads.expected} days received${downloads.complete ? " · complete period" : " · incomplete subtotal"}`}
+                />
+                <Card
+                  label={`First-time downloads · ${days} days`}
                   value={reportedTotal(rows, "downloads").value}
                   empty={appleLinked ? "Awaiting report" : "Not connected"}
                   note={downloadNote("downloads")}
@@ -1180,7 +1201,13 @@ function Workspace({
             <>
               <div className="ah-kpis">
                 <Card
-                  label="First-time downloads"
+                  label={`Total downloads · ${days} days`}
+                  value={downloads.value}
+                  empty={appleLinked ? "Pending reports" : "Not connected"}
+                  note={`First-time + re-downloads; excludes updates · ${downloads.received}/${downloads.expected} days received${downloads.complete ? " · complete period" : " · incomplete subtotal"}`}
+                />
+                <Card
+                  label={`First-time downloads · ${days} days`}
                   value={reportedTotal(rows, "downloads").value}
                   empty={appleLinked ? "Awaiting report" : "Not connected"}
                   note={downloadNote("downloads")}

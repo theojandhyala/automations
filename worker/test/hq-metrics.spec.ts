@@ -152,3 +152,8 @@ it("accepts only Apple explicit no-sales confirmation as zero activity", () => {
   ).toBe(false);
   expect(appleConfirmsNoSales(404, null)).toBe(false);
 });
+
+it("never labels an incomplete all-zero subtotal as zero downloads", () => {
+  expect(reportedTotal([{ date: "2026-09-01", downloads: 0 }, { date: "2026-09-02" }], "downloads"))
+    .toMatchObject({ value: null, subtotal: 0, received: 1, expected: 2, complete: false });
+});
