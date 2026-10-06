@@ -7,11 +7,28 @@ let s=await readFile(base+'/index.js','utf8');
 if(createHash('sha256').update(s).digest('hex')!==expectedSha)throw new Error('Live base mismatch');
 function patch(a,b){if(s.split(a).length!==2)throw new Error('Ambiguous release anchor: '+a.slice(0,100));s=s.replace(a,b);}
 s='import { MANAGED_BRANDS, isManagedBrand, publicRelease, newBrandReviewPrompt } from "./managed-brands.mjs";\nimport { createBrandStudioHandler } from "./new-brand-creative.mjs";\n'+s;
+s=`import { MANAGED_BRANDS, isManagedBrand, publicRelease, newBrandReviewPrompt } from "./managed-brands.mjs";
+import { createBrandStudioHandler } from "./new-brand-creative.mjs";
+const WELLBEING_APP_CLAIMS=/\\b(?:cure|treat(?:ment)?|therapy|diagnos(?:e|is)|guarantee(?:d)?|proven|quit|detox|withdrawal|days? sober|replace professional help)\\b/i;
+const WELLBEING_PROOF_KEYS={lifescore:["studio_proof_v1"],reclaim:["studio_proof_v2"]};
+function wellbeingCreativeBlockers(input,hook,caption,manifest){
+ const keys=WELLBEING_PROOF_KEYS[String(manifest.app_slug)];if(!keys)return [];
+ const blockers=[];const slides=Array.isArray(manifest.slides)?manifest.slides:[];const proof=manifest.production?.feature_asset;const truth=typeof manifest.product_truth==="string"?manifest.product_truth.trim():"";
+ if(!truth||truth.length<24)blockers.push("Record the specific, truthful product context before releasing a wellbeing-app post.");
+ if(!keys.includes(String(manifest.feature)))blockers.push("Use a registered first-party app feature for this account.");
+ if(slides.length!==2||slides[0]?.role!=="hook"||slides[1]?.role!=="feature_proof"||!keys.includes(String(slides[1]?.app_asset_key)))blockers.push("Wellbeing-app posts need a relatable hook followed by the registered app proof.");
+ if(proof?.source_kind!=="owner_upload"||proof?.composition!=="app_screen"||typeof proof?.id!=="string"||!proof.id)blockers.push("Wellbeing-app posts need a recorded owner-uploaded app screen as their proof.");
+ if(WELLBEING_APP_CLAIMS.test(hook+" "+caption))blockers.push("Remove medical, recovery-outcome, or guaranteed-result claims from wellbeing-app creative.");
+ if(/\\b(?:download|install|available now|on the app store)\\b/i.test(hook+" "+caption)&&manifest.release_context==="preview; no availability claims")blockers.push("Preview creative cannot claim the wellbeing app is publicly available.");
+ return blockers;
+}
+`+s;
 patch('promotion_enabled=eq.true&slug=in.(deadset,cast)&select=id,slug','slug=in.(deadset,cast,lifescore,reclaim)&select=id,slug');
 patch('(app.slug === "deadset" ? "deadset.app" : "cast.fishing.app")','(isManagedBrand(app.slug) ? MANAGED_BRANDS[app.slug].handle : "")');
 patch('return appSlug === "deadset" || appSlug === "cast";','return ["deadset","cast","lifescore","reclaim"].includes(appSlug);');
 patch('function visualReviewVersion(artifact) {', 'function visualReviewVersion(artifact) {\nif(["lifescore","reclaim"].includes(String(artifact.asset_manifest.app_slug))) return CREATIVE_DIRECTION_VERSION+"-brand-critic-v2";');
 patch('function finalImageReviewPrompt(artifact, index) {','function finalImageReviewPrompt(artifact, index) {\nconst specific = newBrandReviewPrompt(artifact,index); if(specific) return specific;');
+patch('  if (manifest.format === DEADSET_LONGFORM) {','  blockers.push(...wellbeingCreativeBlockers(input,hook,caption,manifest));\n  if (manifest.format === DEADSET_LONGFORM) {');
 patch('slug=in.(deadset,cast)&select=id,slug,promotion_enabled&order=slug.asc','slug=in.(deadset,cast,lifescore,reclaim)&select=id,slug,promotion_enabled&order=slug.asc');
 patch('`${mission.slug === "deadset" ? "deadset" : "cast"}.${mission.slug === "deadset" ? "app" : "fishing.app"}`','(isManagedBrand(mission.slug) ? MANAGED_BRANDS[mission.slug].handle : "")');
 patch('      if (!mission.promotion_enabled) {',`      const release = await publicRelease(ctx.env, mission.slug);
