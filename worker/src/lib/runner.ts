@@ -7,7 +7,7 @@ import { getHandler } from '../automations/registry';
 
 /** After this many consecutive failures the dispatcher stops picking it up. */
 const FAILURE_BREAKER = 5;
-const RECOVERABLE_PIPELINE = new Set(['tiktok.generate', 'tiktok.produce', 'tiktok.publish', 'tiktok.reconcile', 'analytics.sync']);
+const RECOVERABLE_PIPELINE = new Set(['tiktok.brand-studio', 'tiktok.generate', 'tiktok.produce', 'tiktok.publish', 'tiktok.reconcile', 'analytics.sync']);
 
 export interface RunContext {
   env: Env;
@@ -198,8 +198,8 @@ export async function dispatchDue(env: Env): Promise<{ started: number }> {
         .catch(() => undefined);
     });
 
-  const producers = claimed.filter((automation) => automation.handler_key === 'tiktok.produce');
-  const other = claimed.filter((automation) => automation.handler_key !== 'tiktok.produce');
+  const producers = claimed.filter((automation) => ['tiktok.produce','tiktok.brand-studio'].includes(automation.handler_key));
+  const other = claimed.filter((automation) => !['tiktok.produce','tiktok.brand-studio'].includes(automation.handler_key));
   await Promise.all(other.map(runClaimed));
   // Keep media production serialized to bound Browser Run concurrency and make
   // spend predictable across every connected app.

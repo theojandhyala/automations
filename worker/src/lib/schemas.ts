@@ -162,6 +162,7 @@ export const promotionMissionSchema = z.object({
 /** Per-handler config schemas, checked when an automation's config is saved. */
 export const handlerConfigSchemas: Record<string, z.ZodTypeAny> = {
   'system.heartbeat': z.object({}).passthrough(),
+  'tiktok.brand-studio': z.object({app_slug:z.enum(['lifescore','reclaim'])}),
   'tiktok.generate': z.object({
     app_slug: z.string().min(1),
     count: z.number().int().min(1).max(10).default(3),

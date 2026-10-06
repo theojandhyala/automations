@@ -1,3 +1,4 @@
+import { publicRelease } from '../lib/managed-brands';
 import { hasPassingVisualReview } from '../lib/creative-visual-review';
 import { automaticCreativeApprovalAllowed, hasExactOwnerApproval } from '../lib/owner-approval';
 import {
@@ -25,7 +26,7 @@ interface PublishMissionApp {
   promotion_enabled: boolean;
 }
 
-const ACTIVE_PUBLISH_MISSIONS = new Set(['deadset', 'cast']);
+const ACTIVE_PUBLISH_MISSIONS = new Set(['deadset', 'cast', 'lifescore', 'reclaim']);
 
 export function isPostingSlot(at: Date, timezone: string, localTimes: Array<number | string>): boolean {
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -217,7 +218,9 @@ export const publishApproved: Handler = {
             `id=eq.${artifact.app_id}&select=id,slug,promotion_enabled`,
           )
         : null;
-      const routingError = missionRoutingError(artifact, account, app);
+      const routeError = missionRoutingError(artifact, account, app);
+      const release = !routeError && app ? await publicRelease(ctx.env,app.slug) : null;
+      const routingError = routeError || (release && !release.available ? release.reason : null);
       if (routingError) {
         await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
           status: 'failed',
@@ -270,7 +273,7 @@ export const publishApproved: Handler = {
           skipped++;
           continue;
         }
-        if ((app?.slug === 'cast' || app?.slug === 'deadset') && artifact.media_type === 'photo'
+        if ((app && ACTIVE_PUBLISH_MISSIONS.has(app.slug)) && artifact.media_type === 'photo'
           && !await hasPassingVisualReview(ctx.env, artifact)) {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
             status: 'draft', stage: 'review', error: 'Visual quality hold: these exact images and copy need independent visual review.',

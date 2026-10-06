@@ -2,17 +2,18 @@ import { planCastEditorial } from '../src/lib/cast-editorial';
 import { env } from 'cloudflare:test';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import schema from '../migrations/0001_operations.sql?raw';
+import fourSchema from '../migrations/0003_four_brand_studio.sql?raw';
 import cloudSchema from '../migrations/0002_cloud_studio.sql?raw';
 import { cloudWorkGate, claimCreativeAttempt, creativeInputHash, handleCloudStudio, londonDay, postingHealth } from '../src/lib/cloud-studio';
 import type { Artifact, Env } from '../src/types';
 import type { RunContext } from '../src/lib/runner';
 const db=env.TEST_OPERATIONS_DB;
 const bindings={...env,OPERATIONS_DB:db} as unknown as Env;
-beforeAll(async()=>{for(const sql of (schema+cloudSchema).split(';').map(s=>s.trim()).filter(Boolean)) await db.prepare(sql).run();});
+beforeAll(async()=>{for(const sql of (schema+cloudSchema+fourSchema).split(';').map(s=>s.trim()).filter(Boolean)) await db.prepare(sql).run();});
 beforeEach(async()=>{
- await db.batch(['cloud_studio_work','cloud_studio_attempts','artifacts','tiktok_accounts','apps','cloud_studio_control'].map(t=>db.prepare(`DELETE FROM ${t}`)));
+ await db.batch(['cloud_studio_work','cloud_studio_attempts','artifacts','tiktok_accounts','apps','cloud_studio_brand_control'].map(t=>db.prepare(`DELETE FROM ${t}`)));
  await db.prepare("INSERT INTO apps(id,slug,name) VALUES('app','deadset','Deadset')").run();
- await db.prepare("INSERT INTO cloud_studio_control VALUES('deadset',0,'now')").run();
+ await db.prepare("INSERT INTO cloud_studio_brand_control VALUES('deadset',0,'now')").run();
 });
 const ctx=(id:string,kind='tiktok.generate')=>({env:bindings,runId:id,automation:{handler_key:kind,config:{app_slug:'deadset'}}} as unknown as RunContext);
 const candidate=()=>({id:'a',app_id:'app',account_id:'account',hook:'Original hook',caption:'Original',hashtags:[],photo_urls:[],asset_manifest:{app_slug:'deadset',slides:[{overlay:'Original'}]}} as unknown as Artifact);
@@ -31,7 +32,7 @@ describe('cloud preparation safety',()=>{
   expect(await db.prepare('SELECT count(*) n FROM cloud_studio_work').first('n')).toBe(2);
  });
  it('stops paused brands before consuming work',async()=>{
-  await db.prepare("UPDATE cloud_studio_control SET paused=1 WHERE app_slug='deadset'").run();
+  await db.prepare("UPDATE cloud_studio_brand_control SET paused=1 WHERE app_slug='deadset'").run();
   expect(await cloudWorkGate(ctx('run'))).toContain('paused');
   expect(await db.prepare('SELECT count(*) n FROM cloud_studio_work').first('n')).toBe(0);
  });
@@ -59,7 +60,7 @@ describe('cloud preparation safety',()=>{
  it('rejects cross-origin control requests and unsupported brands',async()=>{
   const request=(origin:string,app='deadset')=>new Request('https://example.test/api/cloud-studio',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({app,action:'pause'})});
   expect((await handleCloudStudio(request('https://evil.test'),bindings,async()=>false)).status).toBe(403);
-  expect((await handleCloudStudio(request('https://example.test','lifescore'),bindings,async()=>false)).status).toBe(400);
+  expect((await handleCloudStudio(request('https://example.test','unknown'),bindings,async()=>false)).status).toBe(400);
   expect((await handleCloudStudio(request('https://example.test'),bindings,async()=>false)).status).toBe(200);
   expect(await db.prepare("SELECT promotion_enabled FROM apps WHERE slug='deadset'").first('promotion_enabled')).toBe(0);
   expect(await cloudWorkGate(ctx('run'))).toContain('paused');

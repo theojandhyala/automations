@@ -1,3 +1,5 @@
+import { ensureTikTokReadiness } from './tiktok-readiness';
+import { brandStudio } from './tiktok-brand-studio';
 import { cloudWorkGate } from '../lib/cloud-studio';
 import type { RunContext } from '../lib/runner';
 import { generateDrafts } from './tiktok-generate';
@@ -15,6 +17,8 @@ export interface Handler {
 }
 
 const HANDLERS: Handler[] = [
+  brandStudio,
+  ensureTikTokReadiness,
   generateDrafts,
   produceCarousels,
   publishApproved,
