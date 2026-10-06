@@ -113,7 +113,14 @@ async function businessTokenRequest(
       ...body,
     }),
   });
-  const json = (await res.json()) as BusinessEnvelope<TokenResponse>;
+  // Upstream network/access errors can be plain text. Never surface raw token
+  // responses (or JSON parser snippets) in logs: they may contain credentials.
+  let json: BusinessEnvelope<TokenResponse>;
+  try {
+    json = await res.json() as BusinessEnvelope<TokenResponse>;
+  } catch {
+    throw new Error(`TikTok token endpoint returned a non-JSON response (HTTP ${res.status}); check provider access/network restrictions before reconnecting.`);
+  }
   if (!res.ok || json.code !== 0 || !json.data) {
     throw new Error(
       `tiktok business token: ${json.code ?? res.status} ${json.message ?? ''}`.trim(),

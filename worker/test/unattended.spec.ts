@@ -77,7 +77,7 @@ describe('unattended safety', () => {
     expect(plan.decisions.every(decision => decision.latest_views === null)).toBe(true);
   });
 
-  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true, booking?: 'valid' | 'expired' | 'changed' | 'none' | 'cancelled', publishBrand: 'deadset' | 'cast' = 'deadset') {
+  async function publishingFixture(reserved: boolean, timeout: boolean | 'ownership' | 'preflight' = false, repeatedFirst = false, mode: 'publish' | 'produce' = 'publish', approved = true, legacy = false, visualPass = true, booking?: 'valid' | 'expired' | 'changed' | 'none' | 'cancelled', publishBrand: 'deadset' | 'cast' = 'deadset') {
     if (booking) { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T18:58:30Z')); }
     vi.spyOn(independentReview, 'hasPassingVisualReview').mockResolvedValue(visualPass);
     const channel = await account();
@@ -126,7 +126,10 @@ describe('unattended safety', () => {
       { match: /apps\?/, respond: () => jsonResponse([{ id: 'deadset-id', slug: mode === 'produce' && approved ? 'cast' : publishBrand, promotion_enabled: true }]) },
       { match: /promotion_missions\?/, respond: () => jsonResponse([]) },
       { match: /media\/outputs\//, respond: () => new Response(null, { headers: { 'Content-Type': 'image/jpeg' } }) },
-      { match: /business\/get\//, respond: () => jsonResponse({ code: 0, data: { username: channel.handle } }) },
+      { match: /business\/get\//, respond: () => {
+        if (timeout === 'preflight') throw new Error('provider temporarily unavailable');
+        return jsonResponse({ code: 0, data: { username: channel.handle } });
+      } },
       { match: /business\/video\/settings\//, respond: () => jsonResponse({ code: 0, data: { privacy_level_options: ['PUBLIC_TO_EVERYONE'] } }) },
       { match: /rpc\/reserve_tiktok_delivery/, respond: () => jsonResponse(reserved) },
       { match: /business\/photo\/publish\//, respond: () => {
@@ -140,6 +143,24 @@ describe('unattended safety', () => {
       runId: 'test-run', trigger: booking ? 'cron' : 'manual', log: () => {}, setTask: async () => {} });
     return calls;
   }
+
+  it('preserves the exact signed time when provider preflight fails before submission', async () => {
+    const calls = await publishingFixture(true, 'preflight', false, 'publish', true, false, true, 'valid');
+    expect(calls.some(c => /reserve_tiktok_delivery|photo\/publish/.test(c.url))).toBe(false);
+    const failure = calls.find(c => c.method === 'PATCH' && JSON.stringify(c.body).includes('Publish preflight:'));
+    expect(failure?.body).toEqual({ error: 'Publish preflight: provider temporarily unavailable' });
+  });
+
+  it('reports a non-JSON token failure without leaking response text or revoking the grant', async () => {
+    const expired = await account(true);
+    const { calls } = stubFetch([
+      { match: /rpc\/claim_tiktok_refresh/, respond: () => jsonResponse([expired]) },
+      { match: /oauth2\/refresh_token/, respond: () => new Response('Client IP rejected secret-value', { status: 403 }) },
+      { match: /tiktok_accounts\?/, respond: () => jsonResponse([]) },
+    ]);
+    await expect(accessTokenFor(env, new Db(env), expired)).rejects.toThrow('non-JSON response (HTTP 403)');
+    expect(calls.filter(c => c.method === 'PATCH').map(c => c.body)).toEqual([{ refresh_locked_until: null }]);
+  });
 
   it('delivers a signed exact-time booking from cron outside ordinary slots', async () => {
     const calls = await publishingFixture(true, false, false, 'publish', true, false, true, 'valid');
