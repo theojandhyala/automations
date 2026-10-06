@@ -389,9 +389,11 @@ export const publishApproved: Handler = {
           ...(submissionId ? { publish_id: submissionId } : {}),
           error: `Delivery outcome uncertain; do not resubmit. ${message}`,
         } : {
-          // Preflight sent nothing to TikTok; a bounded later check is safe.
+          // Preflight sent nothing. Preserve a signed booking's exact time:
+          // shifting it invalidates slot checks and can strand the approved post.
+          // The next cron rechecks it within the existing booking expiry.
           error: `Publish preflight: ${message}`,
-          scheduled_for: new Date(Date.now() + 120_000).toISOString(),
+          ...(!timed ? { scheduled_for: new Date(Date.now() + 120_000).toISOString() } : {}),
         });
         ctx.log('error', `publish ${attempted ? 'requires reconciliation' : 'preflight failed'} for ${artifact.id}`, { error: message });
       }

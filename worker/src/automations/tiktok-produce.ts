@@ -1,3 +1,4 @@
+import { claimCreativeAttempt } from '../lib/cloud-studio';
 import { supportedCarousel, DEADSET_LONGFORM, deadsetLongformDue } from '../lib/deadset-longform';
 import { NATIVE_IMPORT_RENDERER } from '../lib/native-post-import';
 import { deliveryPaused } from '../lib/timed-delivery';
@@ -458,7 +459,7 @@ export const produceCarousels: Handler = {
         if (!await hasPassingVisualReview(ctx.env, artifact)) {
           const previous = artifact.asset_manifest.visual_review as { fingerprint?: string; at?: string; version?: string } | undefined;
           if (previous?.version === visualReviewVersion(artifact) && previous.fingerprint === await creativeFingerprint(artifact)
-            && Date.now() - Date.parse(previous.at ?? '') < 24 * 3600_000) continue;
+            && (!(artifact.asset_manifest.visual_review as { blockers?: string[] }).blockers?.some(b => b.startsWith('Visual review unavailable:')) || Date.now() - Date.parse(previous.at ?? '') < 24 * 3600_000)) continue;
           if (inspected >= maxPerRun) break;
           inspected++;
           const review = await reviewFinalCarousel(ctx.env, artifact);
@@ -508,7 +509,14 @@ export const produceCarousels: Handler = {
         autoApproved++;
       }
     }
-    const pending = candidates.filter(artifact => !deliveryPaused(artifact)).filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) !== null);
+    const unchangedRejections = new Set<string>();
+    for (const artifact of candidates) {
+      const review = artifact.asset_manifest.visual_review as { pass?: boolean; version?: string; fingerprint?: string; blockers?: string[] } | undefined;
+      if (review?.pass === false && review.version === visualReviewVersion(artifact)
+        && review.fingerprint === await creativeFingerprint(artifact)
+        && !review.blockers?.some(b => b.startsWith("Visual review unavailable:"))) unchangedRejections.add(artifact.id);
+    }
+    const pending = candidates.filter(artifact => !unchangedRejections.has(artifact.id)).filter(artifact => !deliveryPaused(artifact)).filter(artifact => carouselRenderReason(artifact, appSlug, CAPTION_RENDERER_VERSION) !== null);
     log.info('carousel queue inspected', {
       run_id: ctx.runId, app_slug: appSlug, candidate_drafts: candidates.length,
       render_pending: pending.length,
@@ -526,6 +534,10 @@ export const produceCarousels: Handler = {
     const ready: Artifact[] = [];
     for (const artifact of pending) {
       if (ready.length >= maxPerRun) break;
+      if (!await claimCreativeAttempt(ctx.env, artifact, CAPTION_RENDERER_VERSION)) {
+        ctx.log('warn', 'unchanged creative held; revise inputs before retry', { artifact_id: artifact.id });
+        continue;
+      }
       const reason = await preflightArtifact(ctx.env, ctx.db, artifact, appSlug);
       if (reason) {
         blocked.push({ id: artifact.id, reason });

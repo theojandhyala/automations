@@ -1,3 +1,4 @@
+import { handleCloudStudio, postingHealth } from '../lib/cloud-studio';
 import { readOwnerData } from '../lib/owner-data';
 import { importNativePost } from '../lib/native-post-import';
 import { CAST_EDITORIAL_VERSION } from '../lib/cast-editorial';
@@ -129,9 +130,9 @@ interface PromotionApp {
 async function promotionReadiness(db: Db, env: Env) {
   const [apps, accounts, automations, pexels, featureAssets, drafts] = await Promise.all([
     db.select<PromotionApp>('apps', 'promotion_enabled=eq.true&select=id,slug,name,tagline,accent,promotion_enabled&order=sort_order.asc'),
-    db.select<Pick<TikTokAccount, 'id' | 'handle' | 'display_name' | 'app_id' | 'status'>>(
+    db.select<Pick<TikTokAccount, 'id' | 'handle' | 'display_name' | 'app_id' | 'status' | 'health'>>(
       'tiktok_accounts',
-      'select=id,handle,display_name,app_id,status&order=created_at.asc',
+      'select=id,handle,display_name,app_id,status,health&order=created_at.asc',
     ),
     db.select<Automation>(
       'automations',
@@ -175,6 +176,7 @@ async function promotionReadiness(db: Db, env: Env) {
       );
       const appAccounts = accounts.filter((account) => account.app_id === app.id);
       const connectedAccount = appAccounts.some((account) => account.status === 'connected');
+      const liveAccessReady = appAccounts.some(account => account.status === 'connected' && postingHealth(account.health ?? {}).ready);
       const uploadedKeys = new Set(featureAssets
         .filter((asset) => asset.app_slug === app.slug && ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type))
         .map((asset) => asset.asset_key));
@@ -195,6 +197,7 @@ async function promotionReadiness(db: Db, env: Env) {
         blockers.push(`Upload ${requiredCount - uploadedKeys.size} remaining exact ${app.name} screen(s).`);
       }
       if (!connectedAccount) blockers.push('No connected TikTok publishing account for this app.');
+      if (!liveAccessReady) blockers.push('Live TikTok access is blocked or unverified. Check account health in Cloud Studio.');
       if (!developerAppApproved) blockers.push('TikTok developer review is not approved yet; use the manual-post handoff meanwhile.');
       return {
         ...app,
@@ -213,7 +216,7 @@ async function promotionReadiness(db: Db, env: Env) {
         intelligence_mode: app.slug === 'cast' ? 'curated_no_ai' : 'performance_learning_with_verified_fallbacks',
         drafting_ready: draftAvailable,
         production_ready: productionReady,
-        publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount && developerAppApproved),
+        publishing_ready: Boolean(publishAgent && publishAgent.status !== 'disabled' && connectedAccount && developerAppApproved && liveAccessReady),
         sandbox_publishing_ready: Boolean(
           publishAgent && publishAgent.status !== 'disabled' && connectedAccount && sandboxDirectPostReady,
         ),
@@ -314,6 +317,8 @@ export async function handleApi(req: Request, env: Env, ctx: ExecutionContext): 
   // --- everything below requires the owner's session ---
   const owner = await ownerFromRequest(req, env);
   if (!owner) return json({ error: 'unauthorized' }, 401);
+
+  if (path === '/cloud-studio') return handleCloudStudio(req, env, hasPassingVisualReview);
 
   if (path === '/auth/session' && req.method === 'GET') {
     return new Response(JSON.stringify({ email: owner }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
