@@ -113,13 +113,35 @@ async function businessTokenRequest(
       ...body,
     }),
   });
-  // Upstream network/access errors can be plain text. Never surface raw token
-  // responses (or JSON parser snippets) in logs: they may contain credentials.
+  // Bound token responses and never log their raw contents or parser snippets.
+  const reader = res.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (reader) {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 65_536) {
+          await reader.cancel();
+          throw new Error('TikTok token endpoint response exceeded the size limit');
+        }
+        chunks.push(value);
+      }
+    } finally { reader.releaseLock(); }
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  const text = new TextDecoder().decode(bytes);
   let json: BusinessEnvelope<TokenResponse>;
-  try {
-    json = await res.json() as BusinessEnvelope<TokenResponse>;
-  } catch {
-    throw new Error(`TikTok token endpoint returned a non-JSON response (HTTP ${res.status}); check provider access/network restrictions before reconnecting.`);
+  try { json = JSON.parse(text) as BusinessEnvelope<TokenResponse>; }
+  catch {
+    const reason = /^\s*Client IP\b/i.test(text)
+      ? 'client IP access rejection; resolve provider network access'
+      : 'check provider access/network restrictions before reconnecting';
+    throw new Error(`TikTok token endpoint returned a non-JSON response (HTTP ${res.status}); ${reason}.`);
   }
   if (!res.ok || json.code !== 0 || !json.data) {
     throw new Error(
