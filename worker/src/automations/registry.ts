@@ -1,3 +1,4 @@
+import { cloudWorkGate } from '../lib/cloud-studio';
 import type { RunContext } from '../lib/runner';
 import { generateDrafts } from './tiktok-generate';
 import { publishApproved } from './tiktok-publish';
@@ -24,7 +25,14 @@ const HANDLERS: Handler[] = [
 /** The only executable work is the posting pipeline for the three app missions. */
 export const POSTING_HANDLER_KEYS = new Set(HANDLERS.map((handler) => handler.key));
 
-const BY_KEY = new Map(HANDLERS.map((h) => [h.key, h]));
+const BY_KEY = new Map(HANDLERS.map((h) => [h.key, {
+  ...h,
+  async run(ctx: RunContext) {
+    const hold = await cloudWorkGate(ctx);
+    if (hold) { ctx.log('warn', 'cloud preparation held', { reason: hold }); return { held: true, reason: hold }; }
+    return h.run(ctx);
+  },
+}]));
 
 export function getHandler(key: string): Handler | undefined {
   return BY_KEY.get(key);

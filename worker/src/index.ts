@@ -1,3 +1,4 @@
+import { CLOUD_STUDIO_PAGE } from './lib/cloud-studio-page';
 import { refreshBilling } from "./lib/hq-billing";
 import { refreshProduct } from "./lib/hq-product";
 import { handleAppHq, captureHqBaseline } from "./api/app-hq";
@@ -21,6 +22,7 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(req.url);
+    if ((url.pathname === "/cloud-studio" || url.pathname === "/api/cloud-studio/view")) return new Response(CLOUD_STUDIO_PAGE, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 
     if (url.pathname.startsWith("/api/hq/")) return handleAppHq(req, env, ctx);
 
