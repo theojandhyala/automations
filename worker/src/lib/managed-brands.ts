@@ -9,6 +9,17 @@ export const MANAGED_BRANDS = {
 export type ManagedBrand = keyof typeof MANAGED_BRANDS;
 export function isManagedBrand(v:unknown):v is ManagedBrand {return typeof v==='string' && Object.hasOwn(MANAGED_BRANDS,v);}
 export type ReleaseState={available:boolean;checked_at:string;reason:string;store_url:string|null};
+/**
+ * An unreleased app may build an honest audience, but it may not pretend that
+ * people can install it. This narrow exception is evaluated again at the
+ * approval and publish boundaries; it does not open a general release bypass.
+ */
+export function isTruthfulPrelaunchPreview(artifact: Pick<Artifact,'hook'|'caption'|'asset_manifest'>, slug:string):boolean {
+ if(slug!=='lifescore'&&slug!=='reclaim')return false;
+ if(artifact.asset_manifest.release_context!=='preview; no availability claims')return false;
+ const copy=`${artifact.hook??''} ${artifact.caption??''}`;
+ return !/\b(?:download|install|available now|app store|subscribe|buy)\b/i.test(copy);
+}
 /** Official GB listing only. A saved token, local build or submitted review is not a public release. */
 export async function publicRelease(env:Env,slug:string,now=Date.now()):Promise<ReleaseState> {
  const product=isManagedBrand(slug)?MANAGED_BRANDS[slug]:null;

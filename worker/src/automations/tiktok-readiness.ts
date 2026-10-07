@@ -1,4 +1,4 @@
-import { MANAGED_BRANDS, isManagedBrand, publicRelease } from '../lib/managed-brands';
+import { MANAGED_BRANDS, isManagedBrand, isTruthfulPrelaunchPreview, publicRelease } from '../lib/managed-brands';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { isRepeatedHook } from '../lib/creative-variety';
 import { hasPassingVisualReview } from '../lib/creative-visual-review';
@@ -107,10 +107,6 @@ export const ensureTikTokReadiness: Handler = {
         continue;
       }
       const release = await publicRelease(ctx.env, mission.slug);
-      if (!release.available) {
-        for(const slot of targetSlots) missing.push({app:mission.slug,day:slot.localDay,slot:slot.localTime,reason:release.reason});
-        continue;
-      }
       if (!mission.promotion_enabled) {
         for (const slot of targetSlots) missing.push({
           app: mission.slug,
@@ -137,6 +133,7 @@ export const ensureTikTokReadiness: Handler = {
       for (let artifact of candidates) {
         if (deliveryPaused(artifact) || !automaticCreativeApprovalAllowed(mission.slug)) continue;
         if (artifact.asset_manifest.app_slug !== mission.slug) continue;
+        if (!release.available && !isTruthfulPrelaunchPreview(artifact, mission.slug)) continue;
         if (!await hasPassingVisualReview(ctx.env, artifact)) continue;
         // Production starts with an explicit owner hold. Evaluate the exact
         // reviewed candidate as it would exist after that one operational flag

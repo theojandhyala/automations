@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeAll, beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { activeTikTokAccounts } from '../src/lib/tiktok-health';
-import { MANAGED_BRANDS, publicRelease, newBrandReviewPrompt } from '../src/lib/managed-brands';
+import { MANAGED_BRANDS, publicRelease, newBrandReviewPrompt, isTruthfulPrelaunchPreview } from '../src/lib/managed-brands';
 import { brandSlideHtml, safeNewBrandHook } from '../src/lib/new-brand-creative';
 import { visualVerdictPasses } from '../src/lib/creative-visual-review';
 import type { Env, Artifact } from '../src/types';
@@ -38,6 +38,12 @@ describe('four brand release boundaries',()=>{
   expect(newBrandReviewPrompt(a,1)).toContain('No cures');
   const verdict={visible_text:'hello',observation:'Actual observed image detail',hierarchy:8,legibility:8,craft:7,story_match:8,safe_zones:true,truthful_proof:true,duplicate_copy:false,blockers:[]};
   expect(visualVerdictPasses(verdict)).toBe(false);
+ });
+ it('allows only truthful LifeScore and Reclaim previews before public release',()=>{
+  const preview={hook:'A small check-in for today',caption:'Follow the build as it takes shape.',asset_manifest:{release_context:'preview; no availability claims'}} as unknown as Artifact;
+  expect(isTruthfulPrelaunchPreview(preview,'lifescore')).toBe(true);
+  expect(isTruthfulPrelaunchPreview({...preview,caption:'Download it on the App Store.'},'lifescore')).toBe(false);
+  expect(isTruthfulPrelaunchPreview(preview,'deadset')).toBe(false);
  });
  it('escapes generated text and rejects claims before rendering',()=>{
   expect(safeNewBrandHook('A cure for addiction')).toBe(false);

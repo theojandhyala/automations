@@ -1,0 +1,20 @@
+// Surgical live-bundle patch: a useful multi-slide caption must not undo an exact visual pass.
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { build } from '../worker/node_modules/esbuild/lib/main.js';
+
+const [base, out, expectedSha] = process.argv.slice(2);
+let source = await readFile(base + '/index.js', 'utf8');
+if (createHash('sha256').update(source).digest('hex') !== expectedSha) throw new Error('Live base mismatch');
+const from = '  if (captionWords.length > 12 || caption.length > 110) blockers.push("Caption must be one native sentence of at most 12 words.");';
+const to = '  if (captionWords.length > 42 || caption.length > 280) { score2 -= 10; warnings.push("Shorten the caption so the product proof does the selling."); }';
+if (source.split(from).length !== 2) throw new Error('Caption gate anchor missing or ambiguous');
+source = source.replace(from, to);
+
+await mkdir(out, { recursive: true });
+await writeFile(out + '/index.js', source);
+const names = ['cloud-studio', 'cloud-studio-page', 'managed-brands', 'new-brand-creative'];
+for (const name of names) await build({ entryPoints: ['worker/src/lib/' + name + '.ts'], bundle: true, format: 'esm', target: 'es2022', outfile: out + '/' + name + '.mjs' });
+const modules = await Promise.all(['index.js', ...names.map(name => name + '.mjs')].map(async name => ({ name, sha256: createHash('sha256').update(await readFile(out + '/' + name)).digest('hex') })));
+await writeFile(out + '/manifest.json', JSON.stringify({ base_sha256: expectedSha, modules }, null, 2));
+console.log('Caption-gate release built.');

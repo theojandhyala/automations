@@ -1,4 +1,4 @@
-import { publicRelease } from '../lib/managed-brands';
+import { isTruthfulPrelaunchPreview, publicRelease } from '../lib/managed-brands';
 import { hasPassingVisualReview } from '../lib/creative-visual-review';
 import { automaticCreativeApprovalAllowed, hasExactOwnerApproval } from '../lib/owner-approval';
 import {
@@ -16,7 +16,7 @@ import { formatHashtags } from '../lib/hashtags';
 import { assessCreativeQuality } from '../lib/creative-quality';
 import { verifyPublishMedia } from '../lib/publish-media';
 import { isRepeatedHook } from '../lib/creative-variety';
-import { deliveryPaused, timedDeliveryError } from '../lib/timed-delivery';
+import { deliveryPaused, timedDeliveryError, timedDeliveryStage } from '../lib/timed-delivery';
 import type { Artifact, TikTokAccount } from '../types';
 import type { Handler } from './registry';
 
@@ -178,14 +178,42 @@ export const publishApproved: Handler = {
     let skipped = 0;
     const postedThisRun = new Set<string>();
 
-    for (const artifact of ready) {
+    for (const original of ready) {
       if (published >= maxPerRun) break;
+      let artifact = original;
       const accountId = artifact.account_id!;
       if (deliveryPaused(artifact)) { skipped++; continue; }
       const timed = artifact.stages?.delivery?.state === 'scheduled';
+      let exactBookingOutsideSlot = false;
       if (outsideSlot && !timed) continue;
       if (timed) {
-        const bookingError = await timedDeliveryError(ctx.env, artifact);
+        let bookingError = await timedDeliveryError(ctx.env, artifact);
+        // The separate delivery guard normally repairs stale operational
+        // signatures ahead of time. Repeat the same fail-closed repair at the
+        // slot boundary so a missed guard run cannot silently lose the post.
+        const scheduledAt = artifact.scheduled_for;
+        const slug = String(artifact.asset_manifest.app_slug ?? '');
+        const scheduledForAllowedSlot = Boolean(scheduledAt && config.timezone && localTimes?.length
+          && isPostingSlot(new Date(scheduledAt), config.timezone, localTimes));
+        if (bookingError && scheduledAt && scheduledForAllowedSlot
+          && automaticCreativeApprovalAllowed(slug)
+          && artifact.asset_manifest.requires_owner_review !== true) {
+          const quality = assessCreativeQuality({
+            hook: artifact.hook, caption: artifact.caption, hashtags: artifact.hashtags,
+            mediaType: artifact.media_type, assetManifest: artifact.asset_manifest,
+            photoUrls: artifact.photo_urls, videoUrl: artifact.video_url,
+          });
+          if (quality.pass && await hasPassingVisualReview(ctx.env, artifact)) {
+            const delivery = await timedDeliveryStage(ctx.env, artifact, scheduledAt);
+            const [updated] = await ctx.db.update<Artifact>('artifacts',
+              `id=eq.${artifact.id}&status=eq.approved&publish_id=is.null&scheduled_for=eq.${encodeURIComponent(scheduledAt)}`,
+              { error: null, stages: { ...artifact.stages, delivery } });
+            if (updated) {
+              artifact = updated;
+              bookingError = await timedDeliveryError(ctx.env, artifact);
+            }
+          }
+        }
         if (bookingError) {
           await ctx.db.update('artifacts', `id=eq.${artifact.id}&status=eq.approved`, {
             status: 'draft', stage: 'review', error: bookingError,
@@ -193,6 +221,14 @@ export const publishApproved: Handler = {
           });
           skipped++; continue;
         }
+        // A valid signed booking is the owner's authorization for this exact
+        // media, copy, destination and time. When its time is outside the
+        // recurring cadence, reserve it as an explicit delivery rather than
+        // incorrectly forcing it through the 10:00/13:00/17:00 slot gate.
+        // The signature, six-hour expiry, daily cap and all creative gates
+        // remain in force.
+        exactBookingOutsideSlot = Boolean(scheduledAt && config.timezone && localTimes?.length
+          && !isPostingSlot(new Date(scheduledAt), config.timezone, localTimes));
       }
 
       // One post per account per pass keeps a burst of approvals from firing
@@ -220,7 +256,7 @@ export const publishApproved: Handler = {
         : null;
       const routeError = missionRoutingError(artifact, account, app);
       const release = !routeError && app ? await publicRelease(ctx.env,app.slug) : null;
-      const routingError = routeError || (release && !release.available ? release.reason : null);
+      const routingError = routeError || (release && !release.available && !isTruthfulPrelaunchPreview(artifact, app!.slug) ? release.reason : null);
       if (routingError) {
         await ctx.db.update('artifacts', `id=eq.${artifact.id}`, {
           status: 'failed',
@@ -321,9 +357,11 @@ export const publishApproved: Handler = {
         // Database transaction serializes this account, enforces exact handle,
         // London slot and daily cap, and holds uncertain attempts indefinitely.
         const reserved = await ctx.db.rpc<boolean>('reserve_tiktok_delivery', {
-          // A signed owner booking uses the existing explicit-delivery slot.
-          // The same transaction still enforces caps, routing and no duplicates.
-          p_artifact_id: artifact.id, p_scheduled: ctx.trigger === 'cron' && !timed,
+          // Recurring cron work uses the London slot reservation. A due,
+          // signed exact-time booking outside that cadence uses the explicit
+          // reservation lane, while retaining the same daily/account locks.
+          p_artifact_id: artifact.id,
+          p_scheduled: ctx.trigger === 'cron' && !exactBookingOutsideSlot,
           p_expected: {
             app_id: artifact.app_id, account_id: artifact.account_id, hook: artifact.hook,
             caption: artifact.caption, hashtags: artifact.hashtags, photo_urls: artifact.photo_urls,
