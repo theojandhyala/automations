@@ -118,7 +118,7 @@ describe('native creative quality gate', () => {
     expect(result.blockers.join(' ')).toMatch(/human observation/);
   });
 
-  it('rejects long captions and verbose Deadset short-post text', () => {
+  it('keeps long captions as a warning while retaining the Deadset short-post text limit', () => {
     const result = assessCreativeQuality({
       hook: 'Same lift. What did you lift last time?',
       caption: 'Deadset keeps every single training detail together so your next gym session becomes much easier to remember.',
@@ -138,7 +138,6 @@ describe('native creative quality gate', () => {
     });
     expect(result.pass).toBe(false);
     expect(result.blockers).toEqual(expect.arrayContaining([
-      'Caption must be one native sentence of at most 12 words.',
       'Deadset short-post setup must fit in seven words.',
       'Deadset short-post payoff must fit in four words.',
     ]));

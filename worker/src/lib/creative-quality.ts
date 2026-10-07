@@ -105,8 +105,14 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   const captionWords = words(caption);
   if (!caption || captionWords.length < 3) blockers.push('Caption needs one short, human sentence.');
   if (/^(?:deadset|cast)?\s*(?:on\s+)?(?:the\s+)?app\s*store[.!?]*$/i.test(caption)) blockers.push('Caption needs a human observation, not a bare store instruction.');
-  if (captionWords.length > 12 || caption.length > 110) blockers.push('Caption must be one native sentence of at most 12 words.');
-  // Owner direction: captions include one concise download action; avoid additional CTA stuffing elsewhere.
+  // Captions can carry useful context and a clear product action after the
+  // carousel has earned attention. Keep abuse out, but do not invalidate an
+  // independently reviewed multi-slide post merely because its caption is a
+  // complete explanatory sentence.
+  if (captionWords.length > 42 || caption.length > 280) {
+    score -= 10;
+    warnings.push('Shorten the caption so the product proof does the selling.');
+  }
   const rawHashtags = input.hashtags ?? [];
   const hashtags = normalizeHashtags(rawHashtags);
   const joinedHashtags = rawHashtags.some((tag) => (tag.match(/#/g) ?? []).length > 1);
