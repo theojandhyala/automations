@@ -151,8 +151,8 @@ export class OperationsDb {
     const reserve=this.database.prepare(`INSERT INTO tiktok_delivery_slots(artifact_id,account_id,local_day,slot,reserved_at)
       SELECT a.id,c.id,?,?,? FROM artifacts a JOIN tiktok_accounts c ON c.id=a.account_id JOIN apps p ON p.id=a.app_id
       WHERE a.id=? AND a.status='approved' AND a.publish_id IS NULL AND (a.scheduled_for IS NULL OR a.scheduled_for<=?)
-      AND c.status='connected' AND c.app_id=a.app_id AND p.promotion_enabled=1 AND p.slug IN ('deadset','cast')
-      AND p.slug=json_extract(a.asset_manifest,'$.app_slug') AND lower(ltrim(c.handle,'@'))=CASE p.slug WHEN 'deadset' THEN 'deadset.app' ELSE 'cast.fishing.app' END
+      AND c.status='connected' AND c.app_id=a.app_id AND p.promotion_enabled=1 AND p.slug IN ('deadset','cast','lifescore','reclaim')
+      AND p.slug=json_extract(a.asset_manifest,'$.app_slug') AND lower(ltrim(c.handle,'@'))=CASE p.slug WHEN 'deadset' THEN 'deadset.app' WHEN 'cast' THEN 'cast.fishing.app' WHEN 'lifescore' THEN 'lifescore.app' WHEN 'reclaim' THEN 'reclaim.addiction.app' ELSE '' END
       AND NOT EXISTS(SELECT 1 FROM artifacts WHERE account_id=c.id AND status='publishing')
       AND (SELECT COUNT(*) FROM (SELECT artifact_id AS id FROM tiktok_delivery_slots WHERE account_id=c.id AND local_day=? UNION SELECT id FROM artifacts WHERE account_id=c.id AND status='published' AND published_at>=?))<min(c.daily_post_limit,5)
       AND ${matches} ON CONFLICT DO NOTHING RETURNING artifact_id`).bind(day,slot,now,String(args.p_artifact_id),now,day,new Date(start).toISOString(),...expected.map(([k,v])=>encode(v,schema[k]!)));

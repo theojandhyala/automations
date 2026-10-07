@@ -1,3 +1,4 @@
+import { newBrandReviewPrompt } from './managed-brands';
 import { castPromotionEvidenceBlocker } from './cast-promotion';
 import { DEADSET_LONGFORM, supportedCarousel } from './deadset-longform';
 import { z } from 'zod';
@@ -29,6 +30,7 @@ function proofAsset(artifact: Artifact): { id: string } | null {
   return (artifact.photo_urls.length === 2 || artifact.asset_manifest.format === DEADSET_LONGFORM || artifact.asset_manifest.app_slug === 'cast' && artifact.photo_urls.length === 6) && source?.id && source.source_kind === 'owner_upload' && source.composition === 'app_screen' ? { id: source.id } : null;
 }
 export function visualReviewVersion(artifact: Artifact): string {
+  if(['lifescore','reclaim'].includes(String(artifact.asset_manifest.app_slug))) return CREATIVE_DIRECTION_VERSION+'-brand-critic-v2';
   return CREATIVE_DIRECTION_VERSION + (artifact.asset_manifest.app_slug === 'deadset' ? '-brand-presence-v1' : '') + (artifact.asset_manifest.format === DEADSET_LONGFORM ? '-long-rules-v2' : artifact.asset_manifest.app_slug === 'cast' && artifact.photo_urls.length === 6 ? '-cast-branded-proof-v2' : proofAsset(artifact) ? '-source-compare-v1' : '');
 }
 export function visualVerdictPasses(value: VisualVerdict): boolean {
@@ -126,6 +128,7 @@ export async function classifyProofComposition(env: Env, url: string): Promise<'
 }
 
 export function finalImageReviewPrompt(artifact: Artifact, index: number): string {
+  const specific = newBrandReviewPrompt(artifact,index); if(specific) return specific;
   const playbook = getCreativePlaybook(String(artifact.asset_manifest.app_slug));
   const feature = playbook?.features[String(artifact.asset_manifest.feature)];
   const castEditorial = artifact.asset_manifest.app_slug === 'cast' && artifact.photo_urls.length === 6;

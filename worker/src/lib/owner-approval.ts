@@ -1,6 +1,7 @@
 import type { Artifact } from '../types';
-// September 19: owner revoked autonomous release; show the exact post before posting.
-export function automaticCreativeApprovalAllowed(_appSlug: string): boolean { return false; }
+// Owner authorised cloud operation for these exact four missions on October 6.
+// Independent signed visual review and public-release gates remain required.
+export function automaticCreativeApprovalAllowed(appSlug: string): boolean { return ['deadset','cast','lifescore','reclaim'].includes(appSlug); }
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)

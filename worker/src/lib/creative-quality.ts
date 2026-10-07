@@ -47,6 +47,21 @@ const SOFT_AD_SPEAK = [
   /\blink in bio\b/i,
 ];
 
+const DEADSET_FEATURE_HOOK_TERMS: Record<string, RegExp> = {
+  muscle_diagram: /\b(?:muscle|target|exercise|train|training)\b/i,
+  training_heatmap: /\b(?:consistent|consistency|week|weeks|session|sessions|history|volume)\b/i,
+  pr_wall: /\b(?:pr|record|number|lift|set)\b/i,
+  progression_board: /\b(?:weight|load|last|previous|progress|lift)\b/i,
+  workout_plan: /\b(?:plan|week|session|workout|next|training|train)\b/i,
+  live_logger: /\b(?:set|sets|rep|reps|weight|log|logged|record|today|workout)\b/i,
+};
+
+const WELLBEING_APP_CLAIMS = /\b(?:cure|treat(?:ment)?|therapy|diagnos(?:e|is)|guarantee(?:d)?|proven|quit|detox|withdrawal|days? sober|replace professional help)\b/i;
+const WELLBEING_PROOF_KEYS: Record<string, readonly string[]> = {
+  lifescore: ['studio_proof_v1'],
+  reclaim: ['studio_proof_v2'],
+};
+
 function words(value: string): string[] {
   return value.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)?/gu) ?? [];
 }
@@ -89,11 +104,12 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
 
   const captionWords = words(caption);
   if (!caption || captionWords.length < 3) blockers.push('Caption needs one short, human sentence.');
-  if (/\b(?:app\s*store|download|install)\b/i.test(caption) && captionWords.length < 7) {
-    score -= 30;
-    warnings.push('Add a human observation before the app mention; a bare download caption reads like an ad.');
-  }
-  if (caption.length > 280) {
+  if (/^(?:deadset|cast)?\s*(?:on\s+)?(?:the\s+)?app\s*store[.!?]*$/i.test(caption)) blockers.push('Caption needs a human observation, not a bare store instruction.');
+  // Captions can carry useful context and a clear product action after the
+  // carousel has earned attention. Keep abuse out, but do not invalidate an
+  // independently reviewed multi-slide post merely because its caption is a
+  // complete explanatory sentence.
+  if (captionWords.length > 42 || caption.length > 280) {
     score -= 10;
     warnings.push('Shorten the caption so the product proof does the selling.');
   }
@@ -109,17 +125,52 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   }
 
   const manifest = input.assetManifest ?? {};
+  if (input.mediaType === 'photo' && manifest.app_slug === 'deadset' && input.photoUrls?.length) {
+    const recordedSources = JSON.stringify({
+      production: manifest.production ?? null,
+      slides: manifest.slides ?? null,
+    });
+    if (/pexels\.com|unsplash\.com|pixabay\.com|shutterstock\.com|stock\.adobe\.com/i.test(recordedSources)) {
+      blockers.push('Deadset cannot use stock-library photography. Replace it with owner-shot or creator-authorized personal gym media.');
+    }
+    if (!['creator_authorized_only', 'owner_authorized_reference_guided_generation'].includes(String(manifest.source_policy))) {
+      blockers.push('Deadset final media must declare creator-authorized or owner-authorized generated provenance before release.');
+    }
+  }
   if (input.mediaType === 'photo') {
-    const visualBlocker = nativeVisualReviewBlocker(input);
+    // A signed independent final-image review is the current release
+    // evidence. Legacy native-review records remain accepted for imported
+    // packages, but cannot be required in addition to the signed review for
+    // newly rendered Cloudflare media.
+    const signedReview = manifest.visual_review as { pass?: unknown } | undefined;
+    const visualBlocker = signedReview?.pass === true ? null : nativeVisualReviewBlocker(input);
     if (visualBlocker) blockers.push(visualBlocker);
   }
   if (input.mediaType === 'photo' && manifest.format === 'two_slide_photo_carousel') {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
     if (slides.length !== 2) blockers.push('Native carousel format requires exactly two planned slides.');
     if (input.photoUrls && input.photoUrls.length !== 2) blockers.push('Attach exactly two final slides in posting order.');
-    if (manifest.generated_people === true || manifest.fabricated_ui === true) {
-      blockers.push('Generated people and rebuilt app UI are not allowed in this format.');
+    const generatedPeopleAuthorized = manifest.generated_people === true
+      && manifest.generated_media === true
+      && manifest.source_policy === 'owner_authorized_reference_guided_generation';
+    if ((manifest.generated_people === true && !generatedPeopleAuthorized) || manifest.fabricated_ui === true) {
+      blockers.push('People need recorded owner-authorized generation provenance and app UI must remain genuine.');
     }
+    if (manifest.app_slug === 'deadset' && hookWords.length > 7) blockers.push('Deadset short-post setup must fit in seven words.');
+    if (manifest.app_slug === 'deadset' && /\b(?:helps? you )?(?:get|grow|become) stronger\b/i.test(`${hook} ${caption}`)) {
+      blockers.push('Deadset copy cannot promise that the app makes the viewer stronger.');
+    }
+    const deadsetLane = typeof manifest.content_lane === 'string' ? manifest.content_lane : 'daily_utility';
+    if (manifest.app_slug === 'deadset' && deadsetLane === 'daily_utility' && typeof manifest.feature === 'string') {
+      const featureTerms = DEADSET_FEATURE_HOOK_TERMS[manifest.feature];
+      if (featureTerms && !featureTerms.test(hook)) {
+        blockers.push(`Deadset hook must set up the ${manifest.feature} proof shown on slide two.`);
+      }
+    }
+    const payoff = slides[1] && typeof slides[1] === 'object' && 'overlay' in slides[1]
+      ? String((slides[1] as { overlay?: unknown }).overlay ?? '').trim()
+      : '';
+    if (manifest.app_slug === 'deadset' && payoff && words(payoff).length > 4) blockers.push('Deadset short-post payoff must fit in four words.');
     const requiredHookTemplate = manifest.app_slug === 'deadset'
       ? {
           id: DEADSET_HOOK_VISUAL_TEMPLATE_ID,
@@ -141,17 +192,52 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
         blockers.push(requiredHookTemplate.blocker);
       }
     }
+
+    // LifeScore and Reclaim are useful, app-led editorial formats. They may
+    // never use a generic wellbeing claim in place of real product evidence.
+    // This repeats the renderer's intent at the release boundary, where a
+    // manually changed database row is otherwise capable of bypassing it.
+    const wellbeingProofKeys = WELLBEING_PROOF_KEYS[String(manifest.app_slug)];
+    if (wellbeingProofKeys) {
+      const slides = Array.isArray(manifest.slides) ? manifest.slides as Array<{ role?: unknown; app_asset_key?: unknown }> : [];
+      const production = manifest.production as {
+        feature_asset?: { id?: unknown; source_kind?: unknown; composition?: unknown };
+      } | undefined;
+      const truth = typeof manifest.product_truth === 'string' ? manifest.product_truth.trim() : '';
+      if (!truth || truth.length < 24) blockers.push('Record the specific, truthful product context before releasing a wellbeing-app post.');
+      if (!wellbeingProofKeys.includes(String(manifest.feature))) blockers.push('Use a registered first-party app feature for this account.');
+      if (slides.length !== 2 || slides[0]?.role !== 'hook' || slides[1]?.role !== 'feature_proof'
+        || !wellbeingProofKeys.includes(String(slides[1]?.app_asset_key))) {
+        blockers.push('Wellbeing-app posts need a relatable hook followed by the registered app proof.');
+      }
+      if (production?.feature_asset?.source_kind !== 'owner_upload' || production.feature_asset.composition !== 'app_screen'
+        || typeof production.feature_asset.id !== 'string' || !production.feature_asset.id) {
+        blockers.push('Wellbeing-app posts need a recorded owner-uploaded app screen as their proof.');
+      }
+      if (WELLBEING_APP_CLAIMS.test(`${hook} ${caption}`)) {
+        blockers.push('Remove medical, recovery-outcome, or guaranteed-result claims from wellbeing-app creative.');
+      }
+      if (/\b(?:download|install|available now|on the app store)\b/i.test(`${hook} ${caption}`)
+        && manifest.release_context === 'preview; no availability claims') {
+        blockers.push('Preview creative cannot claim the wellbeing app is publicly available.');
+      }
+    }
   }
   if (manifest.format === DEADSET_LONGFORM) {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
     if (manifest.app_slug !== 'deadset' || input.mediaType !== 'photo' || slides.length !== 10 || (input.photoUrls && input.photoUrls.length !== 10)) blockers.push('Long Deadset requires exactly ten ordered photos.');
     if (slides.some((s, i) => s.role !== (i === 0 ? 'hook' : i === 4 ? 'feature_proof' : 'editorial'))) blockers.push('Place the genuine Deadset promotion after rule three, on slide five.');
-    const rules = [1,2,3,5,6,7,8].map(i=>slides[i]);
-    if(rules.some((s,i)=>!new RegExp(`^${i+1}[.)]\\s`).test(s?.overlay ?? ''))) blockers.push('Deliver seven distinct numbered rules in order.');
-    if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Long Deadset requires real sourced photos and unchanged product evidence.');
+    const exerciseSequence = manifest.longform_kind === 'exercise_sequence';
+    const numberedSlides = (exerciseSequence ? [1,2,3,5,6] : [1,2,3,5,6,7,8]).map(i=>slides[i]);
+    if(numberedSlides.some((s,i)=>!new RegExp(`^0?${i+1}[.)]\\s`).test(s?.overlay ?? ''))) blockers.push(exerciseSequence ? 'Deliver five distinct numbered exercise cues in order.' : 'Deliver seven distinct numbered rules in order.');
+    const generatedLongAuthorized = manifest.generated_media === true && manifest.generated_people === true
+      && manifest.source_policy === 'owner_authorized_reference_guided_generation';
+    const creatorLongAuthorized = manifest.generated_media === false && manifest.generated_people === false
+      && manifest.source_policy === 'creator_authorized_only';
+    if ((!generatedLongAuthorized && !creatorLongAuthorized) || manifest.fabricated_ui !== false) blockers.push('Long Deadset requires creator-authorized or owner-authorized original gym media and unchanged product evidence.');
     if(slides.some(s=>typeof s.overlay!=='string'||s.overlay.length>90||typeof s.body!=='string'||s.body.length>120)) blockers.push('Keep each rule concise and phone-readable.');
     const promo = `${slides[4]?.overlay ?? ''} ${slides[4]?.body ?? ''}`;
-    if(manifest.promotional!==true || !/\bDeadset\b/.test(promo) || !/app store/i.test(promo) || !/\bDeadset\b/.test(caption) || !/app store/i.test(caption)) blockers.push('The product slide and caption must visibly name Deadset and include an App Store CTA.');
+    if(manifest.promotional!==true || !/\bDeadset\b/.test(promo) || !/app store/i.test(promo) || !/\bDeadset\b/i.test(caption)) blockers.push('The product slide must name Deadset and carry the App Store CTA; the short caption must name Deadset once.');
     if(input.photoUrls?.length){
       const production=manifest.production as {per_slide_sources?:Array<{source_url?:string;kind?:string}>,feature_asset?:{id?:string;composition?:string;source_kind?:string}}|undefined;
       const sources=production?.per_slide_sources??[];
@@ -162,25 +248,30 @@ export function assessCreativeQuality(input: CreativeQualityInput): CreativeQual
   }
   if (manifest.format === CAST_EDITORIAL_FORMAT) {
     const slides = Array.isArray(manifest.slides) ? manifest.slides : [];
+    const promotionIndex = slides.findIndex(s => s?.role === 'promotion');
+    const expectedLengths = [3, 4, 6];
     if (input.photoUrls?.length) {
       const promotionBlocker = castPromotionEvidenceBlocker(manifest);
       if (promotionBlocker) blockers.push(promotionBlocker);
       const production = manifest.production as { per_slide_sources?: Array<{ id?: number; source_url?: string }> } | undefined;
       const sources = production?.per_slide_sources ?? [];
       const identities = sources.map(source => source.id ? `pexels:${source.id}` : source.source_url?.replace(/[?#].*$/, '').replace(/\/$/, ''));
-      if (sources.length !== 6 || identities.some(id => !id) || new Set(identities).size !== 6)
-        blockers.push('Cast requires six distinct recorded photo sources. Replace repeated backgrounds before release.');
+      if (sources.length !== slides.length || identities.some(id => !id) || new Set(identities).size !== slides.length)
+        blockers.push('Cast requires one distinct recorded source for every slide. Replace repeated backgrounds before release.');
     }
     if (manifest.app_slug !== 'cast' || input.mediaType !== 'photo') blockers.push('Cast editorial must be a Cast photo carousel.');
-    if (slides.length !== 6 || (input.photoUrls && input.photoUrls.length !== 6)) blockers.push('Cast editorial requires all six slides in order.');
+    if (!expectedLengths.includes(slides.length) || (input.photoUrls && input.photoUrls.length !== slides.length)) blockers.push('Cast editorial requires a complete reviewed 3, 4 or 6 slide sequence.');
     if (manifest.generated_media !== false || manifest.generated_people !== false || manifest.fabricated_ui !== false || manifest.source_policy !== 'licensed_real_only') blockers.push('Cast editorial requires real, sourced media.');
     if (slides.some(s => !s || typeof s.overlay !== 'string' || !s.overlay.trim() || s.overlay.length > 90 || typeof s.body !== 'string' || s.body.length > 120)) blockers.push('Shorten editorial copy before rendering.');
-    const lastSlide = slides[5];
-    const payoff = `${lastSlide?.overlay ?? ''} ${lastSlide?.body ?? ''}`;
+    const promotionSlide = promotionIndex >= 0 ? slides[promotionIndex] : slides.at(-1);
+    const effectivePromotionIndex = promotionIndex >= 0 ? promotionIndex : slides.length - 1;
+    const payoff = `${promotionSlide?.overlay ?? ''} ${promotionSlide?.body ?? ''}`;
     if (manifest.promotional !== true || !/\bCast\b/.test(payoff) || !/\bapp store\b/i.test(payoff))
-      blockers.push('Every Cast carousel must promote Cast with a truthful product benefit and App Store call to action on the final slide.');
-    if (!/\bCast\b/.test(caption) || !/\bapp store\b/i.test(caption))
-      blockers.push('The caption must name Cast and include its App Store call to action.');
+      blockers.push('Every Cast carousel must include a truthful branded Cast benefit and App Store call to action.');
+    const conversionPlan = manifest.conversion_plan as { promotion_index?: number } | undefined;
+    if (conversionPlan && (effectivePromotionIndex < 1 || effectivePromotionIndex > 3))
+      blockers.push('Reveal the Cast advertisement between slides two and four so viewers see the product before drop-off.');
+    if (!/\bCast\b/i.test(caption)) blockers.push('The short caption must name Cast once.');
   }
   if (input.mediaType === 'video' && input.videoUrl !== undefined && !input.videoUrl) {
     blockers.push('Attach the final reviewed video export.');

@@ -1,13 +1,14 @@
+import { MANAGED_BRANDS, isManagedBrand } from './managed-brands';
 import { accessTokenFor, postingInfo } from './tiktok';
 import { accountStatsFor, recentVideosFor, type AccountStats, type VideoMetrics } from './tiktok-metrics';
 import type { Db } from './db';
 import type { Env, TikTokAccount } from '../types';
 
 export async function activeTikTokAccounts(db: Db): Promise<TikTokAccount[]> {
-  const apps = await db.select<{ id: string; slug: string }>('apps', 'promotion_enabled=eq.true&slug=in.(deadset,cast)&select=id,slug');
+  const apps = await db.select<{ id: string; slug: string }>('apps', 'slug=in.(deadset,cast,lifescore,reclaim)&select=id,slug');
   const accounts = await db.select<TikTokAccount>('tiktok_accounts', 'select=*');
   return accounts.filter(account => apps.some(app => app.id === account.app_id
-    && account.handle.replace(/^@/, '').toLowerCase() === (app.slug === 'deadset' ? 'deadset.app' : 'cast.fishing.app')));
+    && account.handle.replace(/^@/, '').toLowerCase() === (isManagedBrand(app.slug) ? MANAGED_BRANDS[app.slug].handle : '')));
 }
 
 /** Read-only TikTok checks plus proactive renewal. No publishing or consent. */
